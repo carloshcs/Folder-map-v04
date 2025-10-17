@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as d3 from 'd3';
 
-import type { FolderItem } from '../right-sidebar/data';
-import { buildHierarchyTree, type HierarchyNode } from './utils';
+import type { FolderItem } from '../../right-sidebar/data';
+import { buildHierarchyTree, type HierarchyNode } from '../utils';
 
 interface SunBurstMapProps {
   folders: FolderItem[];

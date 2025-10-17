@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 
 import type { FolderItem } from '../right-sidebar/data';
-import { buildHierarchyTree } from './utils';
+import { buildHierarchyTree } from '../utils';
 
 interface ActivityEntry {
   id: string;

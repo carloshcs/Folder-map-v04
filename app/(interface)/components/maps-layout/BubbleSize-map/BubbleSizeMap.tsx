@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
-import type { FolderItem } from '../right-sidebar/data';
+import type { FolderItem } from '../../right-sidebar/data';
 import {
   buildBubbleNodes,
   buildBubbleTree,
