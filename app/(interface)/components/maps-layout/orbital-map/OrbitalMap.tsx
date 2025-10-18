@@ -640,10 +640,13 @@ function renderNodes(
   return node;
 }
 
+const MIN_WIDTH = 800;
+const MIN_HEIGHT = 600;
+
 export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [size, setSize] = useState({ width: 900, height: 700 });
+  const [size, setSize] = useState({ width: 1100, height: 900 });
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const gRef = useRef<D3GroupSelection | null>(null);
   const linkLayerRef = useRef<D3GroupSelection | null>(null);
@@ -655,9 +658,15 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
     const observer = new ResizeObserver(entries => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
-        setSize({
-          width: Math.max(800, width),
-          height: Math.max(600, height),
+        const nextWidth = Math.max(MIN_WIDTH, width);
+        const nextHeight = Math.max(MIN_HEIGHT, height);
+
+        setSize(prev => {
+          if (prev.width === nextWidth && prev.height === nextHeight) {
+            return prev;
+          }
+
+          return { width: nextWidth, height: nextHeight };
         });
       }
     });
@@ -776,8 +785,17 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
   }, [folders, size, expanded]);
   
   return (
-    <div ref={containerRef} className="relative z-10 w-full h-full">
-      <svg ref={svgRef}></svg>
+    <div
+      ref={containerRef}
+      className="relative"
+      style={{
+        width: `${size.width}px`,
+        height: `${size.height}px`,
+        minWidth: `${MIN_WIDTH}px`,
+        minHeight: `${MIN_HEIGHT}px`,
+      }}
+    >
+      <svg ref={svgRef} className="w-full h-full" />
     </div>
   );
 };
