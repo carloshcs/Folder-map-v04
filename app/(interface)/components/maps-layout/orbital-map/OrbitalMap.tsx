@@ -746,22 +746,34 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
     
     node = renderNodes(svg, nodeLayer, visibleNodes).style('pointer-events', 'all');
     
-    node.call(
-      d3
-        .drag<SVGGElement, any>()
-        .on('start', (event: any, d: any) => {
-          physics.dragHandlers.onDragStart(d);
-        })
-        .on('drag', (event: any, d: any) => {
-          const svgEl = svgRef.current!;
-          const t = d3.zoomTransform(svgEl);
-          const [px, py] = t.invert(d3.pointer(event, svgEl));
-          physics.dragHandlers.onDrag(d, px, py);
-        })
-        .on('end', (event: any, d: any) => {
-          physics.dragHandlers.onDragEnd(d);
-        }) as any
-    );
+    const dragBehaviour = d3
+      .drag<SVGGElement, any>()
+      .filter((event: any) => {
+        const sourceEvent = event?.sourceEvent ?? event;
+        const type = sourceEvent?.type;
+
+        if (type === 'mousedown' || type === 'pointerdown') {
+          return sourceEvent.button === 2;
+        }
+
+        // Allow other input types (e.g. wheel) to pass through default drag filtering
+        return type !== 'mousedown';
+      })
+      .on('start', (_event: any, d: any) => {
+        physics.dragHandlers.onDragStart(d);
+      })
+      .on('drag', (event: any, d: any) => {
+        const svgEl = svgRef.current!;
+        const t = d3.zoomTransform(svgEl);
+        const [px, py] = t.invert(d3.pointer(event, svgEl));
+        physics.dragHandlers.onDrag(d, px, py);
+      })
+      .on('end', (_event: any, d: any) => {
+        physics.dragHandlers.onDragEnd(d);
+      });
+
+    node.call(dragBehaviour as any);
+    node.on('contextmenu', event => event.preventDefault());
     
     node.on('dblclick', (event: any, d: any) => {
       event.stopPropagation();
