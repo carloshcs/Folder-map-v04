@@ -414,6 +414,8 @@ export default function App() {
   }, [handleWheel]);
 
   // Handle drag functionality - only right-click to avoid conflicts with text box resizing
+  const isRightButton = (buttons: number) => (buttons & 2) === 2;
+
   const handleMouseDown = (e: React.MouseEvent) => {
     if (isTextMode && e.button === 0) {
       // Create text element in text mode
@@ -443,11 +445,17 @@ export default function App() {
     } else if (e.button === 0) {
       // Left click just deselects text and comments, doesn't drag map
       clearSelections();
+      setIsDragging(false);
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (isDragging) {
+      if (!isRightButton(e.buttons)) {
+        setIsDragging(false);
+        return;
+      }
+
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
 
@@ -468,6 +476,11 @@ export default function App() {
     const handleGlobalMouseUp = () => setIsDragging(false);
     const handleGlobalMouseMove = (e: MouseEvent) => {
       if (isDragging) {
+        if (!isRightButton(e.buttons)) {
+          setIsDragging(false);
+          return;
+        }
+
         const deltaX = e.clientX - dragStart.x;
         const deltaY = e.clientY - dragStart.y;
 
@@ -653,62 +666,65 @@ export default function App() {
             <div className="relative w-full h-full">
               {gridOverlay}
 
-              {selectedLayout === 'bubble-size' ? (
+              {selectedLayout === 'bubble-size' && (
                 <BubbleSizeMap folders={folderData} colorPaletteId={selectedPaletteId} />
-              ) : selectedLayout === 'orbital' ? (
-                <OrbitalMap folders={folderData} colorPaletteId={selectedPaletteId} />
-              ) : selectedLayout === 'activity-map' ? (
-                <ActivityMap folders={folderData} />
-              ) : selectedLayout === 'hierarchy-tree' ? (
-                <HierarchyTreeMap folders={folderData} />
-              ) : selectedLayout === 'radial-tree' ? (
-                <RadialTreeMap folders={folderData} />
-              ) : selectedLayout === 'sun-burst' ? (
-                <SunBurstMap folders={folderData} />
-              ) : (
-                <>
-                  {/* Text Elements */}
-                  {textElements.map(textElement => (
-                    <TextBox
-                      key={textElement.id}
-                      id={textElement.id}
-                      x={textElement.x}
-                      y={textElement.y}
-                      text={textElement.text}
-                      format={textElement.format}
-                      isSelected={selectedTextId === textElement.id}
-                      zoom={zoom}
-                      onTextChange={handleTextChange}
-                      onPositionChange={handleTextPositionChange}
-                      onFormatChange={handleTextFormatChange}
-                      onSelect={handleTextSelect}
-                      onDragStart={handleTextDragStart}
-                      onDragEnd={handleTextDragEnd}
-                    />
-                  ))}
-
-                  {/* Comment Elements */}
-                  {commentElements.map(commentElement => (
-                    <CommentBox
-                      key={commentElement.id}
-                      id={commentElement.id}
-                      x={commentElement.x}
-                      y={commentElement.y}
-                      comments={commentElement.comments}
-                      isSelected={selectedCommentId === commentElement.id}
-                      isExpanded={commentElement.isExpanded}
-                      zoom={zoom}
-                      onPositionChange={handleCommentPositionChange}
-                      onSelect={handleCommentSelect}
-                      onToggleExpand={handleCommentToggleExpand}
-                      onAddComment={handleCommentAdd}
-                      onDelete={handleCommentDelete}
-                      onDragStart={handleCommentDragStart}
-                      onDragEnd={handleCommentDragEnd}
-                    />
-                  ))}
-                </>
               )}
+              {selectedLayout === 'orbital' && (
+                <OrbitalMap folders={folderData} colorPaletteId={selectedPaletteId} />
+              )}
+              {selectedLayout === 'activity-map' && (
+                <ActivityMap folders={folderData} />
+              )}
+              {selectedLayout === 'hierarchy-tree' && (
+                <HierarchyTreeMap folders={folderData} />
+              )}
+              {selectedLayout === 'radial-tree' && (
+                <RadialTreeMap folders={folderData} />
+              )}
+              {selectedLayout === 'sun-burst' && (
+                <SunBurstMap folders={folderData} />
+              )}
+
+              {/* Text Elements */}
+              {textElements.map(textElement => (
+                <TextBox
+                  key={textElement.id}
+                  id={textElement.id}
+                  x={textElement.x}
+                  y={textElement.y}
+                  text={textElement.text}
+                  format={textElement.format}
+                  isSelected={selectedTextId === textElement.id}
+                  zoom={zoom}
+                  onTextChange={handleTextChange}
+                  onPositionChange={handleTextPositionChange}
+                  onFormatChange={handleTextFormatChange}
+                  onSelect={handleTextSelect}
+                  onDragStart={handleTextDragStart}
+                  onDragEnd={handleTextDragEnd}
+                />
+              ))}
+
+              {/* Comment Elements */}
+              {commentElements.map(commentElement => (
+                <CommentBox
+                  key={commentElement.id}
+                  id={commentElement.id}
+                  x={commentElement.x}
+                  y={commentElement.y}
+                  comments={commentElement.comments}
+                  isSelected={selectedCommentId === commentElement.id}
+                  isExpanded={commentElement.isExpanded}
+                  zoom={zoom}
+                  onPositionChange={handleCommentPositionChange}
+                  onSelect={handleCommentSelect}
+                  onToggleExpand={handleCommentToggleExpand}
+                  onAddComment={handleCommentAdd}
+                  onDelete={handleCommentDelete}
+                  onDragStart={handleCommentDragStart}
+                  onDragEnd={handleCommentDragEnd}
+                />
+              ))}
             </div>
           </div>
         </div>
