@@ -414,7 +414,7 @@ export default function App() {
   }, [handleWheel]);
 
   // Handle drag functionality - only right-click to avoid conflicts with text box resizing
-  const isRightButton = (buttons: number) => (buttons & 2) === 2;
+  const isRightButton = (buttons: number) => buttons === 2;
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (isTextMode && e.button === 0) {
