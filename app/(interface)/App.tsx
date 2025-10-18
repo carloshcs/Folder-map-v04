@@ -414,6 +414,8 @@ export default function App() {
   }, [handleWheel]);
 
   // Handle drag functionality - only right-click to avoid conflicts with text box resizing
+  const isRightButton = (buttons: number) => (buttons & 2) === 2;
+
   const handleMouseDown = (e: React.MouseEvent) => {
     if (isTextMode && e.button === 0) {
       // Create text element in text mode
@@ -443,11 +445,17 @@ export default function App() {
     } else if (e.button === 0) {
       // Left click just deselects text and comments, doesn't drag map
       clearSelections();
+      setIsDragging(false);
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (isDragging) {
+      if (!isRightButton(e.buttons)) {
+        setIsDragging(false);
+        return;
+      }
+
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
 
@@ -468,6 +476,11 @@ export default function App() {
     const handleGlobalMouseUp = () => setIsDragging(false);
     const handleGlobalMouseMove = (e: MouseEvent) => {
       if (isDragging) {
+        if (!isRightButton(e.buttons)) {
+          setIsDragging(false);
+          return;
+        }
+
         const deltaX = e.clientX - dragStart.x;
         const deltaY = e.clientY - dragStart.y;
 
