@@ -704,11 +704,17 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
     const root = buildHierarchy(folders);
     const { visibleNodes, visibleLinks } = getVisibleNodesAndLinks(root, expanded);
     
+    const maxDimension = Math.max(width, height);
+    const viewPadding = maxDimension * 1.5;
+    const viewWidth = width + viewPadding * 2;
+    const viewHeight = height + viewPadding * 2;
+
     svg
-      .attr('viewBox', [-width / 2, -height / 2, width, height])
+      .attr('viewBox', [-viewWidth / 2, -viewHeight / 2, viewWidth, viewHeight])
       .attr('width', width)
       .attr('height', height)
-      .style('background', 'none');
+      .style('background', 'none')
+      .style('overflow', 'visible');
     
     const linkLayer = linkLayerRef.current!;
     const nodeLayer = nodeLayerRef.current!;
