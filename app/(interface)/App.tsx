@@ -194,11 +194,12 @@ export default function App() {
     if (!mapRef.current) return null;
 
     const rect = mapRef.current.getBoundingClientRect();
-    const x = (clientX - rect.left - SIDEBAR_OFFSET - mapPosition.x) / (zoom / 100);
-    const y = (clientY - rect.top - mapPosition.y) / (zoom / 100);
+    const scale = zoom / 100;
+    const x = (clientX - rect.left - SIDEBAR_OFFSET) / scale - mapPosition.x;
+    const y = (clientY - rect.top) / scale - mapPosition.y;
 
     return { x, y };
-  }, [mapPosition, zoom]);
+  }, [mapPosition.x, mapPosition.y, zoom]);
 
   const createTextElement = useCallback((clientX: number, clientY: number) => {
     const coordinates = toMapCoordinates(clientX, clientY);
@@ -386,15 +387,15 @@ export default function App() {
       }
 
       setMapPosition(previousPosition => {
-        const worldX = (cursorX - previousPosition.x) / (previousZoom / 100);
-        const worldY = (cursorY - previousPosition.y) / (previousZoom / 100);
+        const previousScale = previousZoom / 100;
+        const nextScale = nextZoom / 100;
 
-        const newWorldX = worldX * (nextZoom / 100);
-        const newWorldY = worldY * (nextZoom / 100);
+        const worldUnderCursorX = cursorX / previousScale - previousPosition.x;
+        const worldUnderCursorY = cursorY / previousScale - previousPosition.y;
 
         return {
-          x: cursorX - newWorldX,
-          y: cursorY - newWorldY,
+          x: cursorX / nextScale - worldUnderCursorX,
+          y: cursorY / nextScale - worldUnderCursorY,
         };
       });
 
@@ -437,7 +438,7 @@ export default function App() {
       // Only right mouse button for map dragging
       setIsDragging(true);
       setDragStart({ x: e.clientX, y: e.clientY });
-      setLastDragPosition(mapPosition);
+      setLastDragPosition({ x: mapPosition.x, y: mapPosition.y });
       clearSelections();
       e.preventDefault();
     } else if (e.button === 0) {
@@ -448,8 +449,9 @@ export default function App() {
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (isDragging) {
-      const deltaX = e.clientX - dragStart.x;
-      const deltaY = e.clientY - dragStart.y;
+      const scale = zoom / 100;
+      const deltaX = (e.clientX - dragStart.x) / scale;
+      const deltaY = (e.clientY - dragStart.y) / scale;
 
       const newPosition = {
         x: lastDragPosition.x + deltaX,
@@ -468,8 +470,9 @@ export default function App() {
     const handleGlobalMouseUp = () => setIsDragging(false);
     const handleGlobalMouseMove = (e: MouseEvent) => {
       if (isDragging) {
-        const deltaX = e.clientX - dragStart.x;
-        const deltaY = e.clientY - dragStart.y;
+        const scale = zoom / 100;
+        const deltaX = (e.clientX - dragStart.x) / scale;
+        const deltaY = (e.clientY - dragStart.y) / scale;
 
         const newPosition = {
           x: lastDragPosition.x + deltaX,
@@ -510,6 +513,7 @@ export default function App() {
     lastDragPosition,
     selectedCommentId,
     selectedTextId,
+    zoom,
   ]);
 
   const gridOverlay = useMemo(() => {
@@ -517,44 +521,21 @@ export default function App() {
       return null;
     }
 
-    const baseGridSize = 50;
-    const zoomFactor = zoom / 100;
-    let gridSize = baseGridSize;
-    let gridOpacity = 0.3;
-
-    if (zoomFactor > 4) {
-      gridSize = baseGridSize / 4;
-      gridOpacity = 0.2;
-    } else if (zoomFactor > 2) {
-      gridSize = baseGridSize / 2;
-      gridOpacity = 0.25;
-    } else if (zoomFactor < 0.3) {
-      gridSize = baseGridSize * 4;
-      gridOpacity = 0.4;
-    } else if (zoomFactor < 0.7) {
-      gridSize = baseGridSize * 2;
-      gridOpacity = 0.35;
-    }
+    const scale = zoom / 100;
 
     return (
-      <div
-        className="absolute pointer-events-none -z-10"
-        style={{
-          left: "-50000px",
-          top: "-50000px",
-          width: "100000px",
-          height: "100000px",
-          opacity: gridOpacity,
-          backgroundImage: `
-            linear-gradient(to right, var(--border) ${gridThickness}px, transparent ${gridThickness}px),
-            linear-gradient(to bottom, var(--border) ${gridThickness}px, transparent ${gridThickness}px)
-          `,
-          backgroundSize: `${gridSize}px ${gridSize}px`,
-          backgroundPosition: "0px 0px",
+      <GridOverlay
+        zoom={zoom}
+        camera={{
+          x: mapPosition.x * scale,
+          y: mapPosition.y * scale,
         }}
+        thickness={gridThickness}
+        visible={showGrid}
+        darkMode={isDark}
       />
     );
-  }, [gridThickness, showGrid, zoom]);
+  }, [gridThickness, isDark, mapPosition.x, mapPosition.y, showGrid, zoom]);
 
   const textToolbar = useMemo(() => {
     if (selectedLayout === 'bubble-size' || !selectedTextId || isTextDragging || isCommentDragging) {
@@ -566,10 +547,14 @@ export default function App() {
       return null;
     }
 
+    const scale = zoom / 100;
+    const toolbarX = (selectedElement.x + mapPosition.x) * scale + SIDEBAR_OFFSET;
+    const toolbarY = (selectedElement.y + mapPosition.y) * scale;
+
     return (
       <TextToolbar
-        x={(selectedElement.x * zoom / 100) + mapPosition.x + SIDEBAR_OFFSET}
-        y={(selectedElement.y * zoom / 100) + mapPosition.y}
+        x={toolbarX}
+        y={toolbarY}
         format={selectedElement.format}
         onFormatChange={(format) => handleTextFormatChange(selectedTextId, format)}
         onDelete={() => handleTextDelete(selectedTextId)}
@@ -643,10 +628,11 @@ export default function App() {
         onContextMenu={(e) => e.preventDefault()} // Disable context menu on right-click
       >
         <div className="relative w-full h-full">
+          <div className="absolute inset-0 -z-20 bg-slate-50 dark:bg-slate-900" aria-hidden />
           {gridOverlay}
 
           <div
-            className="absolute inset-0"
+            className="absolute inset-0 z-10"
             style={{
               transform: `translate(${mapPosition.x}px, ${mapPosition.y}px) scale(${zoom / 100})`,
               transformOrigin: "0 0",
