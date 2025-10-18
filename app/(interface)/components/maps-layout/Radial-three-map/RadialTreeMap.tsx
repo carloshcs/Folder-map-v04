@@ -432,13 +432,26 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({ folders }) => {
     };
   }, [isRotating]);
 
+  const containerSize = Math.max(diameter, MIN_SIZE);
+
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full bg-white"
-      style={{ cursor: isRotating ? 'grabbing' : 'default' }}
+      className="relative"
+      style={{
+        width: `${containerSize}px`,
+        height: `${containerSize}px`,
+        minWidth: `${MIN_SIZE}px`,
+        minHeight: `${MIN_SIZE}px`,
+        cursor: isRotating ? 'grabbing' : 'default',
+      }}
     >
-      <svg ref={svgRef} className="absolute inset-0 w-full h-full" role="img" aria-label="Folder Fox - Radial Tree Explorer" />
+      <svg
+        ref={svgRef}
+        className="absolute inset-0 w-full h-full"
+        role="img"
+        aria-label="Folder Fox - Radial Tree Explorer"
+      />
 
       {/* Title */}
       <div className="absolute top-4 left-4 bg-gradient-to-r from-orange-500 to-red-600 text-white px-6 py-3 rounded-lg shadow-lg">
