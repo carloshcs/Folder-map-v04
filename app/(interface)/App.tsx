@@ -643,8 +643,6 @@ export default function App() {
         onContextMenu={(e) => e.preventDefault()} // Disable context menu on right-click
       >
         <div className="relative w-full h-full">
-          {gridOverlay}
-
           <div
             className="absolute inset-0"
             style={{
@@ -653,6 +651,8 @@ export default function App() {
             }}
           >
             <div className="relative w-full h-full">
+              {gridOverlay}
+
               {selectedLayout === 'bubble-size' ? (
                 <BubbleSizeMap folders={folderData} colorPaletteId={selectedPaletteId} />
               ) : selectedLayout === 'orbital' ? (
