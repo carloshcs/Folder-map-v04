@@ -161,15 +161,9 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({ folders }) => {
     const zoom = d3.zoom()
       .scaleExtent([0.3, 3])
       .filter((event: any) => {
-        if (event.type === 'wheel') return true;
-
-        if (event.type === 'mousedown' || event.type === 'pointerdown') {
-          if (event.shiftKey) return false;
-          return event.button === 2;
-        }
-
+        if (event.type === 'mousedown' && event.button === 2) return false;
         if (event.shiftKey) return false;
-        return event.type !== 'mousedown';
+        return true;
       })
       .on('zoom', (event) => {
         const transform = event.transform;
@@ -177,7 +171,6 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({ folders }) => {
       });
 
     svg.call(zoom as any);
-    svg.on('contextmenu', event => event.preventDefault());
     svg.on('dblclick.zoom', null);
 
     // Draw orbital rings for first 3 levels
