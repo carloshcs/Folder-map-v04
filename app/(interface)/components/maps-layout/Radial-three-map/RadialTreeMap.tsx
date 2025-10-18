@@ -146,10 +146,14 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({ folders }) => {
       }
     });
 
+    const viewPadding = diameter * 1.5;
+    const viewExtent = diameter + viewPadding * 2;
+
     const g = svg
       .attr('width', diameter)
       .attr('height', diameter)
-      .attr('viewBox', `${-diameter / 2} ${-diameter / 2} ${diameter} ${diameter}`)
+      .attr('viewBox', `${-viewExtent / 2} ${-viewExtent / 2} ${viewExtent} ${viewExtent}`)
+      .style('overflow', 'visible')
       .append('g')
       .attr('transform', `rotate(${rotation})`);
 
