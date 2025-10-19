@@ -142,6 +142,7 @@ export default function App() {
   const [selectedLayout, setSelectedLayout] = useState<string | null>('orbital');
   const [selectedPaletteId, setSelectedPaletteId] = useState<string>("blue");
   const mapRef = useRef<HTMLDivElement>(null);
+  const isCanvasLayout = selectedLayout !== "activity-map";
 
   // Check for saved theme preference or default to light mode
   useEffect(() => {
@@ -433,6 +434,9 @@ export default function App() {
 
   // Handle scroll wheel zoom with cursor focus
   const handleWheel = useCallback((event: WheelEvent) => {
+    if (!isCanvasLayout) {
+      return;
+    }
     event.preventDefault();
 
     const mapElement = mapRef.current;
@@ -465,18 +469,18 @@ export default function App() {
 
       return nextZoom;
     });
-  }, []);
+  }, [isCanvasLayout]);
 
   useEffect(() => {
     const mapElement = mapRef.current;
-    if (!mapElement) return;
+    if (!mapElement || !isCanvasLayout) return;
 
     mapElement.addEventListener('wheel', handleWheel, { passive: false });
 
     return () => {
       mapElement.removeEventListener('wheel', handleWheel);
     };
-  }, [handleWheel]);
+  }, [handleWheel, isCanvasLayout]);
 
   // Handle drag functionality - only right-click to avoid conflicts with text box resizing
   const isRightButton = (buttons: number) => buttons === 2;
@@ -635,7 +639,13 @@ export default function App() {
   }, [gridThickness, showGrid, zoom]);
 
   const textToolbar = useMemo(() => {
-    if (selectedLayout === 'bubble-size' || !selectedTextId || isTextDragging || isCommentDragging) {
+    if (
+      selectedLayout === 'bubble-size' ||
+      selectedLayout === 'activity-map' ||
+      !selectedTextId ||
+      isTextDragging ||
+      isCommentDragging
+    ) {
       return null;
     }
 
@@ -707,92 +717,104 @@ export default function App() {
       {/* Map Area */}
       <div
         ref={mapRef}
-        className={`fixed inset-0 overflow-hidden ${
-          isTextMode || isBoxMode || isCommentMode ? "cursor-crosshair" :
-          isDragging ? "cursor-grabbing" : "cursor-default"
+        className={`fixed inset-0 ${
+          isCanvasLayout ? "overflow-hidden" : "overflow-y-auto"
+        } ${
+          isCanvasLayout && (isTextMode || isBoxMode || isCommentMode)
+            ? "cursor-crosshair"
+            : isCanvasLayout && isDragging
+              ? "cursor-grabbing"
+              : "cursor-default"
         }`}
         style={{
           paddingLeft: `${SIDEBAR_OFFSET}px`, // Left sidebar width (48px + 16px margin)
           paddingRight: `${SIDEBAR_OFFSET}px`, // Right sidebar width (48px + 16px margin)
         }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onContextMenu={(e) => e.preventDefault()} // Disable context menu on right-click
+        onMouseDown={isCanvasLayout ? handleMouseDown : undefined}
+        onMouseMove={isCanvasLayout ? handleMouseMove : undefined}
+        onMouseUp={isCanvasLayout ? handleMouseUp : undefined}
+        onContextMenu={event => {
+          if (isCanvasLayout) {
+            event.preventDefault();
+          }
+        }}
       >
-        <div className="relative w-full h-full">
-          <div
-            className="absolute inset-0"
-            style={{
-              transform: `translate(${mapPosition.x}px, ${mapPosition.y}px) scale(${zoom / 100})`,
-              transformOrigin: "0 0",
-            }}
-          >
-            <div className="relative w-full h-full">
-              {gridOverlay}
+        {isCanvasLayout ? (
+          <div className="relative w-full h-full">
+            <div
+              className="absolute inset-0"
+              style={{
+                transform: `translate(${mapPosition.x}px, ${mapPosition.y}px) scale(${zoom / 100})`,
+                transformOrigin: "0 0",
+              }}
+            >
+              <div className="relative w-full h-full">
+                {gridOverlay}
 
-              {selectedLayout === 'bubble-size' && (
-                <BubbleSizeMap folders={folderData} colorPaletteId={selectedPaletteId} />
-              )}
-              {selectedLayout === 'orbital' && (
-                <OrbitalMap folders={folderData} colorPaletteId={selectedPaletteId} />
-              )}
-              {selectedLayout === 'activity-map' && (
-                <ActivityMap folders={folderData} />
-              )}
-              {selectedLayout === 'hierarchy-tree' && (
-                <HierarchyTreeMap folders={folderData} />
-              )}
-              {selectedLayout === 'radial-tree' && (
-                <RadialTreeMap folders={folderData} />
-              )}
-              {selectedLayout === 'sun-burst' && (
-                <SunBurstMap folders={folderData} />
-              )}
+                {selectedLayout === 'bubble-size' && (
+                  <BubbleSizeMap folders={folderData} colorPaletteId={selectedPaletteId} />
+                )}
+                {selectedLayout === 'orbital' && (
+                  <OrbitalMap folders={folderData} colorPaletteId={selectedPaletteId} />
+                )}
+                {selectedLayout === 'hierarchy-tree' && (
+                  <HierarchyTreeMap folders={folderData} />
+                )}
+                {selectedLayout === 'radial-tree' && (
+                  <RadialTreeMap folders={folderData} />
+                )}
+                {selectedLayout === 'sun-burst' && (
+                  <SunBurstMap folders={folderData} />
+                )}
 
-              {/* Text Elements */}
-              {textElements.map(textElement => (
-                <TextBox
-                  key={textElement.id}
-                  id={textElement.id}
-                  x={textElement.x}
-                  y={textElement.y}
-                  text={textElement.text}
-                  format={textElement.format}
-                  isSelected={selectedTextId === textElement.id}
-                  zoom={zoom}
-                  onTextChange={handleTextChange}
-                  onPositionChange={handleTextPositionChange}
-                  onFormatChange={handleTextFormatChange}
-                  onSelect={handleTextSelect}
-                  onDragStart={handleTextDragStart}
-                  onDragEnd={handleTextDragEnd}
-                />
-              ))}
+                {/* Text Elements */}
+                {textElements.map(textElement => (
+                  <TextBox
+                    key={textElement.id}
+                    id={textElement.id}
+                    x={textElement.x}
+                    y={textElement.y}
+                    text={textElement.text}
+                    format={textElement.format}
+                    isSelected={selectedTextId === textElement.id}
+                    zoom={zoom}
+                    onTextChange={handleTextChange}
+                    onPositionChange={handleTextPositionChange}
+                    onFormatChange={handleTextFormatChange}
+                    onSelect={handleTextSelect}
+                    onDragStart={handleTextDragStart}
+                    onDragEnd={handleTextDragEnd}
+                  />
+                ))}
 
-              {/* Comment Elements */}
-              {commentElements.map(commentElement => (
-                <CommentBox
-                  key={commentElement.id}
-                  id={commentElement.id}
-                  x={commentElement.x}
-                  y={commentElement.y}
-                  comments={commentElement.comments}
-                  isSelected={selectedCommentId === commentElement.id}
-                  isExpanded={commentElement.isExpanded}
-                  zoom={zoom}
-                  onPositionChange={handleCommentPositionChange}
-                  onSelect={handleCommentSelect}
-                  onToggleExpand={handleCommentToggleExpand}
-                  onAddComment={handleCommentAdd}
-                  onDelete={handleCommentDelete}
-                  onDragStart={handleCommentDragStart}
-                  onDragEnd={handleCommentDragEnd}
-                />
-              ))}
+                {/* Comment Elements */}
+                {commentElements.map(commentElement => (
+                  <CommentBox
+                    key={commentElement.id}
+                    id={commentElement.id}
+                    x={commentElement.x}
+                    y={commentElement.y}
+                    comments={commentElement.comments}
+                    isSelected={selectedCommentId === commentElement.id}
+                    isExpanded={commentElement.isExpanded}
+                    zoom={zoom}
+                    onPositionChange={handleCommentPositionChange}
+                    onSelect={handleCommentSelect}
+                    onToggleExpand={handleCommentToggleExpand}
+                    onAddComment={handleCommentAdd}
+                    onDelete={handleCommentDelete}
+                    onDragStart={handleCommentDragStart}
+                    onDragEnd={handleCommentDragEnd}
+                  />
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="relative w-full">
+            <ActivityMap folders={folderData} />
+          </div>
+        )}
       </div>
 
       {/* Text Toolbar - only show when text is selected and not dragging */}
