@@ -4,6 +4,8 @@ export interface FolderMetrics {
   folderCount?: number;
 }
 
+export type ServiceId = 'notion' | 'onedrive' | 'dropbox' | 'googledrive';
+
 export interface FolderItem {
   id: string;
   name: string;
@@ -11,6 +13,11 @@ export interface FolderItem {
   isSelected: boolean;
   children?: FolderItem[];
   metrics?: FolderMetrics;
+  serviceId?: ServiceId;
+  path?: string;
+  createdDate?: string;
+  modifiedDate?: string;
+  activityScore?: number;
 }
 
 export interface SuppressedFolder {
@@ -18,8 +25,6 @@ export interface SuppressedFolder {
   name: string;
   path: string;
 }
-
-export type ServiceId = 'notion' | 'onedrive' | 'dropbox' | 'googledrive';
 
 export const SERVICE_ORDER: ServiceId[] = ['notion', 'onedrive', 'dropbox', 'googledrive'];
 
@@ -29,24 +34,28 @@ const BASE_FOLDERS: FolderItem[] = [
     name: 'Notion',
     isOpen: false,
     isSelected: true,
+    serviceId: 'notion',
   },
   {
     id: 'onedrive',
     name: 'OneDrive',
     isOpen: false,
     isSelected: true,
+    serviceId: 'onedrive',
   },
   {
     id: 'dropbox',
     name: 'Dropbox',
     isOpen: false,
     isSelected: true,
+    serviceId: 'dropbox',
   },
   {
     id: 'googledrive',
     name: 'Google Drive',
     isOpen: true,
     isSelected: true,
+    serviceId: 'googledrive',
   }
 ];
 

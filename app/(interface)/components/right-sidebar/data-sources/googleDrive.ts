@@ -19,7 +19,12 @@ const createFolderItem = (node: DriveNode): FolderItem => ({
     totalSize: node.totalSize,
     fileCount: node.fileCount,
     folderCount: node.folderCount
-  }
+  },
+  serviceId: 'googledrive',
+  path: node.path,
+  createdDate: node.createdDate,
+  modifiedDate: node.modifiedDate,
+  activityScore: node.activityScore
 });
 
 const sortFolders = (items: FolderItem[]) => {
