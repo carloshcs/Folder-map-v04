@@ -30,12 +30,6 @@ export function LayoutMenu({ isOpen, onSelect, selectedLayout }: LayoutMenuProps
           icon: <Orbit size={16} />
         },
         {
-          id: 'activity-map',
-          label: 'Activity Map',
-          description: 'Highlights the most active folders',
-          icon: <Activity size={16} />
-        },
-        {
           id: 'hierarchy-tree',
           label: 'Hierarchy Tree',
           description: 'Traditional top-down tree structure',
@@ -52,6 +46,13 @@ export function LayoutMenu({ isOpen, onSelect, selectedLayout }: LayoutMenuProps
     {
       title: "More Layouts",
       options: [
+
+        {
+          id: 'activity-map',
+          label: 'Activity Map',
+          description: 'Highlights the most active folders',
+          icon: <Activity size={16} />
+        },
         {
           id: 'bubble-size',
           label: 'Bubble Size',

@@ -3,8 +3,8 @@
 import Image from 'next/image';
 import React, { useMemo, useState } from 'react';
 
-import type { FolderItem, ServiceId } from '../right-sidebar/data';
-import { SERVICE_ORDER, isServiceId } from '../right-sidebar/data';
+import type { FolderItem, ServiceId } from '../../right-sidebar/data';
+import { SERVICE_ORDER, isServiceId } from '../../right-sidebar/data';
 
 interface ActivityMapProps {
   folders: FolderItem[];
@@ -37,27 +37,31 @@ const SORT_LABELS: Record<SortKey, string> = {
 
 const SERVICE_DETAILS: Record<
   ServiceId,
-  { name: string; logo: string; accent: string }
+  { name: string; logo: string; accent: string; color: string }
 > = {
   notion: {
     name: 'Notion',
     logo: '/assets/notion-logo.png',
     accent: 'bg-slate-100',
+    color: '#64748b',
   },
   onedrive: {
     name: 'OneDrive',
     logo: '/assets/onedrive-logo.png',
     accent: 'bg-sky-100',
+    color: '#0ea5e9',
   },
   dropbox: {
     name: 'Dropbox',
     logo: '/assets/dropbox-logo.png',
     accent: 'bg-blue-100',
+    color: '#3b82f6',
   },
   googledrive: {
     name: 'Google Drive',
     logo: '/assets/google-drive-logo.png',
     accent: 'bg-amber-100',
+    color: '#f59e0b',
   },
 };
 
@@ -131,6 +135,8 @@ const getServiceIdFromFolder = (folder: FolderItem): ServiceId | null => {
 export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
   const [sortKey, setSortKey] = useState<SortKey>('activityScore');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [activeService, setActiveService] = useState<ServiceId | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const entriesByService = useMemo<Record<ServiceId, ActivityEntry[]>>(() => {
     const serviceEntries = createEmptyEntryRecord();
@@ -243,166 +249,343 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
     [sortedEntriesByService]
   );
 
+  const serviceStats = useMemo(() => {
+    const stats: Record<ServiceId, { totalSize: number; totalFiles: number; maxActivity: number }> = {
+      notion: { totalSize: 0, totalFiles: 0, maxActivity: 0 },
+      onedrive: { totalSize: 0, totalFiles: 0, maxActivity: 0 },
+      dropbox: { totalSize: 0, totalFiles: 0, maxActivity: 0 },
+      googledrive: { totalSize: 0, totalFiles: 0, maxActivity: 0 },
+    };
+
+    SERVICE_ORDER.forEach(serviceId => {
+      const entries = sortedEntriesByService[serviceId];
+      stats[serviceId].totalSize = entries.reduce((sum, e) => sum + e.totalSize, 0);
+      stats[serviceId].totalFiles = entries.reduce((sum, e) => sum + e.fileCount, 0);
+      stats[serviceId].maxActivity = Math.max(...entries.map(e => e.activityScore), 0);
+    });
+
+    return stats;
+  }, [sortedEntriesByService]);
+
   const handleToggleDirection = () => {
     setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
   };
 
+  const handleServiceClick = (serviceId: ServiceId) => {
+    setActiveService(activeService === serviceId ? null : serviceId);
+    setSearchQuery('');
+  };
+
+  const filteredEntries = useMemo(() => {
+    if (!activeService || !searchQuery.trim()) {
+      return activeService ? sortedEntriesByService[activeService] : [];
+    }
+
+    const query = searchQuery.toLowerCase();
+    return sortedEntriesByService[activeService].filter(
+      entry =>
+        entry.name.toLowerCase().includes(query) ||
+        entry.path.toLowerCase().includes(query)
+    );
+  }, [activeService, sortedEntriesByService, searchQuery]);
+
   return (
     <div className="w-full h-full overflow-auto bg-white">
-      <div className="max-w-6xl mx-auto px-8 py-10 space-y-10">
+      <div className="max-w-7xl mx-auto px-8 py-10 space-y-8">
         <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-gray-900">Activity Overview</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              Review folder activity across each integration, including size, file volume,
-              and freshness indicators.
+            <h2 className="text-3xl font-bold text-gray-900">Activity Dashboard</h2>
+            <p className="text-sm text-gray-600 mt-2">
+              Monitor your workspace activity with real-time insights and metrics
             </p>
-          </div>
-          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-2">
-              <label
-                htmlFor="activity-sort-key"
-                className="text-sm font-medium text-gray-700"
-              >
-                Sort by
-              </label>
-              <select
-                id="activity-sort-key"
-                value={sortKey}
-                onChange={event => setSortKey(event.target.value as SortKey)}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-              >
-                {Object.entries(SORT_LABELS).map(([key, label]) => (
-                  <option key={key} value={key}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={handleToggleDirection}
-                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition hover:border-gray-400 hover:text-gray-900"
-              >
-                {sortDirection === 'desc' ? 'High → Low' : 'Low → High'}
-              </button>
-            </div>
-            <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
-              {totalEntries.toLocaleString()} folders
-            </span>
           </div>
         </header>
 
-        {SERVICE_ORDER.map(serviceId => {
-          const entries = sortedEntriesByService[serviceId];
-          if (!entries || entries.length === 0) {
-            return null;
-          }
+        {/* Service Overview Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {SERVICE_ORDER.map(serviceId => {
+            const entries = sortedEntriesByService[serviceId];
+            if (!entries || entries.length === 0) {
+              return null;
+            }
 
-          const details = SERVICE_DETAILS[serviceId];
+            const details = SERVICE_DETAILS[serviceId];
+            const stats = serviceStats[serviceId];
+            const isActive = activeService === serviceId;
 
-          return (
-            <section key={serviceId} className="space-y-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`flex h-12 w-12 items-center justify-center rounded-full ${details.accent}`}
-                  >
+            return (
+              <button
+                key={serviceId}
+                onClick={() => handleServiceClick(serviceId)}
+                className={`group relative overflow-hidden rounded-2xl bg-white p-6 shadow-md transition-all hover:shadow-xl hover:scale-105 border-2 ${
+                  isActive ? 'border-gray-900' : 'border-gray-200'
+                }`}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className={`flex h-14 w-14 items-center justify-center rounded-xl ${details.accent} shadow-sm`}>
                     <Image
                       src={details.logo}
                       alt={`${details.name} logo`}
-                      width={28}
-                      height={28}
+                      width={32}
+                      height={32}
                     />
                   </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{details.name}</h3>
-                    <p className="text-sm text-gray-500">
-                      {entries.length.toLocaleString()} tracked folders
-                    </p>
+                  {isActive && (
+                    <div className="h-3 w-3 rounded-full bg-green-500 animate-pulse" />
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <h3 className="text-xl font-bold text-gray-900 text-left">{details.name}</h3>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-medium text-gray-500">Folders</span>
+                      <span className="text-sm font-bold text-gray-900">{entries.length}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-medium text-gray-500">Total Size</span>
+                      <span className="text-sm font-bold text-gray-900">{formatSize(stats.totalSize)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-medium text-gray-500">Files</span>
+                      <span className="text-sm font-bold text-gray-900">{stats.totalFiles.toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min((stats.maxActivity / Math.max(...SERVICE_ORDER.map(s => serviceStats[s].maxActivity))) * 100, 100)}%`,
+                          backgroundColor: details.color,
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-gray-500">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1">
-                    <span className="h-2 w-2 rounded-full bg-blue-500" aria-hidden />
-                    Size
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
-                    Files
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1">
-                    <span className="h-2 w-2 rounded-full bg-purple-500" aria-hidden />
-                    Activity
-                  </span>
+
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br opacity-5 rounded-full -mr-16 -mt-16" style={{ backgroundColor: details.color }} />
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Active Service Details */}
+        {activeService && (
+          <div className="animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-lg overflow-hidden border-2 border-gray-900">
+              <div className="bg-gray-50 px-6 py-5 border-b border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${SERVICE_DETAILS[activeService].accent}`}>
+                      <Image
+                        src={SERVICE_DETAILS[activeService].logo}
+                        alt={`${SERVICE_DETAILS[activeService].name} logo`}
+                        width={28}
+                        height={28}
+                      />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">{SERVICE_DETAILS[activeService].name} Folders</h3>
+                      <span className="text-sm text-gray-500">
+                        {filteredEntries.length} {filteredEntries.length !== sortedEntriesByService[activeService].length && `of ${sortedEntriesByService[activeService].length}`} folders
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="service-sort-key" className="text-sm font-medium text-gray-700">
+                      Sort by
+                    </label>
+                    <select
+                      id="service-sort-key"
+                      value={sortKey}
+                      onChange={event => setSortKey(event.target.value as SortKey)}
+                      className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    >
+                      {Object.entries(SORT_LABELS).map(([key, label]) => (
+                        <option key={key} value={key}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleToggleDirection}
+                      className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+                    >
+                      {sortDirection === 'desc' ? '↓ High → Low' : '↑ Low → High'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Search Bar */}
+                <div className="relative">
+                  <svg
+                    className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Search folders by name or path..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-                <div className="hidden grid-cols-[minmax(0,1.8fr)_repeat(5,minmax(0,1fr))] items-center gap-4 bg-gray-50 px-6 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid">
-                  <span>Folder</span>
-                  <span>Size</span>
-                  <span>Files</span>
-                  <span>Created</span>
-                  <span>Modified</span>
-                  <span>Activity</span>
-                </div>
-                <ul className="divide-y divide-gray-100">
-                  {entries.map(entry => (
-                    <li key={`${serviceId}-${entry.id}`} className="px-4 py-4 md:px-6">
-                      <div className="grid gap-4 md:grid-cols-[minmax(0,1.8fr)_repeat(5,minmax(0,1fr))] md:items-center">
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">{entry.name}</p>
-                          <p className="mt-1 break-all text-xs text-gray-500">{entry.path}</p>
+              <div className="max-h-[655px] overflow-y-auto">
+                {filteredEntries.length === 0 ? (
+                  <div className="flex items-center justify-center h-48">
+                    <p className="text-gray-500">No folders found matching "{searchQuery}"</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Table Header */}
+                    <div className="sticky top-0 bg-gray-50 border-b border-gray-200 px-6 py-3 z-10">
+                      <div className="flex items-center gap-5">
+                        <div className="flex-shrink-0 w-8 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                          #
                         </div>
-                        <div>
-                          <p className="text-xs font-medium uppercase text-gray-500 md:hidden">Size</p>
-                          <p className="text-sm font-medium text-gray-900">
-                            {formatSize(entry.totalSize)}
-                          </p>
+                        <div className="flex-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                          Folder
                         </div>
-                        <div>
-                          <p className="text-xs font-medium uppercase text-gray-500 md:hidden">Files</p>
-                          <p className="text-sm font-medium text-gray-900">
-                            {entry.fileCount.toLocaleString()}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium uppercase text-gray-500 md:hidden">Created</p>
-                          <p className="text-sm font-medium text-gray-900">
-                            {formatDate(entry.createdDate)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium uppercase text-gray-500 md:hidden">Modified</p>
-                          <p className="text-sm font-medium text-gray-900">
-                            {formatDate(entry.modifiedDate)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium uppercase text-gray-500 md:hidden">
+                        <div className="flex items-center gap-6">
+                          <div className="w-20 text-xs font-semibold text-gray-500 uppercase tracking-wide text-right">
+                            Size
+                          </div>
+                          <div className="w-16 text-xs font-semibold text-gray-500 uppercase tracking-wide text-right">
+                            Files
+                          </div>
+                          <div className="w-24 text-xs font-semibold text-gray-500 uppercase tracking-wide text-right">
+                            Created
+                          </div>
+                          <div className="w-24 text-xs font-semibold text-gray-500 uppercase tracking-wide text-right">
+                            Modified
+                          </div>
+                          <div className="w-32 text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">
                             Activity
-                          </p>
-                          <p className="text-sm font-semibold text-gray-900">
-                            {entry.activityScore.toLocaleString()}
-                          </p>
+                          </div>
+                          <div className="w-24">
+                            {/* Spacer for button */}
+                          </div>
                         </div>
                       </div>
-                    </li>
-                  ))}
-                </ul>
+                    </div>
+
+                    {/* Table Body */}
+                    <div className="divide-y divide-gray-100">
+                      {filteredEntries.map((entry, index) => {
+                        const maxActivity = Math.max(...sortedEntriesByService[activeService].map(e => e.activityScore));
+                        const activityPercent = (entry.activityScore / maxActivity) * 100;
+                        
+                        return (
+                          <div
+                            key={`${activeService}-${entry.id}`}
+                            className="px-6 py-4 hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="flex items-center gap-5">
+                              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-semibold text-sm text-gray-600">
+                                {searchQuery ? '•' : index + 1}
+                              </div>
+
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-gray-900 truncate">{entry.name}</p>
+                                <p className="text-xs text-gray-500 truncate">{entry.path}</p>
+                              </div>
+
+                              <div className="flex items-center gap-6">
+                                <div className="w-20 text-right">
+                                  <p className="text-sm font-medium text-gray-900">{formatSize(entry.totalSize)}</p>
+                                </div>
+                                <div className="w-16 text-right">
+                                  <p className="text-sm font-medium text-gray-900">{entry.fileCount.toLocaleString()}</p>
+                                </div>
+                                <div className="w-24 text-right">
+                                  <p className="text-sm text-gray-700">{formatDate(entry.createdDate)}</p>
+                                </div>
+                                <div className="w-24 text-right">
+                                  <p className="text-sm text-gray-700">{formatDate(entry.modifiedDate)}</p>
+                                </div>
+                                
+                                <div className="w-32 flex items-center justify-center gap-2">
+                                  <svg className="h-10 w-10 -rotate-90" viewBox="0 0 36 36">
+                                    <circle
+                                      cx="18"
+                                      cy="18"
+                                      r="14"
+                                      fill="none"
+                                      stroke="#e5e7eb"
+                                      strokeWidth="3"
+                                    />
+                                    <circle
+                                      cx="18"
+                                      cy="18"
+                                      r="14"
+                                      fill="none"
+                                      stroke="#8b5cf6"
+                                      strokeWidth="3"
+                                      strokeDasharray={`${activityPercent} 100`}
+                                      strokeLinecap="round"
+                                    />
+                                  </svg>
+                                  <p className="text-sm font-semibold text-gray-900 w-10">
+                                    {Math.round(activityPercent)}%
+                                  </p>
+                                </div>
+
+                                <div className="w-24">
+                                  <button
+                                    type="button"
+                                    className="w-full px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors"
+                                  >
+                                    Go to link
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
-            </section>
-          );
-        })}
+            </div>
+          </div>
+        )}
 
         {totalEntries === 0 && (
-          <div className="flex h-64 items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-gray-50">
+          <div className="flex h-64 items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 bg-white">
             <div className="text-center">
-              <p className="text-base font-medium text-gray-800">
-                No activity metrics available yet
+              <p className="text-lg font-semibold text-gray-800">
+                No activity data available
               </p>
-              <p className="mt-1 text-sm text-gray-500">
-                Connect an integration to see folders and their activity insights.
+              <p className="mt-2 text-sm text-gray-500">
+                Connect an integration to start tracking your workspace activity
               </p>
             </div>
           </div>
