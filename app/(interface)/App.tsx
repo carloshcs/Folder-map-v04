@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { Sidebar } from "./components/Sidebar";
 import { RightSidebar } from "./components/RightSidebar";
 import { TopNavigation } from "./components/TopNavigation";
@@ -8,14 +9,6 @@ import { TextBox } from "./components/TextBox";
 import { TextToolbar } from "./components/TextToolbar";
 import { TextFormat } from "./components/TextFormatDialog";
 import { CommentBox, Comment } from "./components/CommentBox";
-import {
-  ActivityMap,
-  BubbleSizeMap,
-  HierarchyTreeMap,
-  OrbitalMap,
-  RadialTreeMap,
-  SunBurstMap,
-} from "./components/maps-layout";
 import { GridOverlay } from "./components/GridOverlay";
 import { BoxType } from "@/lib/mapTypes";
 import { FolderItem } from "./components/right-sidebar/data";
@@ -42,6 +35,78 @@ const ZOOM_MIN = 25;
 const ZOOM_MAX = 300;
 const ZOOM_BUTTON_STEP = 25;
 const ZOOM_WHEEL_STEP = 10;
+
+const MapLayoutFallback = () => (
+  <div className="flex h-full items-center justify-center text-muted-foreground">
+    Loading layout...
+  </div>
+);
+
+const ActivityMap = dynamic(
+  () =>
+    import("./components/maps-layout/Activity-Map/ActivityMap").then(
+      mod => mod.ActivityMap,
+    ),
+  {
+    loading: MapLayoutFallback,
+    ssr: false,
+  },
+);
+
+const BubbleSizeMap = dynamic(
+  () =>
+    import("./components/maps-layout/BubbleSize-map/BubbleSizeMap").then(
+      mod => mod.BubbleSizeMap,
+    ),
+  {
+    loading: MapLayoutFallback,
+    ssr: false,
+  },
+);
+
+const HierarchyTreeMap = dynamic(
+  () =>
+    import("./components/maps-layout/Hierarchy-three-map/HierarchyTreeMap").then(
+      mod => mod.HierarchyTreeMap,
+    ),
+  {
+    loading: MapLayoutFallback,
+    ssr: false,
+  },
+);
+
+const OrbitalMap = dynamic(
+  () =>
+    import("./components/maps-layout/orbital-map/OrbitalMap").then(
+      mod => mod.OrbitalMap,
+    ),
+  {
+    loading: MapLayoutFallback,
+    ssr: false,
+  },
+);
+
+const RadialTreeMap = dynamic(
+  () =>
+    import("./components/maps-layout/Radial-three-map/RadialTreeMap").then(
+      mod => mod.RadialTreeMap,
+    ),
+  {
+    loading: MapLayoutFallback,
+    ssr: false,
+  },
+);
+
+const SunBurstMap = dynamic(
+  () =>
+    import("./components/maps-layout/SunBurst-map/SunBurstMap").then(
+      mod => mod.SunBurstMap,
+    ),
+  {
+    loading: MapLayoutFallback,
+    ssr: false,
+  },
+);
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
