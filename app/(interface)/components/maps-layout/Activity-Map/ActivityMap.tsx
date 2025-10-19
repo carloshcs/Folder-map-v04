@@ -43,28 +43,28 @@ const SERVICE_DETAILS: Record<
     name: 'Notion',
     logo: '/assets/notion-logo.png',
     accent: 'bg-slate-100',
-    darkAccent: 'dark:bg-slate-900/50',
+    darkAccent: 'dark:bg-neutral-800/60',
     color: '#64748b',
   },
   onedrive: {
     name: 'OneDrive',
     logo: '/assets/onedrive-logo.png',
     accent: 'bg-sky-100',
-    darkAccent: 'dark:bg-sky-900/50',
+    darkAccent: 'dark:bg-neutral-800/60',
     color: '#0ea5e9',
   },
   dropbox: {
     name: 'Dropbox',
     logo: '/assets/dropbox-logo.png',
     accent: 'bg-blue-100',
-    darkAccent: 'dark:bg-blue-900/50',
+    darkAccent: 'dark:bg-neutral-800/60',
     color: '#3b82f6',
   },
   googledrive: {
     name: 'Google Drive',
     logo: '/assets/google-drive-logo.png',
     accent: 'bg-amber-100',
-    darkAccent: 'dark:bg-amber-900/50',
+    darkAccent: 'dark:bg-neutral-800/60',
     color: '#f59e0b',
   },
 };
@@ -294,7 +294,7 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
   }, [activeService, sortedEntriesByService, searchQuery]);
 
   return (
-    <div className="w-full h-full overflow-auto bg-white dark:bg-[#0a0e1a]">
+    <div className="w-full h-full overflow-auto bg-white dark:bg-neutral-950">
       <div className="max-w-7xl mx-auto px-8 py-10 space-y-8">
         <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
@@ -321,8 +321,8 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
               <button
                 key={serviceId}
                 onClick={() => handleServiceClick(serviceId)}
-                className={`group relative overflow-hidden rounded-2xl bg-white dark:bg-[#1a1f2e] p-6 shadow-md transition-all hover:shadow-xl hover:scale-105 border-2 ${
-                  isActive ? 'border-gray-900 dark:border-blue-500' : 'border-gray-200 dark:border-gray-800'
+                className={`group relative overflow-hidden rounded-2xl bg-white dark:bg-neutral-900 p-6 shadow-md transition-all hover:shadow-xl hover:scale-105 border-2 ${
+                  isActive ? 'border-gray-900 dark:border-neutral-300' : 'border-gray-200 dark:border-neutral-800'
                 }`}
               >
                 <div className="flex items-start justify-between mb-4">
@@ -358,7 +358,7 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                   </div>
 
                   <div className="pt-2">
-                    <div className="h-2 w-full bg-gray-100 dark:bg-gray-900 rounded-full overflow-hidden">
+                    <div className="h-2 w-full bg-gray-100 dark:bg-neutral-800 rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-500"
                         style={{
@@ -379,8 +379,8 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
         {/* Active Service Details */}
         {activeService && (
           <div className="animate-fadeIn">
-            <div className="bg-white dark:bg-[#1a1f2e] rounded-2xl shadow-lg overflow-hidden border-2 border-gray-900 dark:border-blue-500">
-              <div className="bg-gray-50 dark:bg-[#0f1419] px-6 py-5 border-b border-gray-200 dark:border-gray-800">
+            <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-lg overflow-hidden border-2 border-gray-900 dark:border-neutral-300">
+              <div className="bg-gray-50 dark:bg-neutral-950 px-6 py-5 border-b border-gray-200 dark:border-neutral-800">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${SERVICE_DETAILS[activeService].accent} ${SERVICE_DETAILS[activeService].darkAccent}`}>
@@ -407,7 +407,7 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                       id="service-sort-key"
                       value={sortKey}
                       onChange={event => setSortKey(event.target.value as SortKey)}
-                      className="rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#0f1419] px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      className="rounded-lg border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                     >
                       {Object.entries(SORT_LABELS).map(([key, label]) => (
                         <option key={key} value={key}>
@@ -418,7 +418,7 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                     <button
                       type="button"
                       onClick={handleToggleDirection}
-                      className="inline-flex items-center gap-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#0f1419] px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm transition hover:bg-gray-50 dark:hover:bg-gray-800"
+                      className="inline-flex items-center gap-1 rounded-lg border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm transition hover:bg-gray-50 dark:hover:bg-neutral-800"
                     >
                       {sortDirection === 'desc' ? '↓ High → Low' : '↑ Low → High'}
                     </button>
@@ -445,7 +445,7 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                     placeholder="Search folders by name or path..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#0f1419] text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                   />
                   {searchQuery && (
                     <button
@@ -469,7 +469,7 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                 ) : (
                   <>
                     {/* Table Header */}
-                    <div className="sticky top-0 bg-gray-50 dark:bg-[#0f1419] border-b border-gray-200 dark:border-gray-800 px-6 py-3 z-10">
+                    <div className="sticky top-0 bg-gray-50 dark:bg-neutral-950 border-b border-gray-200 dark:border-neutral-800 px-6 py-3 z-10">
                       <div className="flex items-center gap-5">
                         <div className="flex-shrink-0 w-8 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                           #
@@ -501,7 +501,7 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                     </div>
 
                     {/* Table Body */}
-                    <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                    <div className="divide-y divide-gray-100 dark:divide-neutral-800">
                       {filteredEntries.map((entry, index) => {
                         const maxActivity = Math.max(...sortedEntriesByService[activeService].map(e => e.activityScore));
                         const activityPercent = (entry.activityScore / maxActivity) * 100;
@@ -509,10 +509,10 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                         return (
                           <div
                             key={`${activeService}-${entry.id}`}
-                            className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-[#1e2433] transition-colors"
+                            className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
                           >
                             <div className="flex items-center gap-5">
-                              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center font-semibold text-sm text-gray-600 dark:text-gray-300">
+                              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 dark:bg-neutral-800 flex items-center justify-center font-semibold text-sm text-gray-600 dark:text-gray-300">
                                 {searchQuery ? '•' : index + 1}
                               </div>
 
@@ -542,8 +542,8 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                                       cy="18"
                                       r="14"
                                       fill="none"
-                                      stroke="#374151"
-                                      className="dark:stroke-gray-700"
+                                      stroke="#d1d5db"
+                                      className="dark:stroke-neutral-500"
                                       strokeWidth="3"
                                     />
                                     <circle
@@ -584,7 +584,7 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
         )}
 
         {totalEntries === 0 && (
-          <div className="flex h-64 items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-800 bg-white dark:bg-[#1a1f2e]">
+          <div className="flex h-64 items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 dark:border-neutral-800 bg-white dark:bg-neutral-900">
             <div className="text-center">
               <p className="text-lg font-semibold text-gray-800 dark:text-gray-200">
                 No activity data available
