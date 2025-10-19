@@ -15,7 +15,6 @@ interface ActivityEntry {
   name: string;
   path: string;
   serviceId: ServiceId;
-  link?: string;
   totalSize: number;
   fileCount: number;
   folderCount: number;
@@ -44,28 +43,28 @@ const SERVICE_DETAILS: Record<
     name: 'Notion',
     logo: '/assets/notion-logo.png',
     accent: 'bg-slate-100',
-    darkAccent: 'dark:bg-slate-800/60',
+    darkAccent: 'dark:bg-slate-900/50',
     color: '#64748b',
   },
   onedrive: {
     name: 'OneDrive',
     logo: '/assets/onedrive-logo.png',
     accent: 'bg-sky-100',
-    darkAccent: 'dark:bg-sky-900/40',
+    darkAccent: 'dark:bg-sky-900/50',
     color: '#0ea5e9',
   },
   dropbox: {
     name: 'Dropbox',
     logo: '/assets/dropbox-logo.png',
     accent: 'bg-blue-100',
-    darkAccent: 'dark:bg-blue-900/40',
+    darkAccent: 'dark:bg-blue-900/50',
     color: '#3b82f6',
   },
   googledrive: {
     name: 'Google Drive',
     logo: '/assets/google-drive-logo.png',
     accent: 'bg-amber-100',
-    darkAccent: 'dark:bg-amber-900/40',
+    darkAccent: 'dark:bg-amber-900/50',
     color: '#f59e0b',
   },
 };
@@ -174,7 +173,6 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
             name: item.name,
             path,
             serviceId,
-            link: item.link,
             totalSize,
             fileCount,
             folderCount,
@@ -296,12 +294,12 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
   }, [activeService, sortedEntriesByService, searchQuery]);
 
   return (
-    <div className="w-full h-full overflow-auto bg-white dark:bg-slate-950">
+    <div className="w-full h-full overflow-auto bg-white dark:bg-[#0a0e1a]">
       <div className="max-w-7xl mx-auto px-8 py-10 space-y-8">
         <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Activity Dashboard</h2>
-            <p className="text-sm text-gray-600 dark:text-slate-300 mt-2">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Activity Dashboard</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
               Monitor your workspace activity with real-time insights and metrics
             </p>
           </div>
@@ -323,16 +321,12 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
               <button
                 key={serviceId}
                 onClick={() => handleServiceClick(serviceId)}
-                className={`group relative overflow-hidden rounded-2xl bg-white dark:bg-slate-900 p-6 shadow-md transition-all hover:shadow-xl hover:scale-105 border-2 ${
-                  isActive
-                    ? 'border-gray-900 dark:border-white'
-                    : 'border-gray-200 dark:border-slate-700'
+                className={`group relative overflow-hidden rounded-2xl bg-white dark:bg-[#1a1f2e] p-6 shadow-md transition-all hover:shadow-xl hover:scale-105 border-2 ${
+                  isActive ? 'border-gray-900 dark:border-blue-500' : 'border-gray-200 dark:border-gray-800'
                 }`}
               >
                 <div className="flex items-start justify-between mb-4">
-                  <div
-                    className={`flex h-14 w-14 items-center justify-center rounded-xl ${details.accent} ${details.darkAccent} shadow-sm`}
-                  >
+                  <div className={`flex h-14 w-14 items-center justify-center rounded-xl ${details.accent} ${details.darkAccent} shadow-sm`}>
                     <Image
                       src={details.logo}
                       alt={`${details.name} logo`}
@@ -346,25 +340,25 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                 </div>
 
                 <div className="space-y-3">
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white text-left">{details.name}</h3>
-
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 text-left">{details.name}</h3>
+                  
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <span className="text-xs font-medium text-gray-500 dark:text-slate-400">Folders</span>
-                      <span className="text-sm font-bold text-gray-900 dark:text-white">{entries.length}</span>
+                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Folders</span>
+                      <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{entries.length}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-xs font-medium text-gray-500 dark:text-slate-400">Total Size</span>
-                      <span className="text-sm font-bold text-gray-900 dark:text-white">{formatSize(stats.totalSize)}</span>
+                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Total Size</span>
+                      <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{formatSize(stats.totalSize)}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-xs font-medium text-gray-500 dark:text-slate-400">Files</span>
-                      <span className="text-sm font-bold text-gray-900 dark:text-white">{stats.totalFiles.toLocaleString()}</span>
+                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Files</span>
+                      <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{stats.totalFiles.toLocaleString()}</span>
                     </div>
                   </div>
 
                   <div className="pt-2">
-                    <div className="h-2 w-full bg-gray-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-2 w-full bg-gray-100 dark:bg-gray-900 rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-500"
                         style={{
@@ -376,10 +370,7 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                   </div>
                 </div>
 
-                <div
-                  className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br opacity-5 dark:opacity-20 rounded-full -mr-16 -mt-16"
-                  style={{ backgroundColor: details.color }}
-                />
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br opacity-5 rounded-full -mr-16 -mt-16" style={{ backgroundColor: details.color }} />
               </button>
             );
           })}
@@ -388,13 +379,11 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
         {/* Active Service Details */}
         {activeService && (
           <div className="animate-fadeIn">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg overflow-hidden border-2 border-gray-900 dark:border-white/80">
-              <div className="bg-gray-50 dark:bg-slate-950/50 px-6 py-5 border-b border-gray-200 dark:border-slate-800">
+            <div className="bg-white dark:bg-[#1a1f2e] rounded-2xl shadow-lg overflow-hidden border-2 border-gray-900 dark:border-blue-500">
+              <div className="bg-gray-50 dark:bg-[#0f1419] px-6 py-5 border-b border-gray-200 dark:border-gray-800">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div
-                      className={`flex h-12 w-12 items-center justify-center rounded-lg ${SERVICE_DETAILS[activeService].accent} ${SERVICE_DETAILS[activeService].darkAccent}`}
-                    >
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${SERVICE_DETAILS[activeService].accent} ${SERVICE_DETAILS[activeService].darkAccent}`}>
                       <Image
                         src={SERVICE_DETAILS[activeService].logo}
                         alt={`${SERVICE_DETAILS[activeService].name} logo`}
@@ -403,24 +392,22 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                       />
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                        {SERVICE_DETAILS[activeService].name} Folders
-                      </h3>
-                      <span className="text-sm text-gray-500 dark:text-slate-400">
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">{SERVICE_DETAILS[activeService].name} Folders</h3>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
                         {filteredEntries.length} {filteredEntries.length !== sortedEntriesByService[activeService].length && `of ${sortedEntriesByService[activeService].length}`} folders
                       </span>
                     </div>
                   </div>
-
+                  
                   <div className="flex items-center gap-2">
-                    <label htmlFor="service-sort-key" className="text-sm font-medium text-gray-700 dark:text-slate-200">
+                    <label htmlFor="service-sort-key" className="text-sm font-medium text-gray-700 dark:text-gray-300">
                       Sort by
                     </label>
                     <select
                       id="service-sort-key"
                       value={sortKey}
                       onChange={event => setSortKey(event.target.value as SortKey)}
-                      className="rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-medium text-gray-700 dark:text-slate-100 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/40"
+                      className="rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#0f1419] px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                     >
                       {Object.entries(SORT_LABELS).map(([key, label]) => (
                         <option key={key} value={key}>
@@ -431,7 +418,7 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                     <button
                       type="button"
                       onClick={handleToggleDirection}
-                      className="inline-flex items-center gap-1 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-medium text-gray-700 dark:text-slate-100 shadow-sm transition hover:bg-gray-50 dark:hover:bg-slate-800"
+                      className="inline-flex items-center gap-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#0f1419] px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm transition hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
                       {sortDirection === 'desc' ? '↓ High → Low' : '↑ Low → High'}
                     </button>
@@ -441,7 +428,7 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                 {/* Search Bar */}
                 <div className="relative">
                   <svg
-                    className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 dark:text-slate-500"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -458,13 +445,13 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                     placeholder="Search folders by name or path..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/40"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#0f1419] text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                   />
                   {searchQuery && (
                     <button
                       type="button"
                       onClick={() => setSearchQuery('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
                     >
                       <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -477,33 +464,33 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
               <div className="max-h-[655px] overflow-y-auto">
                 {filteredEntries.length === 0 ? (
                   <div className="flex items-center justify-center h-48">
-                    <p className="text-gray-500 dark:text-slate-400">No folders found matching "{searchQuery}"</p>
+                    <p className="text-gray-500 dark:text-gray-400">No folders found matching "{searchQuery}"</p>
                   </div>
                 ) : (
                   <>
                     {/* Table Header */}
-                    <div className="sticky top-0 bg-gray-50 dark:bg-slate-900/80 border-b border-gray-200 dark:border-slate-800 px-6 py-3 z-10 backdrop-blur">
+                    <div className="sticky top-0 bg-gray-50 dark:bg-[#0f1419] border-b border-gray-200 dark:border-gray-800 px-6 py-3 z-10">
                       <div className="flex items-center gap-5">
-                        <div className="flex-shrink-0 w-8 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">
+                        <div className="flex-shrink-0 w-8 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                           #
                         </div>
-                        <div className="flex-1 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">
+                        <div className="flex-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                           Folder
                         </div>
                         <div className="flex items-center gap-6">
-                          <div className="w-20 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-right">
+                          <div className="w-20 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-right">
                             Size
                           </div>
-                          <div className="w-16 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-right">
+                          <div className="w-16 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-right">
                             Files
                           </div>
-                          <div className="w-24 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-right">
+                          <div className="w-24 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-right">
                             Created
                           </div>
-                          <div className="w-24 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-right">
+                          <div className="w-24 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-right">
                             Modified
                           </div>
-                          <div className="w-32 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-center">
+                          <div className="w-32 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-center">
                             Activity
                           </div>
                           <div className="w-24">
@@ -514,7 +501,7 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                     </div>
 
                     {/* Table Body */}
-                    <div className="divide-y divide-gray-100 dark:divide-slate-800">
+                    <div className="divide-y divide-gray-100 dark:divide-gray-800">
                       {filteredEntries.map((entry, index) => {
                         const maxActivity = Math.max(...sortedEntriesByService[activeService].map(e => e.activityScore));
                         const activityPercent = (entry.activityScore / maxActivity) * 100;
@@ -522,32 +509,32 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                         return (
                           <div
                             key={`${activeService}-${entry.id}`}
-                            className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-slate-900 transition-colors"
+                            className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-[#1e2433] transition-colors"
                           >
                             <div className="flex items-center gap-5">
-                              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center font-semibold text-sm text-gray-600 dark:text-slate-300">
+                              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center font-semibold text-sm text-gray-600 dark:text-gray-300">
                                 {searchQuery ? '•' : index + 1}
                               </div>
 
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{entry.name}</p>
-                                <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{entry.path}</p>
+                                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{entry.name}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{entry.path}</p>
                               </div>
 
                               <div className="flex items-center gap-6">
                                 <div className="w-20 text-right">
-                                  <p className="text-sm font-medium text-gray-900 dark:text-white">{formatSize(entry.totalSize)}</p>
+                                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{formatSize(entry.totalSize)}</p>
                                 </div>
                                 <div className="w-16 text-right">
-                                  <p className="text-sm font-medium text-gray-900 dark:text-white">{entry.fileCount.toLocaleString()}</p>
+                                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{entry.fileCount.toLocaleString()}</p>
                                 </div>
                                 <div className="w-24 text-right">
-                                  <p className="text-sm text-gray-700 dark:text-slate-300">{formatDate(entry.createdDate)}</p>
+                                  <p className="text-sm text-gray-700 dark:text-gray-300">{formatDate(entry.createdDate)}</p>
                                 </div>
                                 <div className="w-24 text-right">
-                                  <p className="text-sm text-gray-700 dark:text-slate-300">{formatDate(entry.modifiedDate)}</p>
+                                  <p className="text-sm text-gray-700 dark:text-gray-300">{formatDate(entry.modifiedDate)}</p>
                                 </div>
-
+                                
                                 <div className="w-32 flex items-center justify-center gap-2">
                                   <svg className="h-10 w-10 -rotate-90" viewBox="0 0 36 36">
                                     <circle
@@ -555,7 +542,8 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                                       cy="18"
                                       r="14"
                                       fill="none"
-                                      stroke="#e5e7eb"
+                                      stroke="#374151"
+                                      className="dark:stroke-gray-700"
                                       strokeWidth="3"
                                     />
                                     <circle
@@ -569,26 +557,18 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                                       strokeLinecap="round"
                                     />
                                   </svg>
-                                  <p className="text-sm font-semibold text-gray-900 dark:text-white w-10">
+                                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 w-10">
                                     {Math.round(activityPercent)}%
                                   </p>
                                 </div>
 
                                 <div className="w-24">
-                                  {entry.link ? (
-                                    <a
-                                      href={entry.link}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="w-full inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 dark:hover:bg-blue-500 transition-colors"
-                                    >
-                                      Go to link
-                                    </a>
-                                  ) : (
-                                    <span className="w-full inline-flex items-center justify-center px-3 py-1.5 rounded-lg border border-dashed border-gray-300 dark:border-slate-700 text-xs font-medium text-gray-500 dark:text-slate-400">
-                                      No link
-                                    </span>
-                                  )}
+                                  <button
+                                    type="button"
+                                    className="w-full px-3 py-1.5 rounded-lg bg-blue-600 dark:bg-blue-500 text-white text-xs font-medium hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
+                                  >
+                                    Go to link
+                                  </button>
                                 </div>
                               </div>
                             </div>
@@ -604,12 +584,12 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
         )}
 
         {totalEntries === 0 && (
-          <div className="flex h-64 items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900">
+          <div className="flex h-64 items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-800 bg-white dark:bg-[#1a1f2e]">
             <div className="text-center">
-              <p className="text-lg font-semibold text-gray-800 dark:text-white">
+              <p className="text-lg font-semibold text-gray-800 dark:text-gray-200">
                 No activity data available
               </p>
-              <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                 Connect an integration to start tracking your workspace activity
               </p>
             </div>
