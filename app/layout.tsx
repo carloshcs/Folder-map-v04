@@ -1,20 +1,17 @@
-import type { ReactNode } from "react";
-
 import "./(interface)/styles/globals.css";
+import App from "./(interface)/App";
 
 export const metadata = {
   title: "My App",
   description: "Generated from Figma",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export default function RootLayout() {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <App />
+      </body>
     </html>
   );
 }
