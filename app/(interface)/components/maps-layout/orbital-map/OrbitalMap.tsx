@@ -688,6 +688,13 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
     const zoom = d3
       .zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.4, 3])
+      .filter(event => {
+        if (event.type === 'wheel') return true;
+        if (event.type === 'touchstart' || event.type === 'touchmove' || event.type === 'touchend') {
+          return true;
+        }
+        return false;
+      })
       .on('zoom', event => g.attr('transform', event.transform));
     
     svg.call(zoom as any);

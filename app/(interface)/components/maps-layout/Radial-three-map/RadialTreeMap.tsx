@@ -161,9 +161,11 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({ folders }) => {
     const zoom = d3.zoom()
       .scaleExtent([0.3, 3])
       .filter((event: any) => {
-        if (event.type === 'mousedown' && event.button === 2) return false;
-        if (event.shiftKey) return false;
-        return true;
+        if (event.type === 'wheel') return true;
+        if (event.type === 'touchstart' || event.type === 'touchmove' || event.type === 'touchend') {
+          return true;
+        }
+        return false;
       })
       .on('zoom', (event) => {
         const transform = event.transform;
