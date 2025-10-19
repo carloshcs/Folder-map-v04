@@ -22,6 +22,7 @@ const createFolderItem = (node: DriveNode): FolderItem => ({
   },
   serviceId: 'googledrive',
   path: node.path,
+  link: node.link,
   createdDate: node.createdDate,
   modifiedDate: node.modifiedDate,
   activityScore: node.activityScore

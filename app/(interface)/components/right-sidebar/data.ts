@@ -15,6 +15,7 @@ export interface FolderItem {
   metrics?: FolderMetrics;
   serviceId?: ServiceId;
   path?: string;
+  link?: string;
   createdDate?: string;
   modifiedDate?: string;
   activityScore?: number;
