@@ -22,6 +22,7 @@ const createFolderItem = (node: NotionNode): FolderItem => ({
   },
   serviceId: 'notion',
   path: node.path,
+  link: node.link,
   createdDate: node.createdDate,
   modifiedDate: node.modifiedDate,
   activityScore: node.activityScore,
