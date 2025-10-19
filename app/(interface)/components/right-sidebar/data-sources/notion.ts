@@ -1,26 +1,13 @@
-import type { FolderItem } from "../data";
+import notionData from '../../../../(database)/notion-data.json';
+import type { FolderItem } from '../data';
 
-export interface NotionNode {
-  id: string;
-  title: string;
-  kind?: string;
-  mimeType?: string;
-  parent_id?: string;
-  totalSize?: number;
-  fileCount?: number;
-  folderCount?: number;
-}
-
-export interface NotionDatabase {
-  nodes: NotionNode[];
-}
+type NotionNode = (typeof notionData.nodes)[number];
 
 type FolderMap = Map<string, FolderItem>;
 
-const FOLDER_KIND = "folder";
+const FOLDER_KIND = 'folder';
 
-const isFolderNode = (node: NotionNode): boolean =>
-  node.kind === FOLDER_KIND || node.mimeType === "application/vnd.google-apps.folder";
+const isFolderNode = (node: NotionNode): boolean => node.kind === FOLDER_KIND || node.mimeType === 'application/vnd.google-apps.folder';
 
 const createFolderItem = (node: NotionNode): FolderItem => ({
   id: node.id,
@@ -36,9 +23,7 @@ const createFolderItem = (node: NotionNode): FolderItem => ({
 });
 
 const sortFolders = (items: FolderItem[]) => {
-  items.sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
-  );
+  items.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
   items.forEach(item => {
     if (item.children && item.children.length > 0) {
       sortFolders(item.children);
@@ -58,10 +43,7 @@ const pruneEmptyChildren = (items: FolderItem[]) => {
   });
 };
 
-const buildFolderRelationships = (
-  folderNodes: NotionNode[],
-  folderMap: FolderMap,
-): FolderItem[] => {
+const buildFolderRelationships = (folderNodes: NotionNode[], folderMap: FolderMap): FolderItem[] => {
   const roots: FolderItem[] = [];
 
   folderNodes.forEach(node => {
@@ -87,9 +69,7 @@ const buildFolderRelationships = (
   return roots;
 };
 
-export const buildNotionTree = (
-  notionData: NotionDatabase,
-): FolderItem[] => {
+export const buildNotionTree = (): FolderItem[] => {
   const folderNodes = notionData.nodes.filter(isFolderNode);
   const folderMap: FolderMap = new Map();
 

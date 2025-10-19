@@ -1,16 +1,17 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import {
+  FolderItem,
+  SuppressedFolder,
   SERVICE_ORDER,
   createInitialFolders,
   getBaseFolders,
-  isServiceId,
-  loadDropboxTree,
   loadGoogleDriveTree,
+  loadDropboxTree,
   loadNotionTree,
   loadOneDriveTree,
+  isServiceId
 } from './data';
-import type { FolderItem, ServiceId, SuppressedFolder } from './data';
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 
@@ -152,101 +153,77 @@ export const useFolderManager = () => {
   const [folders, setFolders] = useState<FolderItem[]>(() => createInitialFolders());
   const [suppressedFolders, setSuppressedFolders] = useState<SuppressedFolder[]>([]);
   const [baseFolders, setBaseFolders] = useState<FolderItem[]>(() => getBaseFolders());
-  const loadingServicesRef = useRef(new Set<ServiceId>());
-  const loadedServicesRef = useRef(new Set<ServiceId>());
 
-  const serviceLoaders = useMemo(
-    () => ({
-      googledrive: loadGoogleDriveTree,
-      dropbox: loadDropboxTree,
-      notion: loadNotionTree,
-      onedrive: loadOneDriveTree,
-    }),
-    [],
-  );
+  useEffect(() => {
+    let cancelled = false;
 
-  const applyTree = useCallback((serviceId: ServiceId, tree: FolderItem[]) => {
-    setFolders(prev => {
-      let hasChanges = false;
+    const loaders: Array<[
+      'googledrive' | 'dropbox' | 'notion' | 'onedrive',
+      () => Promise<FolderItem[]>
+    ]> = [
+      ['googledrive', loadGoogleDriveTree],
+      ['dropbox', loadDropboxTree],
+      ['notion', loadNotionTree],
+      ['onedrive', loadOneDriveTree]
+    ];
 
-      const updated = prev.map(item => {
-        if (item.id !== serviceId) {
-          return item;
-        }
+    const applyTree = (serviceId: string, tree: FolderItem[]) => {
+      setFolders(prev => {
+        let hasChanges = false;
 
-        hasChanges = true;
+        const updated = prev.map(item => {
+          if (item.id !== serviceId) {
+            return item;
+          }
 
-        return {
-          ...item,
-          children: tree,
-        };
+          hasChanges = true;
+
+          return {
+            ...item,
+            children: tree,
+          };
+        });
+
+        return hasChanges ? updated : prev;
       });
 
-      return hasChanges ? updated : prev;
+      setBaseFolders(getBaseFolders());
+    };
+
+    loaders.forEach(([serviceId, loader]) => {
+      loader()
+        .then(tree => {
+          if (cancelled) {
+            return;
+          }
+
+          applyTree(serviceId, tree);
+        })
+        .catch(error => {
+          console.error(`Failed to load ${serviceId} tree`, error);
+        });
     });
 
-    setBaseFolders(getBaseFolders());
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const ensureServiceLoaded = useCallback(
-    async (serviceId: ServiceId) => {
-      if (loadedServicesRef.current.has(serviceId)) {
-        return;
-      }
+  const toggleFolder = useCallback((folderId: string) => {
+    const toggleRecursive = (items: FolderItem[]): FolderItem[] => {
+      return items.map(item => {
+        if (item.id === folderId) {
+          return { ...item, isOpen: !item.isOpen };
+        }
+        if (item.children) {
+          return { ...item, children: toggleRecursive(item.children) };
+        }
+        return item;
+      });
+    };
 
-      if (loadingServicesRef.current.has(serviceId)) {
-        return;
-      }
-
-      loadingServicesRef.current.add(serviceId);
-
-      try {
-        const tree = await serviceLoaders[serviceId]();
-        loadedServicesRef.current.add(serviceId);
-        applyTree(serviceId, tree);
-      } catch (error) {
-        console.error(`Failed to load ${serviceId} tree`, error);
-      } finally {
-        loadingServicesRef.current.delete(serviceId);
-      }
-    },
-    [applyTree, serviceLoaders],
-  );
-
-  const toggleFolder = useCallback(
-    (folderId: string) => {
-      let serviceToLoad: ServiceId | null = null;
-
-      const toggleRecursive = (items: FolderItem[]): FolderItem[] => {
-        return items.map(item => {
-          if (item.id === folderId) {
-            const nextOpen = !item.isOpen;
-
-            if (
-              nextOpen &&
-              isServiceId(folderId) &&
-              (!item.children || item.children.length === 0)
-            ) {
-              serviceToLoad = folderId;
-            }
-
-            return { ...item, isOpen: nextOpen };
-          }
-          if (item.children) {
-            return { ...item, children: toggleRecursive(item.children) };
-          }
-          return item;
-        });
-      };
-
-      setFolders(prev => toggleRecursive(prev));
-
-      if (serviceToLoad) {
-        void ensureServiceLoaded(serviceToLoad);
-      }
-    },
-    [ensureServiceLoaded],
-  );
+    setFolders(prev => toggleRecursive(prev));
+  }, []);
 
   const toggleFolderSelection = useCallback((folderId: string) => {
     const toggleRecursive = (items: FolderItem[]): FolderItem[] => {
@@ -270,10 +247,6 @@ export const useFolderManager = () => {
   }, []);
 
   const showOnlyFolder = useCallback((folderId: string) => {
-    if (isServiceId(folderId)) {
-      void ensureServiceLoaded(folderId);
-    }
-
     setFolders(prev => {
       const pathToTarget = findPathToFolder(folderId, prev);
       if (!pathToTarget) {
@@ -281,7 +254,7 @@ export const useFolderManager = () => {
       }
       return updateFolderTree(prev, pathToTarget, folderId);
     });
-  }, [ensureServiceLoaded]);
+  }, []);
 
   const showEverything = useCallback(() => {
     setFolders(prev => {

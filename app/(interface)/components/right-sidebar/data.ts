@@ -45,7 +45,7 @@ const BASE_FOLDERS: FolderItem[] = [
   {
     id: 'googledrive',
     name: 'Google Drive',
-    isOpen: false,
+    isOpen: true,
     isSelected: true,
   }
 ];
@@ -61,38 +61,24 @@ const clone = <T,>(value: T): T => {
 const serviceTreeCache: Partial<Record<ServiceId, FolderItem[]>> = {};
 let baseFoldersCache: FolderItem[] | null = null;
 
-type ServiceLoader = () => Promise<FolderItem[]>;
-
-const fetchServiceData = async <T,>(serviceId: ServiceId): Promise<T> => {
-  const response = await fetch(`/api/folder-data/${serviceId}`);
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch data for ${serviceId}`);
-  }
-
-  return response.json() as Promise<T>;
-};
+type ServiceLoader = () => Promise<FolderItem[]> | FolderItem[];
 
 const serviceLoaders: Record<ServiceId, ServiceLoader> = {
   notion: async () => {
     const module = await import('./data-sources/notion');
-    const data = await fetchServiceData<import('./data-sources/notion').NotionDatabase>('notion');
-    return module.buildNotionTree(data);
+    return module.buildNotionTree();
   },
   onedrive: async () => {
     const module = await import('./data-sources/oneDrive');
-    const data = await fetchServiceData<import('./data-sources/oneDrive').OneDriveDatabase>('onedrive');
-    return module.buildOneDriveTree(data);
+    return module.buildOneDriveTree();
   },
   dropbox: async () => {
     const module = await import('./data-sources/dropbox');
-    const data = await fetchServiceData<import('./data-sources/dropbox').DropboxDatabase>('dropbox');
-    return module.buildDropboxTree(data);
+    return module.buildDropboxTree();
   },
   googledrive: async () => {
     const module = await import('./data-sources/googleDrive');
-    const data = await fetchServiceData<import('./data-sources/googleDrive').GoogleDriveDatabase>('googledrive');
-    return module.buildGoogleDriveTree(data);
+    return module.buildGoogleDriveTree();
   }
 };
 
