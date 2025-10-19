@@ -1,15 +1,27 @@
-import driveDatabase from './drive-database.json';
-import type { FolderItem } from '../data';
+import type { FolderItem } from "../data";
 
-const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
+export interface GoogleDriveNode {
+  id: string;
+  title: string;
+  mimeType: string;
+  parent_id?: string;
+  totalSize?: number;
+  fileCount?: number;
+  folderCount?: number;
+}
 
-type DriveNode = (typeof driveDatabase.nodes)[number];
+export interface GoogleDriveDatabase {
+  nodes: GoogleDriveNode[];
+}
+
+const FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 
 type FolderMap = Map<string, FolderItem>;
 
-const isFolderNode = (node: DriveNode): boolean => node.mimeType === FOLDER_MIME_TYPE;
+const isFolderNode = (node: GoogleDriveNode): boolean =>
+  node.mimeType === FOLDER_MIME_TYPE;
 
-const createFolderItem = (node: DriveNode): FolderItem => ({
+const createFolderItem = (node: GoogleDriveNode): FolderItem => ({
   id: node.id,
   name: node.title,
   isOpen: false,
@@ -18,12 +30,14 @@ const createFolderItem = (node: DriveNode): FolderItem => ({
   metrics: {
     totalSize: node.totalSize,
     fileCount: node.fileCount,
-    folderCount: node.folderCount
-  }
+    folderCount: node.folderCount,
+  },
 });
 
 const sortFolders = (items: FolderItem[]) => {
-  items.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  items.sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+  );
   items.forEach(item => {
     if (item.children && item.children.length > 0) {
       sortFolders(item.children);
@@ -43,7 +57,10 @@ const pruneEmptyChildren = (items: FolderItem[]) => {
   });
 };
 
-const buildFolderRelationships = (folderNodes: DriveNode[], folderMap: FolderMap): FolderItem[] => {
+const buildFolderRelationships = (
+  folderNodes: GoogleDriveNode[],
+  folderMap: FolderMap,
+): FolderItem[] => {
   const roots: FolderItem[] = [];
 
   folderNodes.forEach(node => {
@@ -67,7 +84,9 @@ const buildFolderRelationships = (folderNodes: DriveNode[], folderMap: FolderMap
   return roots;
 };
 
-export const buildGoogleDriveTree = (): FolderItem[] => {
+export const buildGoogleDriveTree = (
+  driveDatabase: GoogleDriveDatabase,
+): FolderItem[] => {
   const folderNodes = driveDatabase.nodes.filter(isFolderNode);
   const folderMap: FolderMap = new Map();
 

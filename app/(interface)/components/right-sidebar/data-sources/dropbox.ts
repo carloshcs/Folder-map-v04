@@ -1,13 +1,26 @@
-import dropboxData from '../../../../(database)/dropbox-data.json';
-import type { FolderItem } from '../data';
+import type { FolderItem } from "../data";
 
-type DropboxNode = (typeof dropboxData.nodes)[number];
+export interface DropboxNode {
+  id: string;
+  title: string;
+  kind?: string;
+  mimeType?: string;
+  parent_id?: string;
+  totalSize?: number;
+  fileCount?: number;
+  folderCount?: number;
+}
+
+export interface DropboxDatabase {
+  nodes: DropboxNode[];
+}
 
 type FolderMap = Map<string, FolderItem>;
 
-const FOLDER_KIND = 'folder';
+const FOLDER_KIND = "folder";
 
-const isFolderNode = (node: DropboxNode): boolean => node.kind === FOLDER_KIND || node.mimeType === 'application/vnd.google-apps.folder';
+const isFolderNode = (node: DropboxNode): boolean =>
+  node.kind === FOLDER_KIND || node.mimeType === "application/vnd.google-apps.folder";
 
 const createFolderItem = (node: DropboxNode): FolderItem => ({
   id: node.id,
@@ -23,7 +36,9 @@ const createFolderItem = (node: DropboxNode): FolderItem => ({
 });
 
 const sortFolders = (items: FolderItem[]) => {
-  items.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  items.sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+  );
   items.forEach(item => {
     if (item.children && item.children.length > 0) {
       sortFolders(item.children);
@@ -43,7 +58,10 @@ const pruneEmptyChildren = (items: FolderItem[]) => {
   });
 };
 
-const buildFolderRelationships = (folderNodes: DropboxNode[], folderMap: FolderMap): FolderItem[] => {
+const buildFolderRelationships = (
+  folderNodes: DropboxNode[],
+  folderMap: FolderMap,
+): FolderItem[] => {
   const roots: FolderItem[] = [];
 
   folderNodes.forEach(node => {
@@ -69,7 +87,9 @@ const buildFolderRelationships = (folderNodes: DropboxNode[], folderMap: FolderM
   return roots;
 };
 
-export const buildDropboxTree = (): FolderItem[] => {
+export const buildDropboxTree = (
+  dropboxData: DropboxDatabase,
+): FolderItem[] => {
   const folderNodes = dropboxData.nodes.filter(isFolderNode);
   const folderMap: FolderMap = new Map();
 
