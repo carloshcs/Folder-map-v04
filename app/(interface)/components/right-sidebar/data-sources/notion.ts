@@ -20,6 +20,11 @@ const createFolderItem = (node: NotionNode): FolderItem => ({
     fileCount: node.fileCount,
     folderCount: node.folderCount,
   },
+  serviceId: 'notion',
+  path: node.path,
+  createdDate: node.createdDate,
+  modifiedDate: node.modifiedDate,
+  activityScore: node.activityScore,
 });
 
 const sortFolders = (items: FolderItem[]) => {
