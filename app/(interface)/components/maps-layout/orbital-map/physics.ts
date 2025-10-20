@@ -1,22 +1,15 @@
-/**
- * Manual orbital layout between primary (Folder Fox) and secondaries (integrations).
- * - No D3 forces.
- * - Even angular spacing between secondaries (e.g., 90° for 4).
- * - Click/drag secondary → move freely → on release it smoothly returns to orbit.
- */
+import { INTEGRATION_NAMES, RETURN_SPEED } from './constants';
+import { calculateExpansionOffset, getOrbitalRadius } from './geometry';
+import { positionChildNodes } from './positioning';
+import { getNodeId } from './nodeUtils';
+import { D3HierarchyNode, NodePosition } from './types';
 
 export function createManualPhysics(
-  nodes: any[],
+  nodes: D3HierarchyNode[],
   onTick: () => void,
-  RADIUS_PRIMARY_TO_SECONDARY = 200,
-  NODE_RADIUS = 30
+  existingPositions: Map<string, NodePosition>,
 ) {
-  const folderFox = nodes.find(n => n.data?.name === 'Folder Fox');
-  const integrations = nodes.filter(
-    n =>
-      n.parent === folderFox &&
-      ['Google Drive', 'Dropbox', 'OneDrive', 'Notion'].includes(n.data?.name)
-  );
+  const folderFox = nodes.find(n => n?.data?.name === 'Folder Fox');
 
   if (folderFox) {
     folderFox.x = 0;
@@ -24,32 +17,131 @@ export function createManualPhysics(
     folderFox.isPrimary = true;
   }
 
-  const total = integrations.length;
-  const angleStep = (2 * Math.PI) / total;
+  const integrations = nodes.filter(
+    n => n?.parent === folderFox && INTEGRATION_NAMES.includes(n?.data?.name),
+  );
 
-  // Initial angular placement
+  const integrationsCount = integrations.length || 1;
+  const integrationAngleStep = (2 * Math.PI) / integrationsCount;
+
   integrations.forEach((node, i) => {
-    const angle = i * angleStep - Math.PI / 2;
-    node.orbitAngle = angle;
-    node.targetX = Math.cos(angle) * RADIUS_PRIMARY_TO_SECONDARY;
-    node.targetY = Math.sin(angle) * RADIUS_PRIMARY_TO_SECONDARY;
+    const angle = i * integrationAngleStep - Math.PI / 2;
+    const radius = getOrbitalRadius(1);
+    const cx = folderFox?.x ?? 0;
+    const cy = folderFox?.y ?? 0;
+
+    Object.assign(node, {
+      orbitAngle: angle,
+      depth: 1,
+      isInOrbit: true,
+      targetX: cx + Math.cos(angle) * radius,
+      targetY: cy + Math.sin(angle) * radius,
+    });
     node.x = node.targetX;
     node.y = node.targetY;
-    node.isSecondary = true;
   });
 
-  const SMOOTH_SPEED = 0.15; // controls how fast it returns to orbit
+  const depthGroups = new Map<number, D3HierarchyNode[]>();
+  nodes.forEach(node => {
+    if (node.depth >= 2) {
+      if (!depthGroups.has(node.depth)) {
+        depthGroups.set(node.depth, []);
+      }
+      depthGroups.get(node.depth)!.push(node);
+    }
+  });
+
+  const sortedDepths = Array.from(depthGroups.keys()).sort((a, b) => a - b);
+
+  sortedDepths.forEach(depth => {
+    const nodesAtDepth = depthGroups.get(depth)!;
+    const byParent = new Map<D3HierarchyNode, D3HierarchyNode[]>();
+
+    nodesAtDepth.forEach(node => {
+      const parent = node.parent!;
+      if (!byParent.has(parent)) {
+        byParent.set(parent, []);
+      }
+      byParent.get(parent)!.push(node);
+    });
+
+    byParent.forEach((children, parent) => {
+      const positionedNodes: { x: number; y: number }[] = [];
+
+      const existingNodes: D3HierarchyNode[] = [];
+      const newNodes: D3HierarchyNode[] = [];
+
+      children.forEach(child => {
+        const nodeId = getNodeId(child);
+        if (existingPositions.has(nodeId)) {
+          existingNodes.push(child);
+        } else {
+          newNodes.push(child);
+        }
+      });
+
+      existingNodes.forEach(child => {
+        const nodeId = getNodeId(child);
+        const existingPos = existingPositions.get(nodeId)!;
+
+        child.parentNode = parent;
+        child.isInOrbit = true;
+        Object.assign(child, existingPos, { targetX: existingPos.x, targetY: existingPos.y });
+        positionedNodes.push({ x: child.x!, y: child.y! });
+      });
+
+      if (newNodes.length > 0) {
+        positionChildNodes(newNodes, parent, depth, existingPositions, positionedNodes);
+      }
+    });
+  });
 
   let animationId: number;
 
   function animate() {
-    // Only secondaries need animation toward their orbit target
-    integrations.forEach(node => {
-      if (node.isDragging) return; // skip while dragging
+    nodes.forEach(node => {
+      if (!node.isInOrbit) return;
+      if (node.depth === 0) return;
+      if (node.isDragging) return;
 
-      // Smooth interpolation back to target orbit
-      node.x += (node.targetX - node.x) * SMOOTH_SPEED;
-      node.y += (node.targetY - node.y) * SMOOTH_SPEED;
+      if (node.depth === 1) {
+        const cx = folderFox?.x ?? 0;
+        const cy = folderFox?.y ?? 0;
+        const radius = getOrbitalRadius(1);
+
+        node.targetX = cx + Math.cos(node.orbitAngle!) * radius;
+        node.targetY = cy + Math.sin(node.orbitAngle!) * radius;
+      } else {
+        const parent = node.parentNode;
+        if (!parent) return;
+
+        const px = parent.x ?? 0;
+        const py = parent.y ?? 0;
+        const referenceAngle = parent.orbitAngle ?? 0;
+
+        node.orbitAngle = node.orbitAngle ?? referenceAngle;
+
+        let effectiveRadius = node.baseOrbitRadius || node.calculatedRadius || getOrbitalRadius(node.depth);
+
+        if (node.depth >= 3) {
+          if (node.isExpanded && node.hasChildren) {
+            if (node.expansionOffset === undefined) {
+              node.expansionOffset = calculateExpansionOffset(node, 3) * 0.7;
+            }
+            effectiveRadius = node.baseOrbitRadius! + node.expansionOffset;
+          } else if (!node.isExpanded && node.expansionOffset !== undefined) {
+            node.expansionOffset = undefined;
+            effectiveRadius = node.baseOrbitRadius!;
+          }
+        }
+
+        const angle = referenceAngle + (node.offsetAngle || 0);
+        node.targetX = px + Math.cos(angle) * effectiveRadius;
+        node.targetY = py + Math.sin(angle) * effectiveRadius;
+      }
+
+      node.x! += (node.targetX! - node.x!) * RETURN_SPEED;
+      node.y! += (node.targetY! - node.y!) * RETURN_SPEED;
     });
 
     onTick();
@@ -58,32 +150,44 @@ export function createManualPhysics(
 
   animate();
 
-  // --- Drag Handlers ---
-  function onDragStart(node: any) {
+  function onDragStart(node: D3HierarchyNode) {
+    if (node.depth === 0) return;
     node.isDragging = true;
   }
 
-  function onDrag(node: any, x: number, y: number) {
+  function onDrag(node: D3HierarchyNode, x: number, y: number) {
+    if (node.depth === 0) return;
     node.x = x;
     node.y = y;
   }
 
-  function onDragEnd(node: any) {
+  function onDragEnd(node: D3HierarchyNode) {
+    if (node.depth === 0) return;
     node.isDragging = false;
 
-    // Reset target orbit position when released
-    if (node.isSecondary && folderFox) {
-      node.targetX = folderFox.x + Math.cos(node.orbitAngle) * RADIUS_PRIMARY_TO_SECONDARY;
-      node.targetY = folderFox.y + Math.sin(node.orbitAngle) * RADIUS_PRIMARY_TO_SECONDARY;
+    if (node.depth === 1) {
+      const cx = folderFox?.x ?? 0;
+      const cy = folderFox?.y ?? 0;
+      const radius = getOrbitalRadius(1);
+
+      node.targetX = cx + Math.cos(node.orbitAngle!) * radius;
+      node.targetY = cy + Math.sin(node.orbitAngle!) * radius;
+    } else {
+      const parent = node.parentNode;
+      if (!parent) return;
+
+      const px = parent.x ?? 0;
+      const py = parent.y ?? 0;
+      const radius = node.calculatedRadius || getOrbitalRadius(node.depth);
+      const angle = parent.orbitAngle! + (node.offsetAngle || 0);
+
+      node.targetX = px + Math.cos(angle) * radius;
+      node.targetY = py + Math.sin(angle) * radius;
     }
   }
 
   return {
     stop: () => cancelAnimationFrame(animationId),
-    dragHandlers: {
-      onDragStart,
-      onDrag,
-      onDragEnd,
-    },
+    dragHandlers: { onDragStart, onDrag, onDragEnd },
   };
 }
