@@ -1,3 +1,4 @@
+//geometry
 import { ORBITAL_RADII } from './constants';
 import { D3HierarchyNode } from './types';
 

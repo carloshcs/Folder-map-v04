@@ -1,9 +1,10 @@
+//OrbitalMap
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 
-import { MIN_HEIGHT, MIN_WIDTH } from './constants';
+import { MIN_HEIGHT, MIN_WIDTH, INTEGRATION_NAMES } from './constants';
 import { buildHierarchy, getVisibleNodesAndLinks } from './hierarchy';
 import { renderNodes } from './rendering';
 import { createManualPhysics } from './physics';
@@ -14,7 +15,10 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 1100, height: 900 });
+  
+  // Start with nothing expanded (only Folder Fox + integrations visible)
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  
   const gRef = useRef<D3GroupSelection | null>(null);
   const linkLayerRef = useRef<D3GroupSelection | null>(null);
   const nodeLayerRef = useRef<D3GroupSelection | null>(null);
@@ -94,7 +98,11 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
 
     const link = linkLayer
       .selectAll<SVGLineElement, any>('line')
-      .data(visibleLinks, (d: any) => `${d.source.data.name}-${d.target.data.name}`)
+      .data(visibleLinks, (d: any) => {
+        const sourceId = getNodeId(d.source);
+        const targetId = getNodeId(d.target);
+        return `${sourceId}-${targetId}`;
+      })
       .join(
         enter => enter.append('line').attr('stroke', '#aaa').attr('stroke-width', 1.2),
         update => update,

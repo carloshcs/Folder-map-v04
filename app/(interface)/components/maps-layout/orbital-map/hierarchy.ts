@@ -1,3 +1,5 @@
+// hierarchy.ts - Fixed to only show direct children when expanding
+
 import * as d3 from 'd3';
 import { INTEGRATION_NAMES } from './constants';
 import { D3HierarchyNode, FolderItem } from './types';
@@ -16,20 +18,68 @@ export function buildHierarchy(folders: FolderItem[]) {
 }
 
 export function getVisibleNodesAndLinks(root: any, expanded: Set<string>) {
-  const allNodes: D3HierarchyNode[] = root.descendants();
-  const allLinks = root.links();
+  const visibleNodes: D3HierarchyNode[] = [];
+  const visibleLinks: any[] = [];
+  const addedLinks = new Set<string>(); // Track added links to prevent duplicates
 
-  const visibleNodes = allNodes.filter(d => {
-    if (d.depth <= 1) return true;
-    const parent = d.parent;
-    if (!parent) return false;
-    return expanded.has(parent.data.name);
-  });
+  // Recursive function to traverse and collect visible nodes
+  function traverse(node: D3HierarchyNode) {
+    // Always add the current node
+    visibleNodes.push(node);
 
-  const visibleLinks = allLinks.filter(
-    (d: any) => visibleNodes.includes(d.source) && visibleNodes.includes(d.target),
-  );
+    // Level 0 (Folder Fox): Always show its children (integrations)
+    if (node.depth === 0 && node.children && node.children.length > 0) {
+      node.children.forEach(child => {
+        visibleNodes.push(child);
+        
+        const linkId = `${node.data.name}-${child.data.name}`;
+        if (!addedLinks.has(linkId)) {
+          visibleLinks.push({ source: node, target: child });
+          addedLinks.add(linkId);
+        }
+        
+        // Check if integration is expanded
+        if (expanded.has(child.data.name) && child.children && child.children.length > 0) {
+          child.children.forEach(grandchild => {
+            visibleNodes.push(grandchild);
+            
+            const gcLinkId = `${child.data.name}-${grandchild.data.name}`;
+            if (!addedLinks.has(gcLinkId)) {
+              visibleLinks.push({ source: child, target: grandchild });
+              addedLinks.add(gcLinkId);
+            }
+            
+            // Continue recursively for deeper levels
+            traverseChildren(grandchild);
+          });
+        }
+      });
+      return;
+    }
+  }
 
+  // Helper function for deeper traversal
+  function traverseChildren(node: D3HierarchyNode) {
+    if (expanded.has(node.data.name) && node.children && node.children.length > 0) {
+      node.children.forEach(child => {
+        visibleNodes.push(child);
+        
+        const linkId = `${node.data.name}-${child.data.name}`;
+        if (!addedLinks.has(linkId)) {
+          visibleLinks.push({ source: node, target: child });
+          addedLinks.add(linkId);
+        }
+        
+        // Recursively check if THIS child is also expanded
+        traverseChildren(child);
+      });
+    }
+  }
+
+  // Start traversal from root
+  traverse(root);
+
+  // Set expanded and hasChildren flags
   visibleNodes.forEach(node => {
     node.isExpanded = expanded.has(node.data.name);
     node.hasChildren = (node.children && node.children.length > 0) || false;

@@ -1,3 +1,4 @@
+//rendering
 import * as d3 from 'd3';
 import { LOGO_MAP } from './constants';
 import { getNodeColor, getNodeId } from './nodeUtils';

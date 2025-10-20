@@ -25,6 +25,12 @@ export interface D3HierarchyNode {
   hasChildren?: boolean;
   parentNode?: D3HierarchyNode;
   isPrimary?: boolean;
+  // Force simulation properties (for level 3+ nodes)
+  fx?: number | null;
+  fy?: number | null;
+  vx?: number;
+  vy?: number;
+  index?: number;
 }
 
 export interface D3Link {

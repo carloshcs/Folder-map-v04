@@ -1,3 +1,4 @@
+//constants.ts
 export const ORBITAL_RADII: Record<number, number> = {
   0: 0,
   1: 100,
