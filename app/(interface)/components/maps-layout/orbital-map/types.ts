@@ -52,13 +52,3 @@ export interface NodePosition {
   offsetAngle: number;
   orbitAngle: number;
 }
-
-export interface SidebarPalette {
-  primary: string;
-  primaryForeground: string;
-  accent: string;
-  accentForeground: string;
-  surface: string;
-  surfaceForeground: string;
-  border: string;
-}
