@@ -7,8 +7,8 @@ export function getOrbitalRadius(depth: number): number {
 }
 
 export function getNodeRadius(depth: number): number {
-  if (depth === 0) return 60;
-  if (depth === 1) return 37.5;
+  if (depth === 0) return 30;
+  if (depth === 1) return 25;
   if (depth === 2) return 28;
   return 24;
 }
