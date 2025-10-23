@@ -45,6 +45,8 @@
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "3.3.3",
     "tailwindcss-animate": "^1.0.7",
-    "typescript": "5.2.2"
+    "typescript": "5.2.2",
+    "vis-data": "^8.0.3",
+    "vis-network": "^10.0.2"
   }
 }
