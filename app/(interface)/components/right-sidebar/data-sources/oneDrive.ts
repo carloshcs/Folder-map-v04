@@ -26,11 +26,6 @@ const createFolderItem = (node: OneDriveNode): FolderItem => ({
   createdDate: node.createdDate,
   modifiedDate: node.modifiedDate,
   activityScore: node.activityScore,
-  type: node.kind === 'folder' ? 'Folder' : node.kind ?? 'Item',
-  owner: node.owner,
-  shared: node.shared,
-  permissionsCount: node.permissionsCount,
-  permissionLevel: node.shared ? 'edit' : 'owner',
 });
 
 const sortFolders = (items: FolderItem[]) => {
