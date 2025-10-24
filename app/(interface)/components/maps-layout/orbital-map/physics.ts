@@ -23,31 +23,34 @@ export function createManualPhysics(
     const existingPos = existingPositions.get(id);
 
     // Visual size + fixed state
-    let size = 16;
+    let size = 20;
     let fixed: any = false;
     let level = node.depth;
     let mass = 1;
 
     if (node.depth === 0) {
-      size = 35;
+      size = 44;
       fixed = { x: true, y: true };
       mass = 10;
     } else if (node.depth === 1) {
-      size = 28;
+      size = 35;
       mass = 3;
       level = 1;
     } else if (node.depth === 2) {
-      size = 20;
+      size = 25;
       level = 2;
     }
 
     // Optional manual orbital placement for Level 1
     let x = existingPos?.x ?? node.x ?? 0;
     let y = existingPos?.y ?? node.y ?? 0;
-    if (node.depth === 1 && root) {
+    if (node.depth === 0) {
+      x = 0;
+      y = 0;
+    } else if (node.depth === 1 && root) {
       const idx = INTEGRATION_NAMES.indexOf(node.data?.name || '');
       const angle = (2 * Math.PI / INTEGRATION_NAMES.length) * idx;
-      const radius = 200;
+      const radius = 240;
       x = Math.cos(angle) * radius;
       y = Math.sin(angle) * radius;
     }
@@ -70,8 +73,8 @@ export function createManualPhysics(
       visEdges.add({
         from: parentId,
         to: id,
-        length: node.depth === 1 ? 220 :
-                node.depth === 2 ? 160 : 100,
+        length: node.depth === 1 ? 260 :
+                node.depth === 2 ? 200 : 140,
       });
     }
   });
