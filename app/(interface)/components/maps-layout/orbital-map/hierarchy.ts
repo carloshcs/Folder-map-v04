@@ -3,6 +3,7 @@
 import * as d3 from 'd3';
 import { INTEGRATION_NAMES } from './constants';
 import { D3HierarchyNode, FolderItem } from './types';
+import { getNodeId } from './nodeUtils';
 
 function mapFolderToHierarchy(folder: FolderItem): any {
   const children = folder.children ? folder.children.map(mapFolderToHierarchy) : [];
@@ -46,23 +47,24 @@ export function getVisibleNodesAndLinks(root: any, expanded: Set<string>) {
       node.children.forEach(child => {
         visibleNodes.push(child);
         
-        const linkId = `${node.data.name}-${child.data.name}`;
+        const linkId = `${getNodeId(node)}-${getNodeId(child)}`;
         if (!addedLinks.has(linkId)) {
           visibleLinks.push({ source: node, target: child });
           addedLinks.add(linkId);
         }
-        
+
         // Check if integration is expanded
-        if (expanded.has(child.data.name) && child.children && child.children.length > 0) {
+        const childId = getNodeId(child);
+        if (expanded.has(childId) && child.children && child.children.length > 0) {
           child.children.forEach(grandchild => {
             visibleNodes.push(grandchild);
-            
-            const gcLinkId = `${child.data.name}-${grandchild.data.name}`;
+
+            const gcLinkId = `${childId}-${getNodeId(grandchild)}`;
             if (!addedLinks.has(gcLinkId)) {
               visibleLinks.push({ source: child, target: grandchild });
               addedLinks.add(gcLinkId);
             }
-            
+
             // Continue recursively for deeper levels
             traverseChildren(grandchild);
           });
@@ -74,11 +76,12 @@ export function getVisibleNodesAndLinks(root: any, expanded: Set<string>) {
 
   // Helper function for deeper traversal
   function traverseChildren(node: D3HierarchyNode) {
-    if (expanded.has(node.data.name) && node.children && node.children.length > 0) {
+    const nodeId = getNodeId(node);
+    if (expanded.has(nodeId) && node.children && node.children.length > 0) {
       node.children.forEach(child => {
         visibleNodes.push(child);
-        
-        const linkId = `${node.data.name}-${child.data.name}`;
+
+        const linkId = `${nodeId}-${getNodeId(child)}`;
         if (!addedLinks.has(linkId)) {
           visibleLinks.push({ source: node, target: child });
           addedLinks.add(linkId);
@@ -95,7 +98,7 @@ export function getVisibleNodesAndLinks(root: any, expanded: Set<string>) {
 
   // Set expanded and hasChildren flags
   visibleNodes.forEach(node => {
-    node.isExpanded = expanded.has(node.data.name);
+    node.isExpanded = expanded.has(getNodeId(node));
     node.hasChildren = (node.children && node.children.length > 0) || false;
   });
 
