@@ -5,14 +5,8 @@ import { INTEGRATION_NAMES } from './constants';
 import { D3HierarchyNode, FolderItem } from './types';
 import { getNodeId } from './nodeUtils';
 
-function mapFolderToHierarchy(folder: FolderItem): any | null {
-  if (!folder.isSelected) {
-    return null;
-  }
-
-  const children = (folder.children ?? [])
-    .map(mapFolderToHierarchy)
-    .filter((child): child is NonNullable<ReturnType<typeof mapFolderToHierarchy>> => Boolean(child));
+function mapFolderToHierarchy(folder: FolderItem): any {
+  const children = folder.children ? folder.children.map(mapFolderToHierarchy) : [];
 
   return {
     name: folder.name,
@@ -24,13 +18,8 @@ function mapFolderToHierarchy(folder: FolderItem): any | null {
     createdDate: folder.createdDate,
     modifiedDate: folder.modifiedDate,
     activityScore: folder.activityScore,
-    type: folder.type,
-    owner: folder.owner,
-    shared: folder.shared,
-    permissionsCount: folder.permissionsCount,
-    permissionLevel: folder.permissionLevel,
     item: folder,
-    children: children.length ? children : undefined,
+    children,
   };
 }
 
@@ -38,10 +27,7 @@ export function buildHierarchy(folders: FolderItem[]) {
   const folderFox = {
     name: 'Folder Fox',
     id: 'folder-fox',
-    children: folders
-      .filter(f => INTEGRATION_NAMES.includes(f.name))
-      .map(mapFolderToHierarchy)
-      .filter((child): child is NonNullable<ReturnType<typeof mapFolderToHierarchy>> => Boolean(child)),
+    children: folders.filter(f => INTEGRATION_NAMES.includes(f.name)).map(mapFolderToHierarchy),
   };
   return d3.hierarchy(folderFox) as unknown as D3HierarchyNode;
 }

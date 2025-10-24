@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { Sidebar } from "./components/Sidebar";
-import { RightSidebar, type FolderActionHandlers } from "./components/RightSidebar";
+import { RightSidebar } from "./components/RightSidebar";
 import { TopNavigation } from "./components/TopNavigation";
 import { TextBox } from "./components/TextBox";
 import { TextToolbar } from "./components/TextToolbar";
@@ -127,7 +127,6 @@ export default function App() {
     y: 0,
   });
   const [folderData, setFolderData] = useState<FolderItem[]>([]);
-  const [folderActions, setFolderActions] = useState<FolderActionHandlers | null>(null);
   const [isTextMode, setIsTextMode] = useState(false);
   const [isBoxMode, setIsBoxMode] = useState(false);
   const [isCommentMode, setIsCommentMode] = useState(false);
@@ -198,21 +197,6 @@ export default function App() {
   const handleFolderDataChange = useCallback((folders: FolderItem[]) => {
     setFolderData(folders);
   }, []);
-
-  const handleRegisterFolderActions = useCallback((actions: FolderActionHandlers | null) => {
-    setFolderActions(actions);
-  }, []);
-
-  const handleNodeVisibilityChange = useCallback(
-    (folderId: string, isVisible: boolean) => {
-      if (!folderActions) {
-        return;
-      }
-
-      folderActions.setFolderSelection(folderId, isVisible);
-    },
-    [folderActions],
-  );
 
   const clearSelections = useCallback(() => {
     setSelectedTextId(null);
@@ -713,14 +697,13 @@ export default function App() {
         onPaletteSelect={setSelectedPaletteId}
         selectedPaletteId={selectedPaletteId}
       />
-      <RightSidebar
-        isDark={isDark}
+      <RightSidebar 
+        isDark={isDark} 
         onFolderDataChange={handleFolderDataChange}
         currentMap={currentMap}
         existingMaps={existingMaps}
         onMapChange={setCurrentMap}
         onMapNameUpdate={handleMapNameUpdate}
-        onRegisterFolderActions={handleRegisterFolderActions}
       />
       <TopNavigation
         isDark={isDark}
@@ -772,11 +755,7 @@ export default function App() {
                   <BubbleSizeMap folders={folderData} colorPaletteId={selectedPaletteId} />
                 )}
                 {selectedLayout === 'orbital' && (
-                  <OrbitalMap
-                    folders={folderData}
-                    colorPaletteId={selectedPaletteId}
-                    onNodeVisibilityChange={handleNodeVisibilityChange}
-                  />
+                  <OrbitalMap folders={folderData} colorPaletteId={selectedPaletteId} />
                 )}
                 {selectedLayout === 'hierarchy-tree' && (
                   <HierarchyTreeMap folders={folderData} />

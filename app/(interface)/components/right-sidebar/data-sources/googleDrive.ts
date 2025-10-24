@@ -25,12 +25,7 @@ const createFolderItem = (node: DriveNode): FolderItem => ({
   link: node.link,
   createdDate: node.createdDate,
   modifiedDate: node.modifiedDate,
-  activityScore: node.activityScore,
-  type: node.kind === 'folder' ? 'Folder' : node.kind ?? 'Item',
-  owner: node.owner,
-  shared: node.shared,
-  permissionsCount: node.permissionsCount,
-  permissionLevel: node.shared ? 'edit' : 'owner'
+  activityScore: node.activityScore
 });
 
 const sortFolders = (items: FolderItem[]) => {
