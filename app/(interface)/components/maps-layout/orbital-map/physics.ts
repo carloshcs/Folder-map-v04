@@ -23,22 +23,24 @@ export function createManualPhysics(
     const existingPos = existingPositions.get(id);
 
     // Visual size + fixed state
-    let size = 16;
+    let size = 20;
     let fixed: any = false;
     let level = node.depth;
     let mass = 1;
 
     if (node.depth === 0) {
-      size = 35;
+      size = 45;
       fixed = { x: true, y: true };
       mass = 10;
     } else if (node.depth === 1) {
-      size = 28;
-      mass = 3;
+      size = 35;
+      mass = 3.5;
       level = 1;
     } else if (node.depth === 2) {
-      size = 20;
+      size = 30;
       level = 2;
+    } else {
+      size = 26;
     }
 
     // Optional manual orbital placement for Level 1
@@ -47,7 +49,7 @@ export function createManualPhysics(
     if (node.depth === 1 && root) {
       const idx = INTEGRATION_NAMES.indexOf(node.data?.name || '');
       const angle = (2 * Math.PI / INTEGRATION_NAMES.length) * idx;
-      const radius = 200;
+      const radius = 180;
       x = Math.cos(angle) * radius;
       y = Math.sin(angle) * radius;
     }
