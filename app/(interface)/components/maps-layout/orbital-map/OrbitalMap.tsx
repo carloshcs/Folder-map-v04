@@ -3,13 +3,14 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
+import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 
 import { MIN_HEIGHT, MIN_WIDTH } from './constants';
 import { buildHierarchy, getVisibleNodesAndLinks } from './hierarchy';
 import { renderNodes } from './rendering';
 import { createManualPhysics } from './physics';
 import { getNodeId } from './nodeUtils';
-import { D3GroupSelection, D3HierarchyNode, NodePosition, OrbitalMapProps } from './types';
+import { D3GroupSelection, D3HierarchyNode, NodePosition, OrbitalMapProps, FolderItem } from './types';
 import {
   getPaletteColors,
   getReadableTextColor,
@@ -22,6 +23,19 @@ type HoveredNodeInfo = {
   depth: number;
   lineage: string[];
   position: { x: number; y: number };
+  pathSegments: string[];
+  serviceName?: string;
+  link?: string;
+  metrics?: {
+    totalSize?: number;
+    fileCount?: number;
+    folderCount?: number;
+  };
+  createdDate?: string;
+  modifiedDate?: string;
+  activityScore?: number;
+  canExpand: boolean;
+  isExpanded: boolean;
 };
 
 type NodeVisualStyle = {
@@ -32,6 +46,33 @@ type NodeVisualStyle = {
 const MAX_LIGHTENING = 0.6;
 const LIGHTEN_STEP = 0.18;
 const BASE_DARKEN = -0.2;
+const HOVER_TOOLTIP_WIDTH = 260;
+const HOVER_TOOLTIP_HEIGHT = 220;
+
+const numberFormatter = new Intl.NumberFormat('en-US');
+
+const formatBytes = (size?: number) => {
+  if (typeof size !== 'number') return null;
+  if (size === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = size;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  const formatted = value >= 100 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1);
+  return `${formatted} ${units[unitIndex]}`;
+};
+
+const formatDate = (iso?: string) => {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(date);
+};
 
 const computeNodeStyles = (root: D3HierarchyNode, paletteId?: string | null) => {
   const palette = getPaletteColors(paletteId);
@@ -88,6 +129,41 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId 
   const physicsRef = useRef<any>(null);
   const nodePositionsRef = useRef<Map<string, NodePosition>>(new Map());
   const [hoveredNode, setHoveredNode] = useState<HoveredNodeInfo | null>(null);
+  const isTooltipHoveredRef = useRef(false);
+  const closeTooltipTimeoutRef = useRef<number | null>(null);
+
+  const setTooltipHoverState = (value: boolean) => {
+    isTooltipHoveredRef.current = value;
+  };
+
+  const clearTooltipTimeout = () => {
+    if (closeTooltipTimeoutRef.current !== null) {
+      window.clearTimeout(closeTooltipTimeoutRef.current);
+      closeTooltipTimeoutRef.current = null;
+    }
+  };
+
+  const scheduleTooltipClose = () => {
+    clearTooltipTimeout();
+    closeTooltipTimeoutRef.current = window.setTimeout(() => {
+      setHoveredNode(null);
+    }, 180);
+  };
+
+  const toggleHoveredExpansion = () => {
+    if (!hoveredNode?.name) return;
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(hoveredNode.name)) {
+        next.delete(hoveredNode.name);
+      } else {
+        next.add(hoveredNode.name);
+      }
+      return next;
+    });
+
+    setHoveredNode(prev => (prev ? { ...prev, isExpanded: !prev.isExpanded } : prev));
+  };
 
   useEffect(() => {
     const observer = new ResizeObserver(entries => {
@@ -236,15 +312,39 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId 
     };
 
     const handleNodeEnter = (event: PointerEvent, d: any) => {
+      clearTooltipTimeout();
+      setTooltipHoverState(false);
+
       const id = getNodeId(d);
       const lineage = getLineageNames(d);
+      const trimmedLineage = lineage.filter(
+        (name, index) => !(index === 0 && name === 'Folder Fox'),
+      );
       const position = getRelativePosition(event);
+      const nodeData = d.data ?? {};
+      const item = (nodeData.item as FolderItem | undefined) ?? undefined;
+
+      const link = item?.link ?? nodeData.link;
+      const metrics = item?.metrics ?? nodeData.metrics;
+      const createdDate = item?.createdDate ?? nodeData.createdDate;
+      const modifiedDate = item?.modifiedDate ?? nodeData.modifiedDate;
+      const activityScore = item?.activityScore ?? nodeData.activityScore;
+
       setHoveredNode({
         id,
         name: d.data?.name ?? 'Node',
         depth: d.depth ?? 0,
         lineage,
         position,
+        pathSegments: trimmedLineage,
+        serviceName: trimmedLineage[0],
+        link,
+        metrics,
+        createdDate,
+        modifiedDate,
+        activityScore,
+        canExpand: Boolean(d.hasChildren),
+        isExpanded: Boolean(d.isExpanded),
       });
     };
 
@@ -254,7 +354,8 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId 
     };
 
     const handleNodeLeave = () => {
-      setHoveredNode(null);
+      if (isTooltipHoveredRef.current) return;
+      scheduleTooltipClose();
     };
 
     node = renderNodes(svg, nodeLayer, visibleNodes, {
@@ -367,6 +468,12 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId 
     };
   }, [hoveredNode?.id]);
 
+  useEffect(() => {
+    return () => {
+      clearTooltipTimeout();
+    };
+  }, []);
+
   return (
     <div
       ref={containerRef}
@@ -381,29 +488,171 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId 
       <svg ref={svgRef} className="w-full h-full" />
       {hoveredNode && (
         <div
-          className="pointer-events-none absolute rounded-xl bg-white/90 px-4 py-3 text-sm shadow-xl backdrop-blur"
+          className="pointer-events-auto absolute rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 text-sm shadow-xl backdrop-blur transition-shadow dark:border-slate-700 dark:bg-slate-900/90"
           style={{
             left: Math.min(
               Math.max(0, hoveredNode.position.x + 18),
-              Math.max(0, size.width - 220),
+              Math.max(0, size.width - HOVER_TOOLTIP_WIDTH),
             ),
             top: Math.min(
               Math.max(0, hoveredNode.position.y + 18),
-              Math.max(0, size.height - 120),
+              Math.max(0, size.height - HOVER_TOOLTIP_HEIGHT),
             ),
-            width: 220,
+            width: HOVER_TOOLTIP_WIDTH,
+          }}
+          onMouseEnter={() => {
+            setTooltipHoverState(true);
+            clearTooltipTimeout();
+          }}
+          onMouseLeave={() => {
+            setTooltipHoverState(false);
+            scheduleTooltipClose();
           }}
         >
-          <p className="font-semibold text-gray-900">{hoveredNode.name}</p>
-          <p className="mt-1 text-xs uppercase tracking-wide text-indigo-600">
-            Level {hoveredNode.depth}: {['Folder Fox', 'Integration', 'Folder', 'Item'][hoveredNode.depth] || 'Node'}
-          </p>
-          <div className="mt-2 text-xs text-gray-600">
-            <p className="font-medium text-gray-700">Path</p>
-            <p className="mt-0.5 line-clamp-2 break-words text-gray-600">
-              {hoveredNode.lineage.join(' / ')}
-            </p>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+                {hoveredNode.name}
+              </p>
+              {hoveredNode.serviceName && (
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                  {hoveredNode.serviceName}
+                </p>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {hoveredNode.link && (
+                <a
+                  href={hoveredNode.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-indigo-200 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-indigo-400"
+                  onClick={event => {
+                    event.stopPropagation();
+                  }}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  <span className="sr-only">Open folder link in a new tab</span>
+                </a>
+              )}
+              {hoveredNode.canExpand && (
+                <button
+                  type="button"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-indigo-200 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-indigo-400"
+                  onClick={event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    toggleHoveredExpansion();
+                  }}
+                >
+                  {hoveredNode.isExpanded ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  <span className="sr-only">
+                    {hoveredNode.isExpanded ? 'Collapse folder' : 'Expand folder'}
+                  </span>
+                </button>
+              )}
+            </div>
           </div>
+
+          {hoveredNode.pathSegments.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs font-medium text-slate-600 dark:text-slate-300">Location</p>
+              <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px]">
+                {hoveredNode.pathSegments.map((segment, index) => (
+                  <React.Fragment key={`${segment}-${index}`}>
+                    <span
+                      className={`rounded-md px-1.5 py-0.5 ${
+                        index === hoveredNode.pathSegments.length - 1
+                          ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-200 font-medium'
+                          : 'bg-slate-100 text-slate-600 dark:bg-slate-800/60 dark:text-slate-300'
+                      }`}
+                    >
+                      {segment}
+                    </span>
+                    {index < hoveredNode.pathSegments.length - 1 && (
+                      <span className="text-slate-400">/</span>
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(hoveredNode.metrics?.folderCount ||
+            hoveredNode.metrics?.fileCount ||
+            hoveredNode.metrics?.totalSize) && (
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+              {typeof hoveredNode.metrics?.folderCount === 'number' && (
+                <div className="min-w-[72px] rounded-lg bg-slate-100 px-2 py-1.5 text-slate-600 shadow-sm dark:bg-slate-800/60 dark:text-slate-300">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                    Folders
+                  </p>
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    {numberFormatter.format(hoveredNode.metrics?.folderCount ?? 0)}
+                  </p>
+                </div>
+              )}
+              {typeof hoveredNode.metrics?.fileCount === 'number' && (
+                <div className="min-w-[72px] rounded-lg bg-slate-100 px-2 py-1.5 text-slate-600 shadow-sm dark:bg-slate-800/60 dark:text-slate-300">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                    Files
+                  </p>
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    {numberFormatter.format(hoveredNode.metrics?.fileCount ?? 0)}
+                  </p>
+                </div>
+              )}
+              {typeof hoveredNode.metrics?.totalSize === 'number' && (
+                <div className="min-w-[90px] rounded-lg bg-slate-100 px-2 py-1.5 text-slate-600 shadow-sm dark:bg-slate-800/60 dark:text-slate-300">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                    Storage
+                  </p>
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    {formatBytes(hoveredNode.metrics?.totalSize ?? undefined)}
+                  </p>
+                </div>
+              )}
+              {typeof hoveredNode.activityScore === 'number' && (
+                <div className="min-w-[96px] rounded-lg bg-slate-100 px-2 py-1.5 text-slate-600 shadow-sm dark:bg-slate-800/60 dark:text-slate-300">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                    Activity
+                  </p>
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    {numberFormatter.format(hoveredNode.activityScore)}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {(hoveredNode.modifiedDate || hoveredNode.createdDate) && (
+            <div className="mt-3 grid grid-cols-2 gap-3 text-[11px]">
+              {hoveredNode.modifiedDate && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                    Modified
+                  </p>
+                  <p className="mt-0.5 font-medium text-slate-600 dark:text-slate-200">
+                    {formatDate(hoveredNode.modifiedDate)}
+                  </p>
+                </div>
+              )}
+              {hoveredNode.createdDate && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                    Created
+                  </p>
+                  <p className="mt-0.5 font-medium text-slate-600 dark:text-slate-200">
+                    {formatDate(hoveredNode.createdDate)}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
