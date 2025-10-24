@@ -14,6 +14,12 @@ interface RightSidebarProps {
   existingMaps: string[];
   onMapChange: (mapName: string) => void;
   onMapNameUpdate: (oldName: string, newName: string) => void;
+  onRegisterFolderActions?: (actions: FolderActionHandlers | null) => void;
+}
+
+export interface FolderActionHandlers {
+  toggleFolderSelection: (id: string) => void;
+  setFolderSelection: (id: string, isSelected: boolean) => void;
 }
 
 export function RightSidebar({
@@ -22,7 +28,8 @@ export function RightSidebar({
   currentMap,
   existingMaps,
   onMapChange,
-  onMapNameUpdate
+  onMapNameUpdate,
+  onRegisterFolderActions
 }: RightSidebarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -38,6 +45,7 @@ export function RightSidebar({
     suppressedFolders,
     toggleFolder,
     toggleFolderSelection,
+    setFolderSelection,
     showOnlyFolder,
     showEverything,
     hideEverything,
@@ -45,6 +53,21 @@ export function RightSidebar({
     restoreFolder,
     restoreAllFolders
   } = useFolderManager();
+
+  useEffect(() => {
+    if (!onRegisterFolderActions) {
+      return;
+    }
+
+    onRegisterFolderActions({
+      toggleFolderSelection,
+      setFolderSelection,
+    });
+
+    return () => {
+      onRegisterFolderActions(null);
+    };
+  }, [onRegisterFolderActions, setFolderSelection, toggleFolderSelection]);
 
   useEffect(() => {
     if (suppressedFolders.length === 0) {

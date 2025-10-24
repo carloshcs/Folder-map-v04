@@ -19,6 +19,11 @@ export interface FolderItem {
   createdDate?: string;
   modifiedDate?: string;
   activityScore?: number;
+  type?: string;
+  owner?: string;
+  shared?: boolean;
+  permissionsCount?: number;
+  permissionLevel?: 'owner' | 'edit' | 'read' | string;
 }
 
 export interface SuppressedFolder {
