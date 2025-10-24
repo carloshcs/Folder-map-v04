@@ -246,6 +246,48 @@ export const useFolderManager = () => {
     setFolders(prev => toggleRecursive(prev));
   }, []);
 
+  const setFolderSelection = useCallback((folderId: string, isSelected: boolean) => {
+    setFolders(prev => {
+      let hasChanges = false;
+
+      const updateRecursive = (items: FolderItem[]): FolderItem[] => {
+        return items.map(item => {
+          let nextChildren = item.children;
+
+          if (item.children) {
+            const updatedChildren = updateRecursive(item.children);
+            if (updatedChildren !== item.children) {
+              nextChildren = updatedChildren;
+              hasChanges = true;
+            }
+          }
+
+          if (item.id === folderId) {
+            if (item.isSelected === isSelected && nextChildren === item.children) {
+              return item;
+            }
+
+            hasChanges = true;
+            return {
+              ...item,
+              isSelected,
+              children: item.children ? updateChildrenSelection(item.children, isSelected) : undefined
+            };
+          }
+
+          if (nextChildren !== item.children) {
+            return { ...item, children: nextChildren };
+          }
+
+          return item;
+        });
+      };
+
+      const updated = updateRecursive(prev);
+      return hasChanges ? updated : prev;
+    });
+  }, []);
+
   const showOnlyFolder = useCallback((folderId: string) => {
     setFolders(prev => {
       const pathToTarget = findPathToFolder(folderId, prev);
@@ -349,6 +391,7 @@ export const useFolderManager = () => {
     suppressedFolders,
     toggleFolder,
     toggleFolderSelection,
+    setFolderSelection,
     showOnlyFolder,
     showEverything,
     hideEverything,

@@ -7,6 +7,10 @@ import { ExpandedSidebar } from './right-sidebar/ExpandedSidebar';
 import { FolderItem } from './right-sidebar/data';
 import { useFolderManager } from './right-sidebar/useFolderManager';
 
+export interface FolderSelectionActions {
+  setFolderSelection: (folderId: string, isSelected: boolean) => void;
+}
+
 interface RightSidebarProps {
   isDark: boolean;
   onFolderDataChange?: (folders: FolderItem[]) => void;
@@ -14,6 +18,7 @@ interface RightSidebarProps {
   existingMaps: string[];
   onMapChange: (mapName: string) => void;
   onMapNameUpdate: (oldName: string, newName: string) => void;
+  onFolderActionsChange?: (actions: FolderSelectionActions) => void;
 }
 
 export function RightSidebar({
@@ -22,7 +27,8 @@ export function RightSidebar({
   currentMap,
   existingMaps,
   onMapChange,
-  onMapNameUpdate
+  onMapNameUpdate,
+  onFolderActionsChange
 }: RightSidebarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -38,6 +44,7 @@ export function RightSidebar({
     suppressedFolders,
     toggleFolder,
     toggleFolderSelection,
+    setFolderSelection,
     showOnlyFolder,
     showEverything,
     hideEverything,
@@ -45,6 +52,12 @@ export function RightSidebar({
     restoreFolder,
     restoreAllFolders
   } = useFolderManager();
+
+  useEffect(() => {
+    if (onFolderActionsChange) {
+      onFolderActionsChange({ setFolderSelection });
+    }
+  }, [onFolderActionsChange, setFolderSelection]);
 
   useEffect(() => {
     if (suppressedFolders.length === 0) {

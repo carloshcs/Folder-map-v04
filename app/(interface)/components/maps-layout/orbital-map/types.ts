@@ -41,6 +41,7 @@ export type D3GroupSelection = d3.Selection<SVGGElement, unknown, null, undefine
 export interface OrbitalMapProps {
   folders: FolderItem[];
   colorPaletteId?: string;
+  onFolderSelectionChange?: (folderId: string, isSelected: boolean) => void;
 }
 
 export interface NodePosition {

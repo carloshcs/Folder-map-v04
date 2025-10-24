@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { Sidebar } from "./components/Sidebar";
-import { RightSidebar } from "./components/RightSidebar";
+import { RightSidebar, FolderSelectionActions } from "./components/RightSidebar";
 import { TopNavigation } from "./components/TopNavigation";
 import { TextBox } from "./components/TextBox";
 import { TextToolbar } from "./components/TextToolbar";
@@ -142,6 +142,7 @@ export default function App() {
   const [selectedLayout, setSelectedLayout] = useState<string | null>('orbital');
   const [selectedPaletteId, setSelectedPaletteId] = useState<string>("blue");
   const mapRef = useRef<HTMLDivElement>(null);
+  const folderSelectionHandlerRef = useRef<FolderSelectionActions['setFolderSelection'] | null>(null);
   const isCanvasLayout = selectedLayout !== "activity-map";
 
   // Check for saved theme preference or default to light mode
@@ -196,6 +197,17 @@ export default function App() {
 
   const handleFolderDataChange = useCallback((folders: FolderItem[]) => {
     setFolderData(folders);
+  }, []);
+
+  const handleFolderSelectionChange = useCallback(
+    (folderId: string, isSelected: boolean) => {
+      folderSelectionHandlerRef.current?.(folderId, isSelected);
+    },
+    [],
+  );
+
+  const handleFolderActionsChange = useCallback((actions: FolderSelectionActions) => {
+    folderSelectionHandlerRef.current = actions.setFolderSelection;
   }, []);
 
   const clearSelections = useCallback(() => {
@@ -697,13 +709,14 @@ export default function App() {
         onPaletteSelect={setSelectedPaletteId}
         selectedPaletteId={selectedPaletteId}
       />
-      <RightSidebar 
-        isDark={isDark} 
+      <RightSidebar
+        isDark={isDark}
         onFolderDataChange={handleFolderDataChange}
         currentMap={currentMap}
         existingMaps={existingMaps}
         onMapChange={setCurrentMap}
         onMapNameUpdate={handleMapNameUpdate}
+        onFolderActionsChange={handleFolderActionsChange}
       />
       <TopNavigation
         isDark={isDark}
@@ -755,7 +768,11 @@ export default function App() {
                   <BubbleSizeMap folders={folderData} colorPaletteId={selectedPaletteId} />
                 )}
                 {selectedLayout === 'orbital' && (
-                  <OrbitalMap folders={folderData} colorPaletteId={selectedPaletteId} />
+                  <OrbitalMap
+                    folders={folderData}
+                    colorPaletteId={selectedPaletteId}
+                    onFolderSelectionChange={handleFolderSelectionChange}
+                  />
                 )}
                 {selectedLayout === 'hierarchy-tree' && (
                   <HierarchyTreeMap folders={folderData} />
