@@ -369,9 +369,6 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId 
       d3
         .drag<SVGGElement, any>()
         .on('start', (event: any, d: any) => {
-          clearTooltipTimeout();
-          setTooltipHoverState(false);
-          setHoveredNode(null);
           physics.dragHandlers.onDragStart(d);
         })
         .on('drag', (event: any, d: any) => {
@@ -387,12 +384,12 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId 
 
     node.on('dblclick', (event: any, d: any) => {
       event.stopPropagation();
-      const id = getNodeId(d);
-      if (!id) return;
+      const name = d.data?.name;
+      if (!name) return;
       setExpanded(prev => {
         const next = new Set(prev);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
+        if (next.has(name)) next.delete(name);
+        else next.add(name);
         return next;
       });
     });
