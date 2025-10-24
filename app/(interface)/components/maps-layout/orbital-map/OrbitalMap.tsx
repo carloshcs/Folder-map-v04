@@ -1,11 +1,19 @@
 //OrbitalMap
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
-import { ChevronDown, ChevronRight, ChevronUp, ExternalLink } from 'lucide-react';
+import {
+  Activity,
+  ChevronDown,
+  ExternalLink,
+  EyeOff,
+  FileText,
+  Folder as FolderIcon,
+  HardDrive,
+} from 'lucide-react';
 
-import { MIN_HEIGHT, MIN_WIDTH } from './constants';
+import { LOGO_MAP, MIN_HEIGHT, MIN_WIDTH } from './constants';
 import { buildHierarchy, getVisibleNodesAndLinks } from './hierarchy';
 import { renderNodes } from './rendering';
 import { createManualPhysics } from './physics';
@@ -25,6 +33,7 @@ type HoveredNodeInfo = {
   position: { x: number; y: number };
   pathSegments: string[];
   serviceName?: string;
+  serviceId?: string;
   link?: string;
   metrics?: {
     totalSize?: number;
@@ -34,6 +43,12 @@ type HoveredNodeInfo = {
   createdDate?: string;
   modifiedDate?: string;
   activityScore?: number;
+  typeLabel?: string;
+  owner?: string;
+  shared?: boolean;
+  permissionsCount?: number;
+  permissionLevel?: string;
+  isServiceRoot?: boolean;
   canExpand: boolean;
   isExpanded: boolean;
 };
@@ -46,9 +61,8 @@ type NodeVisualStyle = {
 const MAX_LIGHTENING = 0.6;
 const LIGHTEN_STEP = 0.18;
 const BASE_DARKEN = -0.2;
-const HOVER_TOOLTIP_WIDTH = 260;
-const HOVER_TOOLTIP_COMPACT_HEIGHT = 160;
-const HOVER_TOOLTIP_EXPANDED_HEIGHT = 320;
+const HOVER_TOOLTIP_WIDTH = 300;
+const DEFAULT_TOOLTIP_HEIGHT = 280;
 
 const numberFormatter = new Intl.NumberFormat('en-US');
 
@@ -116,7 +130,7 @@ const computeNodeStyles = (root: D3HierarchyNode, paletteId?: string | null) => 
   return styles;
 };
 
-export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId }) => {
+export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId, onNodeVisibilityChange }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 1100, height: 900 });
@@ -130,7 +144,8 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId 
   const physicsRef = useRef<any>(null);
   const nodePositionsRef = useRef<Map<string, NodePosition>>(new Map());
   const [hoveredNode, setHoveredNode] = useState<HoveredNodeInfo | null>(null);
-  const [isTooltipExpanded, setIsTooltipExpanded] = useState(false);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const [tooltipHeight, setTooltipHeight] = useState(DEFAULT_TOOLTIP_HEIGHT);
   const isTooltipHoveredRef = useRef(false);
   const closeTooltipTimeoutRef = useRef<number | null>(null);
   const isDraggingRef = useRef(false);
@@ -209,6 +224,23 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId 
       .attr('stdDeviation', 4)
       .attr('flood-color', '#101828')
       .attr('flood-opacity', 0.28);
+
+    const hoverGlow = defs
+      .append('filter')
+      .attr('id', 'node-hover-glow')
+      .attr('x', '-70%')
+      .attr('y', '-70%')
+      .attr('width', '240%')
+      .attr('height', '240%');
+
+    hoverGlow
+      .append('feGaussianBlur')
+      .attr('stdDeviation', 6)
+      .attr('result', 'coloredBlur');
+
+    const merge = hoverGlow.append('feMerge');
+    merge.append('feMergeNode').attr('in', 'coloredBlur');
+    merge.append('feMergeNode').attr('in', 'SourceGraphic');
 
     const g = svg.append('g').attr('class', 'orbital-root');
     gRef.current = g;
@@ -333,6 +365,19 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId 
       const createdDate = item?.createdDate ?? nodeData.createdDate;
       const modifiedDate = item?.modifiedDate ?? nodeData.modifiedDate;
       const activityScore = item?.activityScore ?? nodeData.activityScore;
+      const serviceId = item?.serviceId ?? nodeData.serviceId;
+      const typeLabel =
+        item?.type ??
+        (d.depth === 0
+          ? 'Workspace'
+          : d.depth === 1
+            ? 'Integration'
+            : 'Folder');
+      const owner = item?.owner ?? nodeData.owner;
+      const shared = item?.shared ?? nodeData.shared;
+      const permissionsCount = item?.permissionsCount ?? nodeData.permissionsCount;
+      const permissionLevel = item?.permissionLevel ?? nodeData.permissionLevel;
+      const isServiceRoot = d.depth === 1 && (d.parent?.data?.name === 'Folder Fox' || d.parent?.data?.id === 'folder-fox');
 
       setHoveredNode({
         id,
@@ -342,11 +387,18 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId 
         position,
         pathSegments: trimmedLineage,
         serviceName: trimmedLineage[0],
+        serviceId,
         link,
         metrics,
         createdDate,
         modifiedDate,
         activityScore,
+        typeLabel,
+        owner,
+        shared,
+        permissionsCount,
+        permissionLevel,
+        isServiceRoot,
         canExpand: Boolean(d.hasChildren),
         isExpanded: Boolean(d.isExpanded),
       });
@@ -419,9 +471,39 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId 
     return () => physics.stop();
   }, [folders, size, expanded, colorPaletteId]);
 
+  useLayoutEffect(() => {
+    if (!hoveredNode) {
+      setTooltipHeight(DEFAULT_TOOLTIP_HEIGHT);
+      return;
+    }
+
+    if (!tooltipRef.current) {
+      return;
+    }
+
+    const rect = tooltipRef.current.getBoundingClientRect();
+    const nextHeight = Math.ceil(rect.height);
+    if (Math.abs(nextHeight - tooltipHeight) > 2) {
+      setTooltipHeight(nextHeight);
+    }
+  }, [hoveredNode?.id, tooltipHeight]);
+
   useEffect(() => {
-    setIsTooltipExpanded(false);
-  }, [hoveredNode?.id]);
+    if (!hoveredNode) {
+      return;
+    }
+
+    setHoveredNode(prev => {
+      if (!prev) {
+        return prev;
+      }
+      const isExpanded = expanded.has(prev.id);
+      if (prev.isExpanded === isExpanded) {
+        return prev;
+      }
+      return { ...prev, isExpanded };
+    });
+  }, [expanded, hoveredNode?.id]);
 
   useEffect(() => {
     const hoveredId = hoveredNode?.id;
@@ -454,7 +536,21 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId 
         return relatedIds.has(nodeId) ? 1 : 0.25;
       })
       .style('transform-origin', 'center')
-      .attr('filter', 'url(#node-shadow)');
+      .attr('filter', (d: any) => (getNodeId(d) === hoveredId ? 'url(#node-hover-glow)' : 'url(#node-shadow)'));
+
+    nodeSelection.each(function (d: any) {
+      const circle = d3.select(this).select<SVGCircleElement>('circle.node-circle');
+      if (circle.empty()) return;
+
+      const isHighlighted = hoveredId ? getNodeId(d) === hoveredId : false;
+      const defaultStroke = d.depth <= 1 ? '#d0d5dd' : '#333';
+      const defaultStrokeWidth = d.depth <= 1 ? 2 : 1.2;
+      const highlightStrokeWidth = d.depth <= 1 ? 3.2 : 2.4;
+
+      circle
+        .attr('stroke', isHighlighted ? '#4f46e5' : defaultStroke)
+        .attr('stroke-width', isHighlighted ? highlightStrokeWidth : defaultStrokeWidth);
+    });
 
     linkSelection
       .attr('stroke', (d: any) => {
@@ -477,7 +573,16 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId 
       });
 
     return () => {
-      nodeSelection.style('opacity', 1);
+      nodeSelection
+        .style('opacity', 1)
+        .attr('filter', 'url(#node-shadow)')
+        .each(function (d: any) {
+          const circle = d3.select(this).select<SVGCircleElement>('circle.node-circle');
+          if (circle.empty()) return;
+          const defaultStroke = d.depth <= 1 ? '#d0d5dd' : '#333';
+          const defaultStrokeWidth = d.depth <= 1 ? 2 : 1.2;
+          circle.attr('stroke', defaultStroke).attr('stroke-width', defaultStrokeWidth);
+        });
       linkSelection.attr('stroke', '#b8bec9').attr('stroke-width', 1.4).attr('opacity', 0.85);
     };
   }, [hoveredNode?.id]);
@@ -488,17 +593,74 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId 
     };
   }, []);
 
-  const hasMetrics =
-    typeof hoveredNode?.metrics?.folderCount === 'number' ||
-    typeof hoveredNode?.metrics?.fileCount === 'number' ||
-    typeof hoveredNode?.metrics?.totalSize === 'number' ||
-    typeof hoveredNode?.activityScore === 'number';
+  const hasMetrics = Boolean(
+    hoveredNode && (
+      typeof hoveredNode.metrics?.folderCount === 'number' ||
+      typeof hoveredNode.metrics?.fileCount === 'number' ||
+      typeof hoveredNode.metrics?.totalSize === 'number' ||
+      typeof hoveredNode.activityScore === 'number'
+    ),
+  );
   const hasDates = Boolean(hoveredNode?.modifiedDate || hoveredNode?.createdDate);
-  const hasExtraInfo = hasMetrics || hasDates;
-  const showExtraInfo = hasExtraInfo && isTooltipExpanded;
-  const tooltipHeight = hasExtraInfo && isTooltipExpanded
-    ? HOVER_TOOLTIP_EXPANDED_HEIGHT
-    : HOVER_TOOLTIP_COMPACT_HEIGHT;
+  const stats = hoveredNode
+    ? [
+        {
+          key: 'folders',
+          label: 'Folders',
+          value:
+            typeof hoveredNode.metrics?.folderCount === 'number'
+              ? numberFormatter.format(hoveredNode.metrics.folderCount)
+              : '—',
+          icon: FolderIcon,
+        },
+        {
+          key: 'files',
+          label: 'Files',
+          value:
+            typeof hoveredNode.metrics?.fileCount === 'number'
+              ? numberFormatter.format(hoveredNode.metrics.fileCount)
+              : '—',
+          icon: FileText,
+        },
+        {
+          key: 'storage',
+          label: 'Storage',
+          value:
+            typeof hoveredNode.metrics?.totalSize === 'number'
+              ? formatBytes(hoveredNode.metrics.totalSize)
+              : '—',
+          icon: HardDrive,
+        },
+        {
+          key: 'activity',
+          label: 'Activity',
+          value:
+            typeof hoveredNode.activityScore === 'number'
+              ? numberFormatter.format(hoveredNode.activityScore)
+              : '—',
+          icon: Activity,
+        },
+      ]
+    : [];
+  const locationSegments = hoveredNode?.pathSegments ?? [];
+  const serviceBadge = hoveredNode?.serviceName;
+  const serviceLogo = serviceBadge ? LOGO_MAP[serviceBadge] : undefined;
+  const sharingSummary = hoveredNode
+    ? hoveredNode.shared
+      ? hoveredNode.permissionsCount && hoveredNode.permissionsCount > 1
+        ? `Shared with ${hoveredNode.permissionsCount - 1} others`
+        : 'Shared with 1 person'
+      : 'Private'
+    : undefined;
+  const permissionSummary = hoveredNode?.permissionLevel
+    ? hoveredNode.permissionLevel.charAt(0).toUpperCase() + hoveredNode.permissionLevel.slice(1)
+    : hoveredNode?.shared
+      ? 'Edit'
+      : 'Owner';
+  const permissionDetail = hoveredNode?.permissionsCount
+    ? `${hoveredNode.permissionsCount} ${hoveredNode.permissionsCount === 1 ? 'member' : 'members'}`
+    : undefined;
+  const canHideNode = Boolean(onNodeVisibilityChange && hoveredNode && hoveredNode.depth > 0);
 
   return (
     <div
@@ -514,7 +676,8 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId 
       <svg ref={svgRef} className="w-full h-full" />
       {hoveredNode && (
         <div
-          className="pointer-events-auto absolute rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 text-sm shadow-xl backdrop-blur transition-shadow dark:border-slate-700 dark:bg-slate-900/90"
+          ref={tooltipRef}
+          className="pointer-events-auto absolute rounded-2xl border border-slate-200 bg-white/95 px-4 py-4 text-sm shadow-xl backdrop-blur transition-shadow dark:border-slate-700 dark:bg-slate-900/90"
           style={{
             left: Math.min(
               Math.max(0, hoveredNode.position.x + 18),
@@ -536,33 +699,54 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId 
           }}
         >
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
-                {hoveredNode.name}
-              </p>
+            <div className="flex min-w-0 items-start gap-3">
+              <div
+                className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${
+                  serviceLogo
+                    ? 'border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800/80'
+                    : 'bg-indigo-50 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200'
+                }`}
+              >
+                {serviceLogo ? (
+                  <img src={serviceLogo} alt={serviceBadge ?? 'Service icon'} className="h-8 w-8 object-contain" />
+                ) : (
+                  <FolderIcon className="h-5 w-5" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="break-words text-sm font-semibold text-slate-900 dark:text-white">
+                  {hoveredNode.name}
+                </p>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                  {hoveredNode.typeLabel && (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600 dark:bg-slate-800/60 dark:text-slate-200">
+                      {hoveredNode.typeLabel}
+                    </span>
+                  )}
+                  {serviceBadge && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-slate-600 dark:bg-slate-800/60 dark:text-slate-200">
+                      {serviceLogo ? (
+                        <img src={serviceLogo} alt={serviceBadge} className="h-3.5 w-3.5 object-contain" />
+                      ) : null}
+                      {serviceBadge}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1.5">
               {hoveredNode.canExpand && (
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 shadow-sm transition hover:border-indigo-200 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-indigo-500/40 dark:hover:text-indigo-300"
+                  title={hoveredNode.isExpanded ? 'Collapse in map' : 'Expand in map'}
+                  className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-indigo-200 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-indigo-500/60 dark:hover:text-indigo-200"
                   onClick={event => {
                     event.preventDefault();
                     event.stopPropagation();
                     toggleHoveredExpansion();
                   }}
                 >
-                  {hoveredNode.isExpanded ? (
-                    <>
-                      <ChevronDown className="h-4 w-4" />
-                      <span>Collapse</span>
-                    </>
-                  ) : (
-                    <>
-                      <ChevronRight className="h-4 w-4" />
-                      <span>Expand</span>
-                    </>
-                  )}
+                  <ChevronDown className={`h-4 w-4 transition-transform ${hoveredNode.isExpanded ? 'rotate-180' : ''}`} />
                 </button>
               )}
               {hoveredNode.link && (
@@ -570,133 +754,119 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId 
                   href={hoveredNode.link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 shadow-sm transition hover:border-indigo-200 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-indigo-500/40 dark:hover:text-indigo-300"
+                  title="Open in new tab"
+                  className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-indigo-200 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-indigo-500/60 dark:hover:text-indigo-200"
                   onClick={event => {
                     event.stopPropagation();
                   }}
                 >
                   <ExternalLink className="h-4 w-4" />
-                  <span>Open</span>
                 </a>
               )}
             </div>
           </div>
 
-          {hoveredNode.pathSegments.length > 0 && (
-            <div className="mt-3">
-              <p className="text-xs font-medium text-slate-600 dark:text-slate-300">Location</p>
-              <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px]">
-                {hoveredNode.pathSegments.map((segment, index) => (
+          {locationSegments.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Location</p>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                {locationSegments.map((segment, index) => (
                   <React.Fragment key={`${segment}-${index}`}>
-                    <span
-                      className={`rounded-md px-1.5 py-0.5 ${
-                        index === hoveredNode.pathSegments.length - 1
-                          ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-200 font-medium'
-                          : 'bg-slate-100 text-slate-600 dark:bg-slate-800/60 dark:text-slate-300'
-                      }`}
+                    <button
+                      type="button"
+                      className="rounded-md border border-transparent bg-slate-100 px-2 py-0.5 text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-indigo-500/60 dark:hover:bg-slate-800 dark:hover:text-indigo-200"
                     >
                       {segment}
-                    </span>
-                    {index < hoveredNode.pathSegments.length - 1 && (
-                      <span className="text-slate-400">/</span>
-                    )}
+                    </button>
+                    {index < locationSegments.length - 1 && <span className="text-slate-400">/</span>}
                   </React.Fragment>
                 ))}
               </div>
             </div>
           )}
 
-          {hasExtraInfo && (
+          {hasMetrics && (
+            <div className="mt-4">
+              <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Details</p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {stats.map(stat => (
+                  <div
+                    key={stat.key}
+                    className="flex items-start gap-2 rounded-lg border border-slate-200 bg-white/80 p-2 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
+                  >
+                    <stat.icon className="mt-0.5 h-4 w-4 text-indigo-500 dark:text-indigo-300" />
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">{stat.label}</p>
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{stat.value}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(hoveredNode?.owner || sharingSummary || permissionSummary) && (
+            <div className="mt-4 grid grid-cols-2 gap-3 text-[11px] text-slate-600 dark:text-slate-300">
+              {hoveredNode?.owner && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Owner</p>
+                  <p className="mt-0.5 font-medium text-slate-700 dark:text-slate-200">{hoveredNode.owner}</p>
+                </div>
+              )}
+              {sharingSummary && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Sharing</p>
+                  <p className="mt-0.5 font-medium text-slate-700 dark:text-slate-200">{sharingSummary}</p>
+                </div>
+              )}
+              {permissionSummary && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Permissions</p>
+                  <p className="mt-0.5 font-medium text-slate-700 dark:text-slate-200">
+                    {permissionSummary}
+                    {permissionDetail ? (
+                      <span className="ml-1 text-[10px] font-normal text-slate-500 dark:text-slate-400">• {permissionDetail}</span>
+                    ) : null}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {hasDates && (
+            <div className="mt-4 grid grid-cols-2 gap-3 text-[11px] text-slate-600 dark:text-slate-300">
+              {hoveredNode.modifiedDate && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Modified</p>
+                  <p className="mt-0.5 font-medium text-slate-700 dark:text-slate-200">{formatDate(hoveredNode.modifiedDate)}</p>
+                </div>
+              )}
+              {hoveredNode.createdDate && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Created</p>
+                  <p className="mt-0.5 font-medium text-slate-700 dark:text-slate-200">{formatDate(hoveredNode.createdDate)}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {canHideNode && (
             <button
               type="button"
-              className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600 transition hover:text-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-indigo-500/60 dark:hover:bg-slate-800 dark:hover:text-indigo-200"
               onClick={event => {
                 event.preventDefault();
                 event.stopPropagation();
-                setIsTooltipExpanded(prev => !prev);
+                if (onNodeVisibilityChange) {
+                  onNodeVisibilityChange(hoveredNode.id, false);
+                }
+                clearTooltipTimeout();
+                setHoveredNode(null);
               }}
             >
-              <span>{isTooltipExpanded ? 'See less' : 'See more'}</span>
-              {isTooltipExpanded ? (
-                <ChevronUp className="h-4 w-4" />
-              ) : (
-                <ChevronDown className="h-4 w-4" />
-              )}
+              <EyeOff className="h-4 w-4" />
+              Hide from map
             </button>
-          )}
-
-          {showExtraInfo && (
-            <>
-              {hasMetrics && (
-                <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
-                  {typeof hoveredNode.metrics?.folderCount === 'number' && (
-                    <div className="min-w-[72px] rounded-lg bg-slate-100 px-2 py-1.5 text-slate-600 shadow-sm dark:bg-slate-800/60 dark:text-slate-300">
-                      <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                        Folders
-                      </p>
-                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                        {numberFormatter.format(hoveredNode.metrics?.folderCount ?? 0)}
-                      </p>
-                    </div>
-                  )}
-                  {typeof hoveredNode.metrics?.fileCount === 'number' && (
-                    <div className="min-w-[72px] rounded-lg bg-slate-100 px-2 py-1.5 text-slate-600 shadow-sm dark:bg-slate-800/60 dark:text-slate-300">
-                      <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                        Files
-                      </p>
-                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                        {numberFormatter.format(hoveredNode.metrics?.fileCount ?? 0)}
-                      </p>
-                    </div>
-                  )}
-                  {typeof hoveredNode.metrics?.totalSize === 'number' && (
-                    <div className="min-w-[90px] rounded-lg bg-slate-100 px-2 py-1.5 text-slate-600 shadow-sm dark:bg-slate-800/60 dark:text-slate-300">
-                      <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                        Storage
-                      </p>
-                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                        {formatBytes(hoveredNode.metrics?.totalSize ?? undefined)}
-                      </p>
-                    </div>
-                  )}
-                  {typeof hoveredNode.activityScore === 'number' && (
-                    <div className="min-w-[96px] rounded-lg bg-slate-100 px-2 py-1.5 text-slate-600 shadow-sm dark:bg-slate-800/60 dark:text-slate-300">
-                      <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                        Activity
-                      </p>
-                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                        {numberFormatter.format(hoveredNode.activityScore)}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {hasDates && (
-                <div className="mt-3 grid grid-cols-2 gap-3 text-[11px]">
-                  {hoveredNode.modifiedDate && (
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                        Modified
-                      </p>
-                      <p className="mt-0.5 font-medium text-slate-600 dark:text-slate-200">
-                        {formatDate(hoveredNode.modifiedDate)}
-                      </p>
-                    </div>
-                  )}
-                  {hoveredNode.createdDate && (
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                        Created
-                      </p>
-                      <p className="mt-0.5 font-medium text-slate-600 dark:text-slate-200">
-                        {formatDate(hoveredNode.createdDate)}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
           )}
         </div>
       )}
