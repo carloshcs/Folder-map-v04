@@ -5,10 +5,17 @@ import { getNodeColor, getNodeId } from './nodeUtils';
 import { getNodeRadius } from './geometry';
 import { D3HierarchyNode } from './types';
 
+interface NodeEventHandlers {
+  onNodeEnter?: (event: any, node: D3HierarchyNode) => void;
+  onNodeLeave?: (event: any, node: D3HierarchyNode) => void;
+  onNodeMove?: (event: any, node: D3HierarchyNode) => void;
+}
+
 export function renderNodes(
   svg: d3.Selection<SVGSVGElement, unknown, null, undefined>,
   nodeLayer: d3.Selection<SVGGElement, unknown, null, undefined>,
   visibleNodes: D3HierarchyNode[],
+  eventHandlers?: NodeEventHandlers,
 ) {
   const node = nodeLayer
     .selectAll<SVGGElement, D3HierarchyNode>('g.node')
@@ -20,7 +27,8 @@ export function renderNodes(
           .attr('class', 'node')
           .style('cursor', 'pointer')
           .style('opacity', 0)
-          .attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`);
+          .attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`)
+          .attr('filter', 'url(#node-shadow)');
 
         group.each(function (d: D3HierarchyNode) {
           const selection = d3.select(this);
@@ -79,12 +87,27 @@ export function renderNodes(
 
         group.append('title').text(d => d.data?.name ?? 'Node');
 
+        if (eventHandlers?.onNodeEnter) {
+          group.on('mouseenter', eventHandlers.onNodeEnter);
+        }
+        if (eventHandlers?.onNodeMove) {
+          group.on('mousemove', eventHandlers.onNodeMove);
+        }
+        if (eventHandlers?.onNodeLeave) {
+          group.on('mouseleave', eventHandlers.onNodeLeave);
+        }
+
         return group.transition().duration(300).style('opacity', 1);
       },
       update => update,
       exit => exit.transition().duration(200).style('opacity', 0).remove(),
     );
 
-  node.attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`);
+  node
+    .attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`)
+    .attr('filter', 'url(#node-shadow)')
+    .on('mouseenter', eventHandlers?.onNodeEnter ?? null)
+    .on('mousemove', eventHandlers?.onNodeMove ?? null)
+    .on('mouseleave', eventHandlers?.onNodeLeave ?? null);
   return node;
 }

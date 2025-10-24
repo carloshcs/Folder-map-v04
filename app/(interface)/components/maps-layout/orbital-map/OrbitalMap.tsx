@@ -4,12 +4,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 
-import { MIN_HEIGHT, MIN_WIDTH, INTEGRATION_NAMES } from './constants';
+import { MIN_HEIGHT, MIN_WIDTH } from './constants';
 import { buildHierarchy, getVisibleNodesAndLinks } from './hierarchy';
 import { renderNodes } from './rendering';
 import { createManualPhysics } from './physics';
 import { getNodeId } from './nodeUtils';
 import { D3GroupSelection, NodePosition, OrbitalMapProps } from './types';
+
+type HoveredNodeInfo = {
+  id: string;
+  name: string;
+  depth: number;
+  lineage: string[];
+  position: { x: number; y: number };
+};
 
 export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -24,6 +32,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
   const nodeLayerRef = useRef<D3GroupSelection | null>(null);
   const physicsRef = useRef<any>(null);
   const nodePositionsRef = useRef<Map<string, NodePosition>>(new Map());
+  const [hoveredNode, setHoveredNode] = useState<HoveredNodeInfo | null>(null);
 
   useEffect(() => {
     const observer = new ResizeObserver(entries => {
@@ -49,6 +58,23 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
     if (!svgRef.current) return;
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
+
+    const defs = svg.append('defs');
+    const filter = defs
+      .append('filter')
+      .attr('id', 'node-shadow')
+      .attr('x', '-50%')
+      .attr('y', '-50%')
+      .attr('width', '200%')
+      .attr('height', '200%');
+
+    (filter as any)
+      .append('feDropShadow')
+      .attr('dx', 0)
+      .attr('dy', 3)
+      .attr('stdDeviation', 4)
+      .attr('flood-color', '#101828')
+      .attr('flood-opacity', 0.28);
 
     const g = svg.append('g').attr('class', 'orbital-root');
     gRef.current = g;
@@ -82,7 +108,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
     const { visibleNodes, visibleLinks } = getVisibleNodesAndLinks(root, expanded);
 
     const maxDimension = Math.max(width, height);
-    const viewPadding = maxDimension * 1.5;
+    const viewPadding = maxDimension * 0.35;
     const viewWidth = width + viewPadding * 2;
     const viewHeight = height + viewPadding * 2;
 
@@ -104,10 +130,18 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
         return `${sourceId}-${targetId}`;
       })
       .join(
-        enter => enter.append('line').attr('stroke', '#aaa').attr('stroke-width', 1.2),
+        enter =>
+          enter
+            .append('line')
+            .attr('stroke', '#b8bec9')
+            .attr('stroke-width', 1.4)
+            .attr('opacity', 0.85),
         update => update,
         exit => exit.remove(),
-      );
+      )
+      .attr('stroke', '#b8bec9')
+      .attr('stroke-width', 1.4)
+      .attr('opacity', 0.85);
 
     if (physicsRef.current) physicsRef.current.stop();
 
@@ -125,7 +159,53 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
 
     physicsRef.current = physics;
 
-    node = renderNodes(svg, nodeLayer, visibleNodes).style('pointer-events', 'all');
+    const getLineageNames = (node: any) => {
+      const lineage: string[] = [];
+      let current = node as any;
+      while (current) {
+        const name = current.data?.name ?? 'Node';
+        lineage.push(name);
+        current = current.parent || null;
+      }
+      return lineage.reverse();
+    };
+
+    const getRelativePosition = (event: PointerEvent) => {
+      if (!containerRef.current) return { x: event.clientX, y: event.clientY };
+      const rect = containerRef.current.getBoundingClientRect();
+      return {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      };
+    };
+
+    const handleNodeEnter = (event: PointerEvent, d: any) => {
+      const id = getNodeId(d);
+      const lineage = getLineageNames(d);
+      const position = getRelativePosition(event);
+      setHoveredNode({
+        id,
+        name: d.data?.name ?? 'Node',
+        depth: d.depth ?? 0,
+        lineage,
+        position,
+      });
+    };
+
+    const handleNodeMove = (event: PointerEvent) => {
+      const position = getRelativePosition(event);
+      setHoveredNode(prev => (prev ? { ...prev, position } : prev));
+    };
+
+    const handleNodeLeave = () => {
+      setHoveredNode(null);
+    };
+
+    node = renderNodes(svg, nodeLayer, visibleNodes, {
+      onNodeEnter: handleNodeEnter,
+      onNodeMove: handleNodeMove,
+      onNodeLeave: handleNodeLeave,
+    }).style('pointer-events', 'all');
 
     node.call(
       d3
@@ -171,6 +251,65 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
     return () => physics.stop();
   }, [folders, size, expanded]);
 
+  useEffect(() => {
+    const hoveredId = hoveredNode?.id;
+    if (!nodeLayerRef.current || !linkLayerRef.current) return;
+
+    const nodeSelection = nodeLayerRef.current.selectAll<SVGGElement, any>('g.node');
+    const linkSelection = linkLayerRef.current.selectAll<SVGLineElement, any>('line');
+
+    const relatedIds = new Set<string>();
+
+    if (hoveredId) {
+      nodeSelection.each(function (d: any) {
+        const nodeId = getNodeId(d);
+        if (nodeId === hoveredId) {
+          relatedIds.add(nodeId);
+          if (d.parent) {
+            relatedIds.add(getNodeId(d.parent));
+          }
+          if (d.children) {
+            d.children.forEach((child: any) => relatedIds.add(getNodeId(child)));
+          }
+        }
+      });
+    }
+
+    nodeSelection
+      .style('opacity', (d: any) => {
+        if (!hoveredId) return 1;
+        const nodeId = getNodeId(d);
+        return relatedIds.has(nodeId) ? 1 : 0.25;
+      })
+      .style('transform-origin', 'center')
+      .attr('filter', 'url(#node-shadow)');
+
+    linkSelection
+      .attr('stroke', (d: any) => {
+        if (!hoveredId) return '#b8bec9';
+        const sourceId = getNodeId(d.source);
+        const targetId = getNodeId(d.target);
+        return sourceId === hoveredId || targetId === hoveredId ? '#6b7bff' : '#c5cad3';
+      })
+      .attr('stroke-width', (d: any) => {
+        if (!hoveredId) return 1.4;
+        const sourceId = getNodeId(d.source);
+        const targetId = getNodeId(d.target);
+        return sourceId === hoveredId || targetId === hoveredId ? 2.4 : 1;
+      })
+      .attr('opacity', (d: any) => {
+        if (!hoveredId) return 0.85;
+        const sourceId = getNodeId(d.source);
+        const targetId = getNodeId(d.target);
+        return sourceId === hoveredId || targetId === hoveredId ? 1 : 0.35;
+      });
+
+    return () => {
+      nodeSelection.style('opacity', 1);
+      linkSelection.attr('stroke', '#b8bec9').attr('stroke-width', 1.4).attr('opacity', 0.85);
+    };
+  }, [hoveredNode?.id]);
+
   return (
     <div
       ref={containerRef}
@@ -183,6 +322,33 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
       }}
     >
       <svg ref={svgRef} className="w-full h-full" />
+      {hoveredNode && (
+        <div
+          className="pointer-events-none absolute rounded-xl bg-white/90 px-4 py-3 text-sm shadow-xl backdrop-blur"
+          style={{
+            left: Math.min(
+              Math.max(0, hoveredNode.position.x + 18),
+              Math.max(0, size.width - 220),
+            ),
+            top: Math.min(
+              Math.max(0, hoveredNode.position.y + 18),
+              Math.max(0, size.height - 120),
+            ),
+            width: 220,
+          }}
+        >
+          <p className="font-semibold text-gray-900">{hoveredNode.name}</p>
+          <p className="mt-1 text-xs uppercase tracking-wide text-indigo-600">
+            Level {hoveredNode.depth}: {['Folder Fox', 'Integration', 'Folder', 'Item'][hoveredNode.depth] || 'Node'}
+          </p>
+          <div className="mt-2 text-xs text-gray-600">
+            <p className="font-medium text-gray-700">Path</p>
+            <p className="mt-0.5 line-clamp-2 break-words text-gray-600">
+              {hoveredNode.lineage.join(' / ')}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
