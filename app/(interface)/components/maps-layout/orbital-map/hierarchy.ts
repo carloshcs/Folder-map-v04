@@ -6,12 +6,26 @@ import { D3HierarchyNode, FolderItem } from './types';
 
 function mapFolderToHierarchy(folder: FolderItem): any {
   const children = folder.children ? folder.children.map(mapFolderToHierarchy) : [];
-  return { name: folder.name, children };
+
+  return {
+    name: folder.name,
+    id: folder.id,
+    path: folder.path,
+    link: folder.link,
+    metrics: folder.metrics,
+    serviceId: folder.serviceId,
+    createdDate: folder.createdDate,
+    modifiedDate: folder.modifiedDate,
+    activityScore: folder.activityScore,
+    item: folder,
+    children,
+  };
 }
 
 export function buildHierarchy(folders: FolderItem[]) {
   const folderFox = {
     name: 'Folder Fox',
+    id: 'folder-fox',
     children: folders.filter(f => INTEGRATION_NAMES.includes(f.name)).map(mapFolderToHierarchy),
   };
   return d3.hierarchy(folderFox) as unknown as D3HierarchyNode;

@@ -1,9 +1,7 @@
 import * as d3 from 'd3';
+import type { FolderItem as SidebarFolderItem } from '../../right-sidebar/data';
 
-export interface FolderItem {
-  name: string;
-  children?: FolderItem[];
-}
+export type FolderItem = SidebarFolderItem;
 
 export interface D3HierarchyNode {
   data: any;

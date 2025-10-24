@@ -88,6 +88,8 @@ export function renderNodes(
           const name = d.data?.name ?? 'Node';
           const isFolderFox = d.depth === 0 && name === 'Folder Fox';
           const isIntegration = d.depth === 1 && LOGO_MAP[name];
+          const nodeId = getNodeId(d);
+          const style = colorAssignments?.get(nodeId);
 
           if (isFolderFox || isIntegration) {
             const radius = getNodeRadius(d.depth);
@@ -110,29 +112,24 @@ export function renderNodes(
               .style('pointer-events', 'none');
           } else {
             const radius = getNodeRadius(d.depth);
-            const color = getNodeColor(d.depth);
+            const fillColor = style?.fill ?? getNodeColor(d.depth);
+            const textColor = style?.textColor ?? '#000';
 
             selection
               .append('circle')
               .attr('class', 'node-circle')
               .attr('r', radius)
-              .attr('fill', color)
+              .attr('fill', fillColor)
               .attr('stroke', '#333')
               .attr('stroke-width', 1);
 
-            selection
+            const text = selection
               .append('text')
-              .attr('class', 'node-label')
-              .attr('fill', '#000')
-              .attr('font-weight', '600')
-              .attr('pointer-events', 'none')
-              .attr('text-anchor', 'middle')
-              .attr('dominant-baseline', 'middle')
-              .text(name);
+              .attr('class', 'node-label');
+
+            ensureTextFits(text, name, radius, textColor);
           }
         });
-
-        group.append('title').text(d => d.data?.name ?? 'Node');
 
         if (onNodeEnter) {
           group.on('mouseenter', onNodeEnter);
