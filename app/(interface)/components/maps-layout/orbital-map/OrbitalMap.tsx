@@ -9,7 +9,12 @@ import { buildHierarchy, getVisibleNodesAndLinks } from './hierarchy';
 import { renderNodes } from './rendering';
 import { createManualPhysics } from './physics';
 import { getNodeId } from './nodeUtils';
-import { D3GroupSelection, NodePosition, OrbitalMapProps } from './types';
+import { D3GroupSelection, D3HierarchyNode, NodePosition, OrbitalMapProps } from './types';
+import {
+  getPaletteColors,
+  getReadableTextColor,
+  shiftColor,
+} from '@/app/(interface)/lib/utils/colors';
 
 type HoveredNodeInfo = {
   id: string;
@@ -19,7 +24,57 @@ type HoveredNodeInfo = {
   position: { x: number; y: number };
 };
 
-export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
+type NodeVisualStyle = {
+  fill: string;
+  textColor: string;
+};
+
+const MAX_LIGHTENING = 0.6;
+const LIGHTEN_STEP = 0.18;
+const BASE_DARKEN = -0.2;
+
+const computeNodeStyles = (root: D3HierarchyNode, paletteId?: string | null) => {
+  const palette = getPaletteColors(paletteId);
+  if (!palette.length) {
+    return new Map<string, NodeVisualStyle>();
+  }
+
+  let paletteIndex = 0;
+  const styles = new Map<string, NodeVisualStyle>();
+
+  const assign = (node: D3HierarchyNode, branchColor?: string) => {
+    const nodeId = getNodeId(node);
+
+    if (node.depth === 2) {
+      const basePaletteColor = palette[paletteIndex % palette.length];
+      paletteIndex += 1;
+      const fill = shiftColor(basePaletteColor, BASE_DARKEN);
+      styles.set(nodeId, {
+        fill,
+        textColor: getReadableTextColor(fill),
+      });
+      node.children?.forEach(child => assign(child, basePaletteColor));
+    } else if (node.depth > 2) {
+      const basePaletteColor = branchColor ?? palette[Math.max(paletteIndex - 1, 0) % palette.length];
+      const relativeDepth = node.depth - 2;
+      const amount = Math.min(MAX_LIGHTENING, BASE_DARKEN + relativeDepth * LIGHTEN_STEP);
+      const fill = shiftColor(basePaletteColor, amount);
+      styles.set(nodeId, {
+        fill,
+        textColor: getReadableTextColor(fill),
+      });
+      node.children?.forEach(child => assign(child, basePaletteColor));
+    } else {
+      node.children?.forEach(child => assign(child, branchColor));
+    }
+  };
+
+  assign(root);
+
+  return styles;
+};
+
+export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders, colorPaletteId }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 1100, height: 900 });
@@ -105,6 +160,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
     const { width, height } = size;
 
     const root = buildHierarchy(folders);
+    const nodeStyles = computeNodeStyles(root, colorPaletteId);
     const { visibleNodes, visibleLinks } = getVisibleNodesAndLinks(root, expanded);
 
     const maxDimension = Math.max(width, height);
@@ -202,6 +258,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
     };
 
     node = renderNodes(svg, nodeLayer, visibleNodes, {
+      colorAssignments: nodeStyles,
       onNodeEnter: handleNodeEnter,
       onNodeMove: handleNodeMove,
       onNodeLeave: handleNodeLeave,
@@ -249,7 +306,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({ folders }) => {
     });
 
     return () => physics.stop();
-  }, [folders, size, expanded]);
+  }, [folders, size, expanded, colorPaletteId]);
 
   useEffect(() => {
     const hoveredId = hoveredNode?.id;
