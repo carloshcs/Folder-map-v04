@@ -4,12 +4,12 @@ import { D3HierarchyNode } from './types';
 
 export function getNodeColor(depth: number): string {
   const colors: Record<number, string> = {
-    0: '#fff',
-    1: '#fff',
-    2: '#a8d8a8',
-    3: '#ffeb99',
-    4: '#ffb3ba',
-    5: '#bae1ff',
+    0: '#fde68a',
+    1: '#ffffff',
+    2: '#94a3b8',
+    3: '#cbd5f5',
+    4: '#e2e8f0',
+    5: '#f8fafc',
   };
   return colors[depth] || '#e0e0e0';
 }
