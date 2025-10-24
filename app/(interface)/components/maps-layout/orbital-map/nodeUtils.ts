@@ -15,6 +15,8 @@ export function getNodeColor(depth: number): string {
 }
 
 export function getNodeId(d: D3HierarchyNode | any): string {
+  const dataId = d?.data?.item?.id ?? d?.data?.id;
+  if (dataId) return String(dataId);
   if (d?.id) return String(d.id);
   if (d?.data?.name) {
     const name = d.data.name;
