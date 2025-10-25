@@ -27,15 +27,15 @@ import {
 const LEVEL_RADII: Record<number, number> = {
   1: 240,
   2: 430,
-  3: 620,
+  3: 760,
 };
 
 const LEVEL_SPREAD: Record<number, number> = {
   1: Math.PI * 1.1,
-  2: Math.PI * 1.0,
 };
 
 const RADIAL_SPACING = 170;
+const FULL_CIRCLE_START_ANGLE = -Math.PI / 2;
 const VIEWBOX_PADDING = 260;
 
 const MAX_LIGHTENING = 0.85;
@@ -181,7 +181,7 @@ const applyRadialLayout = (
       spread = LEVEL_SPREAD[1];
     } else if (parent.depth === 2) {
       childRadius = LEVEL_RADII[3];
-      spread = LEVEL_SPREAD[2];
+      useFullCircle = true;
     } else {
       childRadius = parentMeta.radius + RADIAL_SPACING;
       useFullCircle = true;
@@ -193,7 +193,7 @@ const applyRadialLayout = (
       if (childCount === 1) {
         angles.push(parentMeta.angle);
       } else {
-        const baseAngle = parent.depth === 0 ? -Math.PI / 2 : parentMeta.angle - Math.PI;
+        const baseAngle = FULL_CIRCLE_START_ANGLE;
         const step = (2 * Math.PI) / childCount;
         for (let index = 0; index < childCount; index += 1) {
           angles.push(baseAngle + step * index);
