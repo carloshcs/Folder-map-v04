@@ -612,9 +612,8 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
 
   const tooltipMaxLeft = Math.max(0, size.width - HOVER_TOOLTIP_WIDTH);
   const tooltipAnchorPosition = hoveredNode?.position;
-  const tooltipTopCandidate = tooltipAnchorPosition
-    ? tooltipAnchorPosition.y - tooltipHeight - TOOLTIP_ANCHOR_GAP
-    : 0;
+  const tooltipBottomTarget = tooltipAnchorPosition?.y ?? 0;
+  const tooltipTopCandidate = tooltipBottomTarget - tooltipHeight;
   const tooltipTop = Math.min(
     Math.max(0, tooltipTopCandidate),
     Math.max(0, size.height - tooltipHeight),
@@ -627,6 +626,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     ? Math.max(0, hoveredNode.position.y - (tooltipTop + tooltipHeight))
     : 0;
   const pointerLineHeight = Math.max(0, pointerHeight - TOOLTIP_POINTER_BASE / 2);
+  const shouldShowPointer = Boolean(hoveredNode);
 
   const handleHideFromTooltip = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -831,7 +831,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
               </div>
             )}
           </div>
-          {pointerHeight > 0 && (
+          {shouldShowPointer && (
             <div className="pointer-events-none absolute left-1/2 top-full -translate-x-1/2 flex flex-col items-center">
               <div className="h-2 w-2 -translate-y-1/2 rotate-45 border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900/90" />
               {pointerLineHeight > 0 && (
