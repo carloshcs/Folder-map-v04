@@ -51,8 +51,8 @@ const HOVER_TOOLTIP_WIDTH = 320;
 const HOVER_TOOLTIP_COMPACT_HEIGHT = 220;
 const HOVER_TOOLTIP_EXPANDED_HEIGHT = 420;
 const TOOLTIP_LOCK_DISTANCE = 24;
-const TOOLTIP_ANCHOR_GAP = 12;
-const TOOLTIP_POINTER_BASE = 12;
+const TOOLTIP_ANCHOR_GAP = 6;
+const TOOLTIP_POINTER_BASE = 8;
 
 const numberFormatter = new Intl.NumberFormat('en-US');
 
@@ -833,7 +833,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
           </div>
           {pointerHeight > 0 && (
             <div className="pointer-events-none absolute left-1/2 top-full -translate-x-1/2 flex flex-col items-center">
-              <div className="h-3 w-3 -translate-y-1/2 rotate-45 border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900/90" />
+              <div className="h-2 w-2 -translate-y-1/2 rotate-45 border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900/90" />
               {pointerLineHeight > 0 && (
                 <div
                   className="w-px bg-gradient-to-b from-neutral-200 via-neutral-300 to-transparent dark:from-neutral-700 dark:via-neutral-600"
