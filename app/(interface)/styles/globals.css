@@ -199,6 +199,12 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+@keyframes fox-flow-edge-dash {
+  to {
+    stroke-dashoffset: -96;
+  }
+}
+
 /* --------------------------
    TYPOGRAPHY DEFAULTS
 --------------------------- */
