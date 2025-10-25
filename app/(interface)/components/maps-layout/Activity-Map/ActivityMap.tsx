@@ -21,6 +21,7 @@ interface ActivityEntry {
   createdDate: Date | null;
   modifiedDate: Date | null;
   activityScore: number;
+  link?: string;
 }
 
 type SortKey = 'activityScore' | 'totalSize' | 'fileCount' | 'createdDate' | 'modifiedDate';
@@ -142,6 +143,14 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
   const [activeService, setActiveService] = useState<ServiceId | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const handleOpenLink = (link?: string) => {
+    if (!link || typeof window === 'undefined') {
+      return;
+    }
+
+    window.open(link, '_blank', 'noopener,noreferrer');
+  };
+
   const entriesByService = useMemo<Record<ServiceId, ActivityEntry[]>>(() => {
     const serviceEntries = createEmptyEntryRecord();
 
@@ -179,6 +188,7 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
             createdDate,
             modifiedDate,
             activityScore,
+            link: item.link?.trim() ? item.link : undefined,
           });
         }
 
@@ -565,9 +575,11 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                                 <div className="w-24">
                                   <button
                                     type="button"
-                                    className="w-full px-3 py-1.5 rounded-lg bg-blue-600 dark:bg-blue-500 text-white text-xs font-medium hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
+                                    onClick={() => handleOpenLink(entry.link)}
+                                    disabled={!entry.link}
+                                    className="w-full px-3 py-1.5 rounded-lg bg-blue-600 dark:bg-blue-500 text-white text-xs font-medium transition-colors hover:bg-blue-700 dark:hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
                                   >
-                                    Go to link
+                                    {entry.link ? 'Go to link' : 'No link'}
                                   </button>
                                 </div>
                               </div>
