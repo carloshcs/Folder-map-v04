@@ -86,9 +86,8 @@ export function renderNodes(
         group.each(function (d: D3HierarchyNode) {
           const selection = d3.select(this);
           const name = d.data?.name ?? 'Node';
-          const hasLogo = Boolean(LOGO_MAP[name]);
-          const isFolderFox = hasLogo && name === 'Folder Fox' && d.depth === 0;
-          const isIntegration = hasLogo && name !== 'Folder Fox';
+          const isFolderFox = d.depth === 0 && name === 'Folder Fox';
+          const isIntegration = d.depth === 1 && LOGO_MAP[name];
           const nodeId = getNodeId(d);
           const style = colorAssignments?.get(nodeId);
 
@@ -159,9 +158,8 @@ export function renderNodes(
     .each(function (d: D3HierarchyNode) {
       const selection = d3.select(this);
       const name = d.data?.name ?? 'Node';
-      const hasLogo = Boolean(LOGO_MAP[name]);
-      const isFolderFox = hasLogo && name === 'Folder Fox' && d.depth === 0;
-      const isIntegration = hasLogo && name !== 'Folder Fox';
+      const isFolderFox = d.depth === 0 && name === 'Folder Fox';
+      const isIntegration = d.depth === 1 && LOGO_MAP[name];
       const radius = getNodeRadius(d.depth);
 
       if (isFolderFox || isIntegration) {

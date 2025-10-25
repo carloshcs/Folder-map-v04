@@ -10,13 +10,12 @@ import * as d3 from 'd3';
 import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 
 import { MIN_HEIGHT, MIN_WIDTH } from '../orbital-map/constants';
-import { buildHierarchy } from '../orbital-map/hierarchy';
+import { buildHierarchy, getVisibleNodesAndLinks } from '../orbital-map/hierarchy';
 import { renderNodes } from '../orbital-map/rendering';
 import { getNodeId } from '../orbital-map/nodeUtils';
 import {
   D3GroupSelection,
   D3HierarchyNode,
-  D3Link,
   FolderItem,
 } from '../orbital-map/types';
 import {
@@ -25,6 +24,31 @@ import {
   shiftColor,
 } from '@/app/(interface)/lib/utils/colors';
 
+const LEVEL_RADII: Record<number, number> = {
+  1: 240,
+  2: 430,
+  3: 760,
+};
+
+const RADIAL_SPACING = 170;
+const FULL_CIRCLE_START_ANGLE = -Math.PI / 2;
+const VIEWBOX_PADDING = 260;
+
+const SERVICE_ORDER = ['Google Drive', 'Dropbox', 'Notion', 'OneDrive'] as const;
+const SERVICE_BASE_ANGLES: Record<string, number> = SERVICE_ORDER.reduce(
+  (acc, service, index) => {
+    const step = (2 * Math.PI) / SERVICE_ORDER.length;
+    acc[service] = FULL_CIRCLE_START_ANGLE + step * index;
+    return acc;
+  },
+  {} as Record<string, number>,
+);
+const SERVICE_SPREAD = Math.PI / 2.4;
+const SUBTREE_RANGE_DECAY = 0.68;
+const MIN_CHILD_SPREAD = Math.PI / 36;
+const CHILD_RANGE_SHRINK = 0.65;
+const SINGLE_CHILD_SPREAD = Math.PI / 24;
+
 const MAX_LIGHTENING = 0.85;
 const LIGHTEN_STEP = 0.4;
 const BASE_DARKEN = -0.25;
@@ -32,15 +56,6 @@ const HOVER_TOOLTIP_WIDTH = 320;
 const HOVER_TOOLTIP_COMPACT_HEIGHT = 220;
 const HOVER_TOOLTIP_EXPANDED_HEIGHT = 420;
 const TOOLTIP_LOCK_DISTANCE = 24;
-
-const GRID_PADDING_RATIO = 0.08;
-const GRID_PADDING_MIN = 80;
-const GRID_PADDING_MAX = 140;
-const MIN_RADIAL_RADIUS = 160;
-const MAX_RADIAL_RADIUS = 420;
-const RADIAL_ROTATION_OFFSET = -Math.PI / 2;
-const RING_BASE_OPACITY = 0.32;
-const RING_OPACITY_STEP = 0.06;
 
 const numberFormatter = new Intl.NumberFormat('en-US');
 
@@ -65,20 +80,6 @@ const formatDate = (iso?: string) => {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
   return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(date);
-};
-
-type LayoutCenter = {
-  cx: number;
-  cy: number;
-  radius: number;
-};
-
-type IntegrationRingDatum = {
-  key: string;
-  cx: number;
-  cy: number;
-  radius: number;
-  depthIndex: number;
 };
 
 type HoveredNodeInfo = {
@@ -149,132 +150,139 @@ const computeNodeStyles = (root: D3HierarchyNode, paletteId?: string | null) => 
   return styles;
 };
 
-const calculateGridCenters = (count: number, width: number, height: number): LayoutCenter[] => {
-  if (count <= 0) {
-    return [];
-  }
+const applyRadialLayout = (
+  root: D3HierarchyNode,
+  visibleNodes: D3HierarchyNode[],
+) => {
+  const visibleIds = new Set(visibleNodes.map(node => getNodeId(node)));
+  const metadata = new Map<
+    D3HierarchyNode,
+    { angle: number; radius: number; rangeStart: number; rangeEnd: number }
+  >();
 
-  const columns = Math.ceil(Math.sqrt(count));
-  const rows = Math.ceil(count / columns);
-
-  const paddingX = Math.max(GRID_PADDING_MIN, Math.min(width * GRID_PADDING_RATIO, GRID_PADDING_MAX));
-  const paddingY = Math.max(GRID_PADDING_MIN, Math.min(height * GRID_PADDING_RATIO, GRID_PADDING_MAX));
-
-  const availableWidth = width - paddingX * 2;
-  const availableHeight = height - paddingY * 2;
-
-  const cellWidth = availableWidth / columns;
-  const cellHeight = availableHeight / rows;
-
-  return Array.from({ length: count }, (_, index) => {
-    const col = index % columns;
-    const row = Math.floor(index / columns);
-    const cx = paddingX + cellWidth * col + cellWidth / 2;
-    const cy = paddingY + cellHeight * row + cellHeight / 2;
-
-    const availableRadiusRaw = Math.min(cellWidth, cellHeight) / 2 - 30;
-    const radiusUpperBound = Math.min(availableRadiusRaw, MAX_RADIAL_RADIUS);
-    const radiusLowerBound = Math.min(availableRadiusRaw, MIN_RADIAL_RADIUS);
-    const clampedRadius = Math.max(radiusUpperBound, radiusLowerBound);
-    const safeRadius = Number.isFinite(clampedRadius) ? clampedRadius : Math.min(width, height) / 3;
-
-    return {
-      cx,
-      cy,
-      radius: Math.max(Math.min(safeRadius, availableRadiusRaw), 60),
-    };
-  });
-};
-
-const cloneVisibleData = (
-  node: D3HierarchyNode,
-  expanded: Set<string>,
-  isRoot = false,
-): any => {
-  const nodeId = getNodeId(node);
-  const originalChildren = node.children ?? [];
-  const hasChildren = originalChildren.length > 0;
-  const shouldIncludeChildren = isRoot || expanded.has(nodeId);
-
-  const clonedNode: any = {
-    ...node.data,
-    __hasChildren: hasChildren,
+  const setPosition = (
+    node: D3HierarchyNode,
+    angle: number,
+    radius: number,
+    rangeStart?: number,
+    rangeEnd?: number,
+  ) => {
+    node.x = Math.cos(angle) * radius;
+    node.y = Math.sin(angle) * radius;
+    const start = rangeStart ?? angle;
+    const end = rangeEnd ?? angle;
+    metadata.set(node, { angle, radius, rangeStart: start, rangeEnd: end });
   };
 
-  if (shouldIncludeChildren && hasChildren) {
-    const clonedChildren = originalChildren.map(child => cloneVisibleData(child, expanded, false));
-    if (clonedChildren.length) {
-      clonedNode.children = clonedChildren;
-    }
-  }
+  const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
-  return clonedNode;
-};
+  setPosition(
+    root,
+    -Math.PI / 2,
+    0,
+    FULL_CIRCLE_START_ANGLE,
+    FULL_CIRCLE_START_ANGLE + Math.PI * 2,
+  );
 
-const layoutIntegration = (
-  integrationNode: D3HierarchyNode,
-  expanded: Set<string>,
-  center: LayoutCenter,
-) => {
-  const clonedData = cloneVisibleData(integrationNode, expanded, true);
-  const hierarchyRoot = d3.hierarchy(clonedData) as unknown as D3HierarchyNode;
+  const layoutChildren = (parent: D3HierarchyNode) => {
+    const parentMeta = metadata.get(parent);
+    if (!parentMeta) return;
 
-  const treeLayout = d3
-    .tree<any>()
-    .size([Math.PI * 2, center.radius])
-    .separation((a, b) => (a.parent === b.parent ? 1 : 2) / Math.max(1, a.depth));
+    const children = (parent.children ?? []).filter(child =>
+      visibleIds.has(getNodeId(child)),
+    );
 
-  const radialRoot = treeLayout(hierarchyRoot) as unknown as D3HierarchyNode;
-  const depthToRadius = new Map<number, number>();
+    if (!children.length) return;
 
-  const nodes: D3HierarchyNode[] = [];
-  const links: D3Link[] = [];
+    const childCount = children.length;
 
-  radialRoot.each(node => {
-    const angle = (node.x ?? 0) + RADIAL_ROTATION_OFFSET;
-    const distance = node.y ?? 0;
-    const cartesianX = center.cx + Math.cos(angle) * distance;
-    const cartesianY = center.cy + Math.sin(angle) * distance;
-
-    (node as any).radialDistance = distance;
-    node.x = cartesianX;
-    node.y = cartesianY;
-    node.hasChildren = Boolean((node.data as any)?.__hasChildren);
-    node.isExpanded = expanded.has(getNodeId(node));
-
-    if (node.depth > 0) {
-      const existing = depthToRadius.get(node.depth);
-      if (!existing || distance > existing) {
-        depthToRadius.set(node.depth, distance);
-      }
-    }
-
-    nodes.push(node as D3HierarchyNode);
-  });
-
-  radialRoot.links().forEach(link => {
-    links.push({
-      source: link.source as unknown as D3HierarchyNode,
-      target: link.target as unknown as D3HierarchyNode,
-    });
-  });
-
-  const rings: IntegrationRingDatum[] = [];
-  Array.from(depthToRadius.entries())
-    .sort((a, b) => a[0] - b[0])
-    .forEach(([depth, radius], index) => {
-      rings.push({
-        key: `${getNodeId(integrationNode)}-${depth}`,
-        cx: center.cx,
-        cy: center.cy,
-        radius,
-        depthIndex: index,
+    if (parent.depth === 0) {
+      const sorted = [...children].sort((a, b) => {
+        const aName = a.data?.name ?? '';
+        const bName = b.data?.name ?? '';
+        const aIndex = SERVICE_ORDER.indexOf(aName as (typeof SERVICE_ORDER)[number]);
+        const bIndex = SERVICE_ORDER.indexOf(bName as (typeof SERVICE_ORDER)[number]);
+        const normalizedA = aIndex === -1 ? SERVICE_ORDER.length : aIndex;
+        const normalizedB = bIndex === -1 ? SERVICE_ORDER.length : bIndex;
+        if (normalizedA === normalizedB) {
+          return aName.localeCompare(bName);
+        }
+        return normalizedA - normalizedB;
       });
+
+      const fallbackStep = (2 * Math.PI) / sorted.length;
+      let fallbackIndex = 0;
+
+      sorted.forEach(child => {
+        const serviceName = child.data?.name ?? '';
+        const baseAngle =
+          SERVICE_BASE_ANGLES[serviceName] ??
+          FULL_CIRCLE_START_ANGLE + fallbackStep * (fallbackIndex++);
+        const rangeStart = baseAngle - SERVICE_SPREAD / 2;
+        const rangeEnd = baseAngle + SERVICE_SPREAD / 2;
+        setPosition(child, baseAngle, LEVEL_RADII[1], rangeStart, rangeEnd);
+        layoutChildren(child);
+      });
+      return;
+    }
+
+    let childRadius = parentMeta.radius;
+    if (parent.depth === 1) {
+      childRadius = LEVEL_RADII[2];
+    } else if (parent.depth === 2) {
+      childRadius = LEVEL_RADII[3];
+    } else {
+      childRadius = parentMeta.radius + RADIAL_SPACING;
+    }
+
+    const availableStart = parentMeta.rangeStart;
+    const availableEnd = parentMeta.rangeEnd;
+    const availableSpan = Math.max(availableEnd - availableStart, MIN_CHILD_SPREAD);
+    let span = availableSpan;
+    if (parent.depth >= 2) {
+      span = Math.max(availableSpan * SUBTREE_RANGE_DECAY, MIN_CHILD_SPREAD);
+    }
+
+    if (childCount === 1) {
+      const mid = parentMeta.angle;
+      const halfSpan = Math.max(span / 2, SINGLE_CHILD_SPREAD / 2);
+      const rawStart = clamp(mid - halfSpan, availableStart, availableEnd);
+      const rawEnd = clamp(mid + halfSpan, availableStart, availableEnd);
+      const rangeStart = Math.min(rawStart, rawEnd);
+      const rangeEnd = Math.max(rawStart, rawEnd);
+      setPosition(children[0], mid, childRadius, rangeStart, rangeEnd);
+      layoutChildren(children[0]);
+      return;
+    }
+
+    let startAngle = clamp(parentMeta.angle - span / 2, availableStart, availableEnd - MIN_CHILD_SPREAD);
+    let endAngle = clamp(parentMeta.angle + span / 2, startAngle + MIN_CHILD_SPREAD, availableEnd);
+    let actualSpan = endAngle - startAngle;
+
+    if (actualSpan < MIN_CHILD_SPREAD) {
+      const mid = parentMeta.angle;
+      startAngle = mid - MIN_CHILD_SPREAD / 2;
+      endAngle = mid + MIN_CHILD_SPREAD / 2;
+      actualSpan = MIN_CHILD_SPREAD;
+    }
+
+    const step = actualSpan / (childCount - 1);
+    const rangeSegment = Math.max(step * CHILD_RANGE_SHRINK, MIN_CHILD_SPREAD * 0.5);
+
+    children.forEach((child, index) => {
+      const angle = startAngle + step * index;
+      const half = rangeSegment / 2;
+      const rawStart = clamp(angle - half, availableStart, availableEnd);
+      const rawEnd = clamp(angle + half, availableStart, availableEnd);
+      const rangeStart = Math.min(rawStart, rawEnd);
+      const rangeEnd = Math.max(rawStart, rawEnd);
+      setPosition(child, angle, childRadius, rangeStart, rangeEnd);
+      layoutChildren(child);
     });
+  };
 
-  return { nodes, links, rings };
+  layoutChildren(root);
 };
-
 
 export interface RadialTreeMapProps {
   folders: FolderItem[];
@@ -422,30 +430,19 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
 
     const root = buildHierarchy(folders);
     const nodeStyles = computeNodeStyles(root, colorPaletteId);
+    const { visibleNodes, visibleLinks } = getVisibleNodesAndLinks(root, expanded);
 
-    const integrationNodes = (root.children ?? []).filter(Boolean);
-    const layoutCenters = calculateGridCenters(
-      Math.max(integrationNodes.length, 1),
-      width,
-      height,
-    );
+    applyRadialLayout(root, visibleNodes);
 
-    const aggregatedNodes: D3HierarchyNode[] = [];
-    const aggregatedLinks: D3Link[] = [];
-    const ringSegments: IntegrationRingDatum[] = [];
+    const maxRadius =
+      d3.max(visibleNodes, node => Math.hypot(node.x ?? 0, node.y ?? 0)) ?? LEVEL_RADII[3];
 
-    integrationNodes.forEach((integrationNode, index) => {
-      const center = layoutCenters[index] ?? layoutCenters[0];
-      if (!center) return;
-
-      const { nodes, links, rings } = layoutIntegration(integrationNode, expanded, center);
-      aggregatedNodes.push(...nodes);
-      aggregatedLinks.push(...links);
-      ringSegments.push(...rings);
-    });
+    const viewWidth = width + VIEWBOX_PADDING * 2;
+    const viewHeight = height + VIEWBOX_PADDING * 2;
+    const maxExtent = Math.max(viewWidth, viewHeight, maxRadius * 2 + VIEWBOX_PADDING * 2);
 
     svg
-      .attr('viewBox', [0, 0, width, height])
+      .attr('viewBox', [-maxExtent / 2, -maxExtent / 2, maxExtent, maxExtent])
       .attr('width', width)
       .attr('height', height)
       .style('background', 'none')
@@ -455,9 +452,22 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
     const linkLayer = linkLayerRef.current;
     const nodeLayer = nodeLayerRef.current;
 
+    const ringRadii = (() => {
+      const radiusByDepth = new Map<number, number>();
+      visibleNodes.forEach(node => {
+        if (typeof node.depth !== 'number' || node.depth === 0) return;
+        const radius = Math.hypot(node.x ?? 0, node.y ?? 0);
+        const existing = radiusByDepth.get(node.depth);
+        if (existing === undefined || radius > existing) {
+          radiusByDepth.set(node.depth, radius);
+        }
+      });
+      return Array.from(radiusByDepth.values()).sort((a, b) => a - b);
+    })();
+
     ringLayer
-      .selectAll<SVGCircleElement, IntegrationRingDatum>('circle.orbit-ring')
-      .data(ringSegments, d => d.key)
+      .selectAll('circle.orbit-ring')
+      .data(ringRadii)
       .join(
         enter =>
           enter
@@ -466,18 +476,16 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
             .attr('stroke', '#d0d0d0')
             .attr('stroke-width', 1)
             .attr('stroke-dasharray', '5,5')
-            .attr('fill', 'none'),
+            .attr('fill', 'none')
+            .attr('opacity', (_d, index) => 0.35 - index * 0.04),
         update => update,
         exit => exit.remove(),
       )
-      .attr('cx', d => d.cx)
-      .attr('cy', d => d.cy)
-      .attr('r', d => d.radius)
-      .attr('opacity', d => Math.max(0.12, RING_BASE_OPACITY - d.depthIndex * RING_OPACITY_STEP));
+      .attr('r', d => d);
 
     const link = linkLayer
-      .selectAll<SVGLineElement, D3Link>('line')
-      .data(aggregatedLinks, d => {
+      .selectAll<SVGLineElement, any>('line')
+      .data(visibleLinks, (d: any) => {
         const sourceId = getNodeId(d.source);
         const targetId = getNodeId(d.target);
         return `${sourceId}-${targetId}`;
@@ -495,10 +503,10 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       .attr('stroke', '#b8bec9')
       .attr('stroke-width', 1.4)
       .attr('opacity', 0.85)
-      .attr('x1', d => d.source.x ?? 0)
-      .attr('y1', d => d.source.y ?? 0)
-      .attr('x2', d => d.target.x ?? 0)
-      .attr('y2', d => d.target.y ?? 0);
+      .attr('x1', (d: any) => d.source.x ?? 0)
+      .attr('y1', (d: any) => d.source.y ?? 0)
+      .attr('x2', (d: any) => d.target.x ?? 0)
+      .attr('y2', (d: any) => d.target.y ?? 0);
 
     const getLineageNames = (node: any) => {
       const lineage: string[] = [];
@@ -587,7 +595,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       scheduleTooltipClose();
     };
 
-    const node = renderNodes(svg, nodeLayer, aggregatedNodes, {
+    const node = renderNodes(svg, nodeLayer, visibleNodes, {
       colorAssignments: nodeStyles,
       onNodeEnter: handleNodeEnter,
       onNodeMove: handleNodeMove,
