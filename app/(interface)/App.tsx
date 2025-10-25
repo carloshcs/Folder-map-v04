@@ -64,10 +64,10 @@ const BubbleSizeMap = dynamic(
   },
 );
 
-const HierarchyTreeMap = dynamic(
+const FoxThreeMap = dynamic(
   () =>
-    import("./components/maps-layout/Hierarchy-three-map/HierarchyTreeMap").then(
-      mod => mod.HierarchyTreeMap,
+    import("./components/maps-layout/Fox-three-map/FoxThreeMap").then(
+      mod => mod.FoxThreeMap,
     ),
   {
     loading: MapLayoutFallback,
@@ -774,8 +774,8 @@ export default function App() {
                     onFolderSelectionChange={handleFolderSelectionChange}
                   />
                 )}
-                {selectedLayout === 'hierarchy-tree' && (
-                  <HierarchyTreeMap folders={folderData} />
+                {selectedLayout === 'fox-three' && (
+                  <FoxThreeMap folders={folderData} />
                 )}
                 {selectedLayout === 'radial-tree' && (
                   <RadialTreeMap folders={folderData} />

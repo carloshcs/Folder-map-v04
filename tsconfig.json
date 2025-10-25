@@ -24,7 +24,8 @@
       "recharts": ["lib/stubs/recharts.ts"],
       "cmdk": ["lib/stubs/cmdk.tsx"],
       "vaul": ["lib/stubs/vaul.tsx"],
-      "react-hook-form@7.55.0": ["lib/stubs/react-hook-form.tsx"]
+      "react-hook-form@7.55.0": ["lib/stubs/react-hook-form.tsx"],
+      "reactflow": ["lib/stubs/reactflow.tsx"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

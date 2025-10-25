@@ -30,9 +30,9 @@ export function LayoutMenu({ isOpen, onSelect, selectedLayout }: LayoutMenuProps
           icon: <Orbit size={16} />
         },
         {
-          id: 'hierarchy-tree',
-          label: 'Hierarchy Tree',
-          description: 'Traditional top-down tree structure',
+          id: 'fox-three',
+          label: 'Fox Three',
+          description: 'Agent-style folder map with magnetic snapping',
           icon: <GitBranch size={16} />
         },
         {
