@@ -30,13 +30,24 @@ const LEVEL_RADII: Record<number, number> = {
   3: 760,
 };
 
-const LEVEL_SPREAD: Record<number, number> = {
-  1: Math.PI * 1.1,
-};
-
 const RADIAL_SPACING = 170;
 const FULL_CIRCLE_START_ANGLE = -Math.PI / 2;
 const VIEWBOX_PADDING = 260;
+
+const SERVICE_ORDER = ['Google Drive', 'Dropbox', 'Notion', 'OneDrive'] as const;
+const SERVICE_BASE_ANGLES: Record<string, number> = SERVICE_ORDER.reduce(
+  (acc, service, index) => {
+    const step = (2 * Math.PI) / SERVICE_ORDER.length;
+    acc[service] = FULL_CIRCLE_START_ANGLE + step * index;
+    return acc;
+  },
+  {} as Record<string, number>,
+);
+const SERVICE_SPREAD = Math.PI / 2.4;
+const SUBTREE_RANGE_DECAY = 0.68;
+const MIN_CHILD_SPREAD = Math.PI / 36;
+const CHILD_RANGE_SHRINK = 0.65;
+const SINGLE_CHILD_SPREAD = Math.PI / 24;
 
 const MAX_LIGHTENING = 0.85;
 const LIGHTEN_STEP = 0.4;
@@ -146,16 +157,32 @@ const applyRadialLayout = (
   const visibleIds = new Set(visibleNodes.map(node => getNodeId(node)));
   const metadata = new Map<
     D3HierarchyNode,
-    { angle: number; radius: number }
+    { angle: number; radius: number; rangeStart: number; rangeEnd: number }
   >();
 
-  const setPosition = (node: D3HierarchyNode, angle: number, radius: number) => {
+  const setPosition = (
+    node: D3HierarchyNode,
+    angle: number,
+    radius: number,
+    rangeStart?: number,
+    rangeEnd?: number,
+  ) => {
     node.x = Math.cos(angle) * radius;
     node.y = Math.sin(angle) * radius;
-    metadata.set(node, { angle, radius });
+    const start = rangeStart ?? angle;
+    const end = rangeEnd ?? angle;
+    metadata.set(node, { angle, radius, rangeStart: start, rangeEnd: end });
   };
 
-  setPosition(root, -Math.PI / 2, 0);
+  const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+  setPosition(
+    root,
+    -Math.PI / 2,
+    0,
+    FULL_CIRCLE_START_ANGLE,
+    FULL_CIRCLE_START_ANGLE + Math.PI * 2,
+  );
 
   const layoutChildren = (parent: D3HierarchyNode) => {
     const parentMeta = metadata.get(parent);
@@ -169,52 +196,87 @@ const applyRadialLayout = (
 
     const childCount = children.length;
 
-    let childRadius = parentMeta.radius;
-    let spread = Math.PI;
-    let useFullCircle = false;
-
     if (parent.depth === 0) {
-      childRadius = LEVEL_RADII[1];
-      useFullCircle = true;
-    } else if (parent.depth === 1) {
+      const sorted = [...children].sort((a, b) => {
+        const aName = a.data?.name ?? '';
+        const bName = b.data?.name ?? '';
+        const aIndex = SERVICE_ORDER.indexOf(aName as (typeof SERVICE_ORDER)[number]);
+        const bIndex = SERVICE_ORDER.indexOf(bName as (typeof SERVICE_ORDER)[number]);
+        const normalizedA = aIndex === -1 ? SERVICE_ORDER.length : aIndex;
+        const normalizedB = bIndex === -1 ? SERVICE_ORDER.length : bIndex;
+        if (normalizedA === normalizedB) {
+          return aName.localeCompare(bName);
+        }
+        return normalizedA - normalizedB;
+      });
+
+      const fallbackStep = (2 * Math.PI) / sorted.length;
+      let fallbackIndex = 0;
+
+      sorted.forEach(child => {
+        const serviceName = child.data?.name ?? '';
+        const baseAngle =
+          SERVICE_BASE_ANGLES[serviceName] ??
+          FULL_CIRCLE_START_ANGLE + fallbackStep * (fallbackIndex++);
+        const rangeStart = baseAngle - SERVICE_SPREAD / 2;
+        const rangeEnd = baseAngle + SERVICE_SPREAD / 2;
+        setPosition(child, baseAngle, LEVEL_RADII[1], rangeStart, rangeEnd);
+        layoutChildren(child);
+      });
+      return;
+    }
+
+    let childRadius = parentMeta.radius;
+    if (parent.depth === 1) {
       childRadius = LEVEL_RADII[2];
-      spread = LEVEL_SPREAD[1];
     } else if (parent.depth === 2) {
       childRadius = LEVEL_RADII[3];
-      useFullCircle = true;
     } else {
       childRadius = parentMeta.radius + RADIAL_SPACING;
-      useFullCircle = true;
     }
 
-    const angles: number[] = [];
-
-    if (useFullCircle) {
-      if (childCount === 1) {
-        angles.push(parentMeta.angle);
-      } else {
-        const baseAngle = FULL_CIRCLE_START_ANGLE;
-        const step = (2 * Math.PI) / childCount;
-        for (let index = 0; index < childCount; index += 1) {
-          angles.push(baseAngle + step * index);
-        }
-      }
-    } else {
-      const baseAngle = parentMeta.angle;
-      if (childCount === 1) {
-        angles.push(baseAngle);
-      } else {
-        const start = baseAngle - spread / 2;
-        const step = spread / (childCount - 1);
-        for (let index = 0; index < childCount; index += 1) {
-          angles.push(start + step * index);
-        }
-      }
+    const availableStart = parentMeta.rangeStart;
+    const availableEnd = parentMeta.rangeEnd;
+    const availableSpan = Math.max(availableEnd - availableStart, MIN_CHILD_SPREAD);
+    let span = availableSpan;
+    if (parent.depth >= 2) {
+      span = Math.max(availableSpan * SUBTREE_RANGE_DECAY, MIN_CHILD_SPREAD);
     }
+
+    if (childCount === 1) {
+      const mid = parentMeta.angle;
+      const halfSpan = Math.max(span / 2, SINGLE_CHILD_SPREAD / 2);
+      const rawStart = clamp(mid - halfSpan, availableStart, availableEnd);
+      const rawEnd = clamp(mid + halfSpan, availableStart, availableEnd);
+      const rangeStart = Math.min(rawStart, rawEnd);
+      const rangeEnd = Math.max(rawStart, rawEnd);
+      setPosition(children[0], mid, childRadius, rangeStart, rangeEnd);
+      layoutChildren(children[0]);
+      return;
+    }
+
+    let startAngle = clamp(parentMeta.angle - span / 2, availableStart, availableEnd - MIN_CHILD_SPREAD);
+    let endAngle = clamp(parentMeta.angle + span / 2, startAngle + MIN_CHILD_SPREAD, availableEnd);
+    let actualSpan = endAngle - startAngle;
+
+    if (actualSpan < MIN_CHILD_SPREAD) {
+      const mid = parentMeta.angle;
+      startAngle = mid - MIN_CHILD_SPREAD / 2;
+      endAngle = mid + MIN_CHILD_SPREAD / 2;
+      actualSpan = MIN_CHILD_SPREAD;
+    }
+
+    const step = actualSpan / (childCount - 1);
+    const rangeSegment = Math.max(step * CHILD_RANGE_SHRINK, MIN_CHILD_SPREAD * 0.5);
 
     children.forEach((child, index) => {
-      const angle = angles[index] ?? parentMeta.angle;
-      setPosition(child, angle, childRadius);
+      const angle = startAngle + step * index;
+      const half = rangeSegment / 2;
+      const rawStart = clamp(angle - half, availableStart, availableEnd);
+      const rawEnd = clamp(angle + half, availableStart, availableEnd);
+      const rangeStart = Math.min(rawStart, rawEnd);
+      const rangeEnd = Math.max(rawStart, rawEnd);
+      setPosition(child, angle, childRadius, rangeStart, rangeEnd);
       layoutChildren(child);
     });
   };
