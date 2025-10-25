@@ -3,7 +3,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
-import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronUp, ExternalLink } from 'lucide-react';
 
 import { MIN_HEIGHT, MIN_WIDTH } from './constants';
 import { buildHierarchy, getVisibleNodesAndLinks } from './hierarchy';
@@ -552,7 +552,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       <svg ref={svgRef} className="w-full h-full" />
       {hoveredNode && (
         <div
-          className="relative pointer-events-auto absolute w-full max-w-[320px] overflow-visible rounded-3xl border border-border bg-white text-sm shadow-xl transition-shadow dark:bg-neutral-900"
+          className="pointer-events-auto absolute w-full max-w-[320px] overflow-hidden rounded-3xl border border-slate-200 bg-white/95 text-sm shadow-2xl backdrop-blur-sm transition-shadow dark:border-slate-700 dark:bg-slate-900/90"
           style={{
             left: Math.min(
               Math.max(0, hoveredNode.position.x + 18),
@@ -573,17 +573,12 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
             scheduleTooltipClose();
           }}
         >
-          <span
-            aria-hidden
-            className="pointer-events-none absolute -left-3 top-9 h-6 w-6 rotate-45 border-l border-t border-border bg-white dark:bg-neutral-900"
-          />
-          <div className="overflow-hidden rounded-3xl">
-            <div className="border-b border-border bg-white px-5 py-4 dark:bg-neutral-900">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span aria-hidden className="text-lg leading-none">
-                      📁
+          <div className="border-b border-slate-200 bg-white/70 px-5 py-4 dark:border-slate-700 dark:bg-transparent">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span aria-hidden className="text-lg leading-none">
+                    📁
                   </span>
                   <p className="truncate text-base font-semibold text-slate-900 dark:text-white">
                     {hoveredNode.name}
@@ -599,19 +594,17 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
                 {hoveredNode.canExpand && (
                   <button
                     type="button"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:bg-neutral-900 dark:text-slate-200 dark:hover:bg-neutral-800"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-indigo-200 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-indigo-500/40 dark:hover:text-indigo-300"
                     onClick={event => {
                       event.preventDefault();
                       event.stopPropagation();
                       toggleHoveredExpansion();
                     }}
-                    title={hoveredNode.isExpanded ? 'Collapse' : 'Expand'}
                   >
-                    <span>{hoveredNode.isExpanded ? 'Collapse' : 'Expand'}</span>
                     {hoveredNode.isExpanded ? (
-                      <ChevronUp className="h-3.5 w-3.5" />
+                      <ChevronDown className="h-4 w-4" />
                     ) : (
-                      <ChevronDown className="h-3.5 w-3.5" />
+                      <ChevronRight className="h-4 w-4" />
                     )}
                   </button>
                 )}
@@ -620,14 +613,13 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
                     href={hoveredNode.link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:bg-neutral-900 dark:text-slate-200 dark:hover:bg-neutral-800"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-indigo-200 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-indigo-500/40 dark:hover:text-indigo-300"
                     onClick={event => {
                       event.stopPropagation();
                     }}
                     title="Open in new tab"
                   >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    <span>Open</span>
+                    <ExternalLink className="h-4 w-4" />
                   </a>
                 )}
               </div>
@@ -635,7 +627,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
           </div>
 
           {hasLocation && (
-            <div className="border-b border-border bg-white px-5 py-3 text-xs leading-relaxed text-slate-600 dark:bg-neutral-900 dark:text-slate-300">
+            <div className="border-b border-slate-200 px-5 py-3 text-xs leading-relaxed text-slate-600 dark:border-slate-700 dark:text-slate-300">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                 Location
               </p>
@@ -647,7 +639,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
             <div className="px-5 py-3">
               <button
                 type="button"
-                className="flex w-full items-center justify-between rounded-xl bg-slate-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-600 transition hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:bg-neutral-800 dark:text-slate-200 dark:hover:bg-neutral-700"
+                className="flex w-full items-center justify-between rounded-xl bg-slate-100/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:bg-slate-800"
                 onClick={event => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -663,36 +655,48 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
               </button>
 
               {showExtraInfo && (
-                <div className="mt-3 space-y-4 rounded-2xl border border-border bg-white px-4 py-4 text-[12px] shadow-sm dark:bg-neutral-900">
+                <div className="mt-3 space-y-4 rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-4 text-[12px] shadow-sm dark:border-slate-700/60 dark:bg-slate-900/50">
                   {hasMetrics && (
                     <div className="grid grid-cols-1 gap-3 text-xs text-slate-600 dark:text-slate-300 sm:grid-cols-2">
                       {typeof hoveredNode.metrics?.folderCount === 'number' && (
-                        <div className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 shadow-sm dark:bg-neutral-800">
-                          <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Folders</span>
+                        <div className="flex items-center justify-between gap-3 rounded-lg bg-white/70 px-3 py-2 shadow-sm dark:bg-slate-800/60">
+                          <span className="flex items-center gap-1 font-medium">
+                            <span className="text-indigo-400 dark:text-indigo-300">•</span>
+                            Folders
+                          </span>
                           <span className="font-semibold text-slate-900 dark:text-white">
                             {numberFormatter.format(hoveredNode.metrics?.folderCount ?? 0)}
                           </span>
                         </div>
                       )}
                       {typeof hoveredNode.metrics?.fileCount === 'number' && (
-                        <div className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 shadow-sm dark:bg-neutral-800">
-                          <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Files</span>
+                        <div className="flex items-center justify-between gap-3 rounded-lg bg-white/70 px-3 py-2 shadow-sm dark:bg-slate-800/60">
+                          <span className="flex items-center gap-1 font-medium">
+                            <span className="text-indigo-400 dark:text-indigo-300">•</span>
+                            Files
+                          </span>
                           <span className="font-semibold text-slate-900 dark:text-white">
                             {numberFormatter.format(hoveredNode.metrics?.fileCount ?? 0)}
                           </span>
                         </div>
                       )}
                       {typeof hoveredNode.metrics?.totalSize === 'number' && (
-                        <div className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 shadow-sm dark:bg-neutral-800">
-                          <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Storage</span>
+                        <div className="flex items-center justify-between gap-3 rounded-lg bg-white/70 px-3 py-2 shadow-sm dark:bg-slate-800/60">
+                          <span className="flex items-center gap-1 font-medium">
+                            <span className="text-indigo-400 dark:text-indigo-300">•</span>
+                            Storage
+                          </span>
                           <span className="font-semibold text-slate-900 dark:text-white">
                             {formatBytes(hoveredNode.metrics?.totalSize ?? undefined)}
                           </span>
                         </div>
                       )}
                       {typeof hoveredNode.activityScore === 'number' && (
-                        <div className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 shadow-sm dark:bg-neutral-800">
-                          <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Activity</span>
+                        <div className="flex items-center justify-between gap-3 rounded-lg bg-white/70 px-3 py-2 shadow-sm dark:bg-slate-800/60">
+                          <span className="flex items-center gap-1 font-medium">
+                            <span className="text-indigo-400 dark:text-indigo-300">•</span>
+                            Activity
+                          </span>
                           <span className="font-semibold text-slate-900 dark:text-white">
                             {numberFormatter.format(hoveredNode.activityScore)}
                           </span>
@@ -704,7 +708,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
                   {hasDates && (
                     <div className="grid grid-cols-1 gap-3 text-xs text-slate-600 dark:text-slate-300 sm:grid-cols-2">
                       {hoveredNode.modifiedDate && (
-                        <div className="rounded-lg bg-slate-50 px-3 py-2 shadow-sm dark:bg-neutral-800">
+                        <div className="rounded-lg bg-white/70 px-3 py-2 shadow-sm dark:bg-slate-800/60">
                           <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
                             Modified
                           </p>
@@ -714,7 +718,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
                         </div>
                       )}
                       {hoveredNode.createdDate && (
-                        <div className="rounded-lg bg-slate-50 px-3 py-2 shadow-sm dark:bg-neutral-800">
+                        <div className="rounded-lg bg-white/70 px-3 py-2 shadow-sm dark:bg-slate-800/60">
                           <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
                             Created
                           </p>
@@ -740,7 +744,6 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
               )}
             </div>
           )}
-          </div>
         </div>
       )}
     </div>
