@@ -469,6 +469,32 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       .style('transform-origin', 'center')
       .attr('filter', 'url(#node-shadow)');
 
+    nodeSelection.each(function (d: any) {
+      const selection = d3.select(this);
+      const circle = selection.select<SVGCircleElement>('circle.node-circle');
+      if (circle.empty()) return;
+
+      const baseFill = circle.attr('data-base-fill');
+      if (!baseFill) return;
+
+      const nodeId = getNodeId(d);
+      const label = selection.select<SVGTextElement>('text.node-label');
+
+      if (!hoveredId || relatedIds.has(nodeId)) {
+        circle.attr('fill', baseFill);
+        if (!label.empty()) {
+          label.style('opacity', 1);
+        }
+        return;
+      }
+
+      const dimmedFill = circle.attr('data-dimmed-fill') || shiftColor(baseFill, 0.45);
+      circle.attr('fill', dimmedFill).attr('data-dimmed-fill', dimmedFill);
+      if (!label.empty()) {
+        label.style('opacity', 0.85);
+      }
+    });
+
     linkSelection
       .attr('stroke', (d: any) => {
         if (!hoveredId) return '#b8bec9';
@@ -483,15 +509,29 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         return sourceId === hoveredId || targetId === hoveredId ? 2.4 : 1;
       })
       .attr('opacity', (d: any) => {
-        if (!hoveredId) return 0.85;
+        if (!hoveredId) return 0.95;
         const sourceId = getNodeId(d.source);
         const targetId = getNodeId(d.target);
         return sourceId === hoveredId || targetId === hoveredId ? 1 : 0.55;
       });
 
     return () => {
-      nodeSelection.style('opacity', 1);
-      linkSelection.attr('stroke', '#b8bec9').attr('stroke-width', 1.4).attr('opacity', 0.85);
+      nodeSelection
+        .style('opacity', 1)
+        .each(function (d: any) {
+          const selection = d3.select(this);
+          const circle = selection.select<SVGCircleElement>('circle.node-circle');
+          if (circle.empty()) return;
+          const baseFill = circle.attr('data-base-fill');
+          if (baseFill) {
+            circle.attr('fill', baseFill);
+          }
+          const label = selection.select<SVGTextElement>('text.node-label');
+          if (!label.empty()) {
+            label.style('opacity', 1);
+          }
+        });
+      linkSelection.attr('stroke', '#b8bec9').attr('stroke-width', 1.4).attr('opacity', 0.95);
     };
   }, [hoveredNode?.id]);
 
