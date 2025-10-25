@@ -44,9 +44,9 @@ type NodeVisualStyle = {
   textColor: string;
 };
 
-const MAX_LIGHTENING = 0.6;
-const LIGHTEN_STEP = 0.18;
-const BASE_DARKEN = -0.2;
+const MAX_LIGHTENING = 0.85;
+const LIGHTEN_STEP = 0.4;
+const BASE_DARKEN = -0.25;
 const HOVER_TOOLTIP_WIDTH = 320;
 const HOVER_TOOLTIP_COMPACT_HEIGHT = 220;
 const HOVER_TOOLTIP_EXPANDED_HEIGHT = 420;
@@ -464,7 +464,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       .style('opacity', (d: any) => {
         if (!hoveredId) return 1;
         const nodeId = getNodeId(d);
-        return relatedIds.has(nodeId) ? 1 : 0.25;
+        return relatedIds.has(nodeId) ? 1 : 0.6;
       })
       .style('transform-origin', 'center')
       .attr('filter', 'url(#node-shadow)');
@@ -486,7 +486,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         if (!hoveredId) return 0.85;
         const sourceId = getNodeId(d.source);
         const targetId = getNodeId(d.target);
-        return sourceId === hoveredId || targetId === hoveredId ? 1 : 0.35;
+        return sourceId === hoveredId || targetId === hoveredId ? 1 : 0.55;
       });
 
     return () => {
