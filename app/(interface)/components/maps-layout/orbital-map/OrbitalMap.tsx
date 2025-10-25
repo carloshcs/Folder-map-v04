@@ -51,7 +51,7 @@ const HOVER_TOOLTIP_WIDTH = 320;
 const HOVER_TOOLTIP_COMPACT_HEIGHT = 220;
 const HOVER_TOOLTIP_EXPANDED_HEIGHT = 420;
 const TOOLTIP_LOCK_DISTANCE = 24;
-const TOOLTIP_ANCHOR_GAP = 12;
+const TOOLTIP_ANCHOR_GAP = 6;
 const TOOLTIP_POINTER_BASE = 8;
 
 const numberFormatter = new Intl.NumberFormat('en-US');
@@ -334,7 +334,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       if (containerRect && targetRect) {
         return {
           x: targetRect.left - containerRect.left + targetRect.width / 2,
-          y: targetRect.top - containerRect.top + targetRect.height / 2,
+          y: targetRect.top - containerRect.top,
         };
       }
 
@@ -610,56 +610,22 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   const hideButtonDisabled = hoveredNode?.isSelected === false;
   const hideButtonLabel = hideButtonDisabled ? 'Hidden' : 'Hide';
 
-  const tooltipWidth = HOVER_TOOLTIP_WIDTH;
-  const tooltipMaxLeft = Math.max(0, size.width - tooltipWidth);
-  const tooltipAnchorPosition = hoveredNode?.position ?? null;
-  const rawTooltipLeft =
-    (tooltipAnchorPosition?.x ?? size.width / 2) - tooltipWidth / 2;
+  const tooltipMaxLeft = Math.max(0, size.width - HOVER_TOOLTIP_WIDTH);
+  const tooltipAnchorPosition = hoveredNode?.position;
+  const tooltipBottomTarget = tooltipAnchorPosition?.y ?? 0;
+  const tooltipTopCandidate = tooltipBottomTarget - tooltipHeight;
+  const tooltipTop = Math.min(
+    Math.max(0, tooltipTopCandidate),
+    Math.max(0, size.height - tooltipHeight),
+  );
   const tooltipLeft = Math.min(
-    Math.max(0, rawTooltipLeft),
+    Math.max(0, (tooltipAnchorPosition?.x ?? 0) - HOVER_TOOLTIP_WIDTH / 2),
     tooltipMaxLeft,
   );
-
-  let tooltipOrientation: 'above' | 'below' = 'above';
-  let tooltipTop = Math.max(0, (size.height - tooltipHeight) / 2);
-  let pointerDistance = 0;
-
-  if (tooltipAnchorPosition) {
-    const topForAbove = Math.max(
-      0,
-      Math.min(
-        tooltipAnchorPosition.y - tooltipHeight - TOOLTIP_ANCHOR_GAP,
-        size.height - tooltipHeight,
-      ),
-    );
-    const distanceAbove = tooltipAnchorPosition.y - (topForAbove + tooltipHeight);
-
-    const topForBelow = Math.min(
-      Math.max(0, tooltipAnchorPosition.y + TOOLTIP_ANCHOR_GAP),
-      size.height - tooltipHeight,
-    );
-    const distanceBelow = topForBelow - tooltipAnchorPosition.y;
-
-    const normalizedAbove = distanceAbove >= 0 ? distanceAbove : Number.NEGATIVE_INFINITY;
-    const normalizedBelow = distanceBelow >= 0 ? distanceBelow : Number.NEGATIVE_INFINITY;
-
-    if (normalizedAbove === Number.NEGATIVE_INFINITY && normalizedBelow === Number.NEGATIVE_INFINITY) {
-      tooltipOrientation = distanceAbove >= distanceBelow ? 'above' : 'below';
-      tooltipTop = distanceAbove >= distanceBelow ? topForAbove : topForBelow;
-      pointerDistance = 0;
-    } else if (normalizedAbove >= normalizedBelow) {
-      tooltipOrientation = 'above';
-      tooltipTop = topForAbove;
-      pointerDistance = normalizedAbove;
-    } else {
-      tooltipOrientation = 'below';
-      tooltipTop = topForBelow;
-      pointerDistance = normalizedBelow;
-    }
-  }
-
-  const pointerLineHeight = Math.max(0, pointerDistance - TOOLTIP_POINTER_BASE / 2);
-  const shouldRenderPointer = Boolean(hoveredNode && tooltipAnchorPosition);
+  const pointerHeight = hoveredNode
+    ? Math.max(0, hoveredNode.position.y - (tooltipTop + tooltipHeight))
+    : 0;
+  const pointerLineHeight = Math.max(0, pointerHeight - TOOLTIP_POINTER_BASE / 2);
 
   const handleHideFromTooltip = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -864,28 +830,16 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
               </div>
             )}
           </div>
-          {shouldRenderPointer && (
-            tooltipOrientation === 'above' ? (
-              <div className="pointer-events-none absolute left-1/2 top-full -translate-x-1/2 flex flex-col items-center">
-                <div className="h-2 w-2 -translate-y-1/2 rotate-45 border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900/90" />
-                {pointerLineHeight > 0 && (
-                  <div
-                    className="w-px bg-gradient-to-b from-neutral-200 via-neutral-300 to-transparent dark:from-neutral-700 dark:via-neutral-600"
-                    style={{ height: pointerLineHeight }}
-                  />
-                )}
-              </div>
-            ) : (
-              <div className="pointer-events-none absolute left-1/2 bottom-full -translate-x-1/2 flex flex-col-reverse items-center">
-                <div className="h-2 w-2 translate-y-1/2 rotate-45 border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900/90" />
-                {pointerLineHeight > 0 && (
-                  <div
-                    className="w-px bg-gradient-to-t from-neutral-200 via-neutral-300 to-transparent dark:from-neutral-700 dark:via-neutral-600"
-                    style={{ height: pointerLineHeight }}
-                  />
-                )}
-              </div>
-            )
+          {pointerHeight > 0 && (
+            <div className="pointer-events-none absolute left-1/2 top-full -translate-x-1/2 flex flex-col items-center">
+              <div className="h-2 w-2 -translate-y-1/2 rotate-45 border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900/90" />
+              {pointerLineHeight > 0 && (
+                <div
+                  className="w-px bg-gradient-to-b from-neutral-200 via-neutral-300 to-transparent dark:from-neutral-700 dark:via-neutral-600"
+                  style={{ height: pointerLineHeight }}
+                />
+              )}
+            </div>
           )}
         </div>
       )}
