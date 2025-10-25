@@ -8,8 +8,6 @@ export const MAP_COLOR_PALETTES: Record<string, string[]> = {
   teal: ['#0f766e', '#115e59', '#14b8a6', '#0ea5e9', '#2dd4bf', '#5eead4', '#134e4a', '#0f172a'],
   bright: ['#ff6b6b', '#4ecdc4', '#ffd93d', '#6a4c93', '#1a535c', '#ff8c42', '#2d9bf0', '#ff3f81'],
   neon: ['#39ff14', '#ff3131', '#04d9ff', '#bc13fe', '#ffd700', '#ff007f', '#0aff99', '#ff8c00'],
-  heatMap: ['#0b3d91', '#1558b1', '#1f73d2', '#2a8ef1', '#54a3ff', '#ffb07c', '#ff8c7a', '#ff6b6b'],
-  rainbow: ['#ff595e', '#ff924c', '#ffca3a', '#8ac926', '#52b69a', '#1982c4', '#6a4c93', '#b5179e'],
   minimal: ['#1c1c1e', '#2c2c2e', '#3a3a3c', '#48484a', '#636366', '#8e8e93', '#aeaeb2', '#d1d1d6'],
   appleMidnight: ['#0a1f44', '#102a56', '#1b3a73', '#274c8f', '#345ea8', '#4f7ac1', '#6c95d8', '#8fb0ed'],
   appleStarlight: ['#3f3a2f', '#5a5241', '#7a6e54', '#9a8d6a', '#b9ab81', '#d6c99b', '#ede0b8', '#f7f1d8'],

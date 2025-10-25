@@ -461,7 +461,11 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     }
 
     nodeSelection
-      .style('opacity', 1)
+      .style('opacity', (d: any) => {
+        if (!hoveredId) return 1;
+        const nodeId = getNodeId(d);
+        return relatedIds.has(nodeId) ? 1 : 0.6;
+      })
       .style('transform-origin', 'center')
       .attr('filter', 'url(#node-shadow)');
 
@@ -508,7 +512,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         if (!hoveredId) return 0.95;
         const sourceId = getNodeId(d.source);
         const targetId = getNodeId(d.target);
-        return sourceId === hoveredId || targetId === hoveredId ? 1 : 0.85;
+        return sourceId === hoveredId || targetId === hoveredId ? 1 : 0.55;
       });
 
     return () => {

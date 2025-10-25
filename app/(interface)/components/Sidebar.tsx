@@ -87,20 +87,6 @@ export function Sidebar({
       row: 0,
     },
     {
-      id: "heatMap",
-      label: "Heat Map",
-      gradient: "linear-gradient(135deg, #0b3d91 0%, #2a8ef1 45%, #ff8c7a 100%)",
-      description: "Cool-to-warm gradient from blue to blush",
-      row: 0,
-    },
-    {
-      id: "rainbow",
-      label: "Rainbow",
-      gradient: "linear-gradient(135deg, #ff595e 0%, #ffca3a 33%, #1982c4 66%, #b5179e 100%)",
-      description: "Vivid rainbow arc for playful contrast",
-      row: 0,
-    },
-    {
       id: "minimal",
       label: "Minimal",
       gradient: "linear-gradient(135deg, #1c1c1e 0%, #3a3a3c 55%, #d1d1d6 100%)",
