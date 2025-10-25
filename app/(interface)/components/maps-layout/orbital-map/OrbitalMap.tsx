@@ -23,6 +23,7 @@ type HoveredNodeInfo = {
   depth: number;
   lineage: string[];
   position: { x: number; y: number };
+  radius: number;
   pathSegments: string[];
   serviceName?: string;
   link?: string;
@@ -50,8 +51,6 @@ const BASE_DARKEN = -0.25;
 const HOVER_TOOLTIP_WIDTH = 320;
 const HOVER_TOOLTIP_COMPACT_HEIGHT = 220;
 const HOVER_TOOLTIP_EXPANDED_HEIGHT = 420;
-const TOOLTIP_LOCK_DISTANCE = 24;
-const TOOLTIP_ANCHOR_GAP = 6;
 const TOOLTIP_POINTER_BASE = 8;
 const DIMMED_FILL_LIGHTEN = 0.55;
 
@@ -143,18 +142,10 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   const isTooltipHoveredRef = useRef(false);
   const closeTooltipTimeoutRef = useRef<number | null>(null);
   const isDraggingRef = useRef(false);
-  const tooltipInitialPositionRef = useRef<{ x: number; y: number } | null>(null);
-  const isTooltipPositionLockedRef = useRef(false);
-
-  const resetTooltipPositionLock = useCallback(() => {
-    tooltipInitialPositionRef.current = null;
-    isTooltipPositionLockedRef.current = false;
-  }, []);
 
   const closeTooltip = useCallback(() => {
-    resetTooltipPositionLock();
     setHoveredNode(null);
-  }, [resetTooltipPositionLock]);
+  }, []);
 
   const setTooltipHoverState = (value: boolean) => {
     isTooltipHoveredRef.current = value;
@@ -330,12 +321,17 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       const container = containerRef.current;
       const containerRect = container?.getBoundingClientRect();
       const targetElement = event.currentTarget as Element | null;
-      const targetRect = targetElement?.getBoundingClientRect();
+      const circleElement = targetElement?.querySelector('circle.node-circle') as
+        | SVGCircleElement
+        | null;
+      const circleRect = circleElement?.getBoundingClientRect();
 
-      if (containerRect && targetRect) {
+      if (containerRect && circleRect) {
+        const radius = circleRect.width / 2;
         return {
-          x: targetRect.left - containerRect.left + targetRect.width / 2,
-          y: targetRect.top - containerRect.top,
+          x: circleRect.left - containerRect.left + radius,
+          y: circleRect.top - containerRect.top + radius,
+          radius,
         };
       }
 
@@ -343,12 +339,14 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         return {
           x: event.clientX - containerRect.left,
           y: event.clientY - containerRect.top,
+          radius: 0,
         };
       }
 
       return {
         x: event.clientX,
         y: event.clientY,
+        radius: 0,
       };
     };
 
@@ -362,7 +360,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       const trimmedLineage = lineage.filter(
         (name, index) => !(index === 0 && name === 'Folder Fox'),
       );
-      const position = getTooltipAnchorPosition(event);
+      const anchor = getTooltipAnchorPosition(event);
       const nodeData = d.data ?? {};
       const item = (nodeData.item as FolderItem | undefined) ?? undefined;
 
@@ -379,14 +377,13 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
             : undefined;
 
       setIsTooltipExpanded(false);
-      resetTooltipPositionLock();
-      tooltipInitialPositionRef.current = position;
       setHoveredNode({
         id,
         name: d.data?.name ?? 'Node',
         depth: d.depth ?? 0,
         lineage,
-        position,
+        position: { x: anchor.x, y: anchor.y },
+        radius: anchor.radius,
         pathSegments: trimmedLineage,
         serviceName: trimmedLineage[0],
         link,
@@ -400,22 +397,6 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       });
     };
 
-    const handleNodeMove = (event: PointerEvent) => {
-      if (isDraggingRef.current) return;
-      if (isTooltipPositionLockedRef.current) return;
-      const position = getTooltipAnchorPosition(event);
-      const initialPosition = tooltipInitialPositionRef.current ?? position;
-      if (!tooltipInitialPositionRef.current) {
-        tooltipInitialPositionRef.current = position;
-      }
-      const distance = Math.hypot(position.x - initialPosition.x, position.y - initialPosition.y);
-      if (distance > TOOLTIP_LOCK_DISTANCE) {
-        isTooltipPositionLockedRef.current = true;
-        return;
-      }
-      setHoveredNode(prev => (prev ? { ...prev, position } : prev));
-    };
-
     const handleNodeLeave = () => {
       if (isTooltipHoveredRef.current) return;
       scheduleTooltipClose();
@@ -424,7 +405,6 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     node = renderNodes(svg, nodeLayer, visibleNodes, {
       colorAssignments: nodeStyles,
       onNodeEnter: handleNodeEnter,
-      onNodeMove: handleNodeMove,
       onNodeLeave: handleNodeLeave,
     }).style('pointer-events', 'all');
 
@@ -475,7 +455,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     });
 
     return () => physics.stop();
-  }, [closeTooltip, folders, resetTooltipPositionLock, size, expanded, colorPaletteId]);
+  }, [closeTooltip, folders, size, expanded, colorPaletteId]);
 
   useEffect(() => {
     setIsTooltipExpanded(false);
@@ -610,7 +590,8 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
 
   const tooltipMaxLeft = Math.max(0, size.width - HOVER_TOOLTIP_WIDTH);
   const tooltipAnchorPosition = hoveredNode?.position;
-  const tooltipBottomTarget = tooltipAnchorPosition?.y ?? 0;
+  const tooltipRadius = hoveredNode?.radius ?? 0;
+  const tooltipBottomTarget = tooltipAnchorPosition ? tooltipAnchorPosition.y - tooltipRadius : 0;
   const tooltipTopCandidate = tooltipBottomTarget - tooltipHeight;
   const tooltipTop = Math.min(
     Math.max(0, tooltipTopCandidate),
@@ -621,7 +602,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     tooltipMaxLeft,
   );
   const pointerHeight = hoveredNode
-    ? Math.max(0, hoveredNode.position.y - (tooltipTop + tooltipHeight))
+    ? Math.max(0, hoveredNode.position.y - tooltipRadius - (tooltipTop + tooltipHeight))
     : 0;
   const pointerLineHeight = Math.max(0, pointerHeight - TOOLTIP_POINTER_BASE / 2);
   const anchorTooltipLabel = hoveredNode
