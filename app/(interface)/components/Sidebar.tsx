@@ -68,32 +68,58 @@ export function Sidebar({
     {
       id: "blue",
       label: "Blue",
-      gradient: "linear-gradient(135deg, #1e3a8a 0%, #60a5fa 100%)",
-      description: "Dark blue → light blue",
+      gradient: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 45%, #60a5fa 100%)",
+      description: "Blue gradients for strong contrast",
+      row: 0,
     },
     {
       id: "magenta",
       label: "Magenta",
-      gradient: "linear-gradient(135deg, #7c2d12 0%, #f472b6 100%)",
-      description: "Dark magenta → light magenta",
+      gradient: "linear-gradient(135deg, #7e22ce 0%, #db2777 50%, #f472b6 100%)",
+      description: "Magenta and fuchsia accents",
+      row: 0,
     },
     {
-      id: "grayscale",
-      label: "Gray",
-      gradient: "linear-gradient(135deg, #000000 0%, #d1d5db 100%)",
-      description: "Black → light gray",
+      id: "neon",
+      label: "Neon",
+      gradient: "linear-gradient(135deg, #ff007f 0%, #04d9ff 50%, #39ff14 100%)",
+      description: "Neon spectrum for maximum pop",
+      row: 0,
     },
     {
       id: "minimal",
       label: "Minimal",
-      gradient: "linear-gradient(135deg, #f8fafc 0%, #ffffff 100%)",
-      description: "Minimalist white",
+      gradient: "linear-gradient(135deg, #1c1c1e 0%, #3a3a3c 55%, #d1d1d6 100%)",
+      description: "Apple-inspired graphite neutrals",
+      row: 1,
     },
     {
-      id: "teal",
-      label: "Teal",
-      gradient: "linear-gradient(135deg, #134e4a 0%, #06b6d4 100%)",
-      description: "Teal blue → cyan",
+      id: "appleMidnight",
+      label: "Midnight",
+      gradient: "linear-gradient(135deg, #0a1f44 0%, #274c8f 55%, #8fb0ed 100%)",
+      description: "Deep midnight blues",
+      row: 1,
+    },
+    {
+      id: "appleStarlight",
+      label: "Starlight",
+      gradient: "linear-gradient(135deg, #3f3a2f 0%, #7a6e54 50%, #f7f1d8 100%)",
+      description: "Soft starlight golds",
+      row: 1,
+    },
+    {
+      id: "appleForest",
+      label: "Forest",
+      gradient: "linear-gradient(135deg, #1f3b2c 0%, #41744e 55%, #afe4a6 100%)",
+      description: "Verdant Apple greens",
+      row: 1,
+    },
+    {
+      id: "appleCoral",
+      label: "Coral",
+      gradient: "linear-gradient(135deg, #462227 0%, #b34d52 55%, #ffc3b9 100%)",
+      description: "Warm Apple coral",
+      row: 1,
     },
   ];
 
@@ -263,6 +289,11 @@ export function Sidebar({
             options={colorOptions}
             onSelect={handleOptionSelect}
             selectedOptionId={selectedPaletteId}
+            className="w-[420px]"
+            rowClassName={(row) =>
+              row === 0 ? "grid grid-cols-3 gap-2" : "grid grid-cols-5 gap-2"
+            }
+            itemClassName="w-full"
           />
         </div>
 
