@@ -1,7 +1,7 @@
 //OrbitalMap
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 
@@ -50,6 +50,7 @@ const BASE_DARKEN = -0.25;
 const HOVER_TOOLTIP_WIDTH = 320;
 const HOVER_TOOLTIP_COMPACT_HEIGHT = 220;
 const HOVER_TOOLTIP_EXPANDED_HEIGHT = 420;
+const TOOLTIP_LOCK_DISTANCE = 24;
 
 const numberFormatter = new Intl.NumberFormat('en-US');
 
@@ -139,6 +140,18 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   const isTooltipHoveredRef = useRef(false);
   const closeTooltipTimeoutRef = useRef<number | null>(null);
   const isDraggingRef = useRef(false);
+  const tooltipInitialPositionRef = useRef<{ x: number; y: number } | null>(null);
+  const isTooltipPositionLockedRef = useRef(false);
+
+  const resetTooltipPositionLock = useCallback(() => {
+    tooltipInitialPositionRef.current = null;
+    isTooltipPositionLockedRef.current = false;
+  }, []);
+
+  const closeTooltip = useCallback(() => {
+    resetTooltipPositionLock();
+    setHoveredNode(null);
+  }, [resetTooltipPositionLock]);
 
   const setTooltipHoverState = (value: boolean) => {
     isTooltipHoveredRef.current = value;
@@ -154,7 +167,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   const scheduleTooltipClose = () => {
     clearTooltipTimeout();
     closeTooltipTimeoutRef.current = window.setTimeout(() => {
-      setHoveredNode(null);
+      closeTooltip();
     }, 180);
   };
 
@@ -346,6 +359,8 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
             : undefined;
 
       setIsTooltipExpanded(false);
+      resetTooltipPositionLock();
+      tooltipInitialPositionRef.current = position;
       setHoveredNode({
         id,
         name: d.data?.name ?? 'Node',
@@ -367,7 +382,17 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
 
     const handleNodeMove = (event: PointerEvent) => {
       if (isDraggingRef.current) return;
+      if (isTooltipPositionLockedRef.current) return;
       const position = getRelativePosition(event);
+      const initialPosition = tooltipInitialPositionRef.current ?? position;
+      if (!tooltipInitialPositionRef.current) {
+        tooltipInitialPositionRef.current = position;
+      }
+      const distance = Math.hypot(position.x - initialPosition.x, position.y - initialPosition.y);
+      if (distance > TOOLTIP_LOCK_DISTANCE) {
+        isTooltipPositionLockedRef.current = true;
+        return;
+      }
       setHoveredNode(prev => (prev ? { ...prev, position } : prev));
     };
 
@@ -390,7 +415,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
           isDraggingRef.current = true;
           clearTooltipTimeout();
           setTooltipHoverState(false);
-          setHoveredNode(null);
+          closeTooltip();
           physics.dragHandlers.onDragStart(d);
         })
         .on('drag', (event: any, d: any) => {
@@ -430,7 +455,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     });
 
     return () => physics.stop();
-  }, [folders, size, expanded, colorPaletteId]);
+  }, [closeTooltip, folders, resetTooltipPositionLock, size, expanded, colorPaletteId]);
 
   useEffect(() => {
     setIsTooltipExpanded(false);
@@ -575,7 +600,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     }
 
     onFolderSelectionChange?.(hoveredNode.id, false);
-    setHoveredNode(null);
+    closeTooltip();
   };
 
   return (
