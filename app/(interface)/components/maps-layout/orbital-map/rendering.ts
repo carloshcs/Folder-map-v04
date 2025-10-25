@@ -121,7 +121,9 @@ export function renderNodes(
               .attr('r', radius)
               .attr('fill', fillColor)
               .attr('stroke', '#333')
-              .attr('stroke-width', 1);
+              .attr('stroke-width', 1)
+              .attr('data-base-fill', fillColor)
+              .attr('data-dimmed-fill', null);
 
             const text = selection
               .append('text')
@@ -188,7 +190,9 @@ export function renderNodes(
           .attr('r', radius)
           .attr('fill', fillColor)
           .attr('stroke', '#333')
-          .attr('stroke-width', 1);
+          .attr('stroke-width', 1)
+          .attr('data-base-fill', fillColor)
+          .attr('data-dimmed-fill', null);
 
         let text = selection.select<SVGTextElement>('text.node-label');
         if (text.empty()) {

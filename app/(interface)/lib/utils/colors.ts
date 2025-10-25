@@ -5,12 +5,17 @@ export const DEFAULT_MAP_PALETTE = 'blue';
 export const MAP_COLOR_PALETTES: Record<string, string[]> = {
   blue: ['#1d4ed8', '#2563eb', '#60a5fa', '#0ea5e9', '#312e81', '#1e40af', '#38bdf8', '#6366f1'],
   magenta: ['#c026d3', '#db2777', '#f472b6', '#f43f5e', '#a21caf', '#f97316', '#ec4899', '#fb7185'],
-  grayscale: ['#0f172a', '#1f2937', '#334155', '#475569', '#64748b', '#94a3b8', '#e2e8f0', '#cbd5f5'],
-  minimal: ['#0f172a', '#1e293b', '#334155', '#64748b', '#94a3b8', '#cbd5f5', '#e2e8f0', '#f1f5f9'],
   teal: ['#0f766e', '#115e59', '#14b8a6', '#0ea5e9', '#2dd4bf', '#5eead4', '#134e4a', '#0f172a'],
-  pastel: ['#A3C9A8', '#FFD3B6', '#FFAAA5', '#D5AAFF', '#85E3FF', '#FCF8A1', '#B5EAD7', '#FFDAC1'],
-  bright: ['#FF6B6B', '#4ECDC4', '#FFD93D', '#6A4C93', '#1A535C', '#FF8C42', '#2D9BF0', '#FF3F81'],
-  neon: ['#39FF14', '#FF3131', '#04D9FF', '#BC13FE', '#FFD700', '#FF007F', '#0AFF99', '#FF8C00'],
+  bright: ['#ff6b6b', '#4ecdc4', '#ffd93d', '#6a4c93', '#1a535c', '#ff8c42', '#2d9bf0', '#ff3f81'],
+  neon: ['#39ff14', '#ff3131', '#04d9ff', '#bc13fe', '#ffd700', '#ff007f', '#0aff99', '#ff8c00'],
+  heatMap: ['#0b3d91', '#1558b1', '#1f73d2', '#2a8ef1', '#54a3ff', '#ffb07c', '#ff8c7a', '#ff6b6b'],
+  rainbow: ['#ff595e', '#ff924c', '#ffca3a', '#8ac926', '#52b69a', '#1982c4', '#6a4c93', '#b5179e'],
+  minimal: ['#1c1c1e', '#2c2c2e', '#3a3a3c', '#48484a', '#636366', '#8e8e93', '#aeaeb2', '#d1d1d6'],
+  appleMidnight: ['#0a1f44', '#102a56', '#1b3a73', '#274c8f', '#345ea8', '#4f7ac1', '#6c95d8', '#8fb0ed'],
+  appleStarlight: ['#3f3a2f', '#5a5241', '#7a6e54', '#9a8d6a', '#b9ab81', '#d6c99b', '#ede0b8', '#f7f1d8'],
+  appleForest: ['#1f3b2c', '#2f573d', '#41744e', '#5a9361', '#74b377', '#8fd48d', '#afe4a6', '#d0f3c5'],
+  appleSky: ['#0d2f4f', '#16456c', '#205b89', '#2b72a6', '#3b8ec2', '#52a9dd', '#71c4f3', '#a5ddff'],
+  appleCoral: ['#462227', '#6a2f35', '#8d3d43', '#b34d52', '#d76062', '#ed7b75', '#f89b8f', '#ffc3b9'],
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
