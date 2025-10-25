@@ -53,6 +53,7 @@ const HOVER_TOOLTIP_EXPANDED_HEIGHT = 420;
 const TOOLTIP_LOCK_DISTANCE = 24;
 const TOOLTIP_ANCHOR_GAP = 6;
 const TOOLTIP_POINTER_BASE = 8;
+const DIMMED_FILL_LIGHTEN = 0.55;
 
 const numberFormatter = new Intl.NumberFormat('en-US');
 
@@ -505,11 +506,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     }
 
     nodeSelection
-      .style('opacity', (d: any) => {
-        if (!hoveredId) return 1;
-        const nodeId = getNodeId(d);
-        return relatedIds.has(nodeId) ? 1 : 0.6;
-      })
+      .style('opacity', 1)
       .style('transform-origin', 'center')
       .attr('filter', 'url(#node-shadow)');
 
@@ -532,7 +529,8 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         return;
       }
 
-      const dimmedFill = circle.attr('data-dimmed-fill') || shiftColor(baseFill, 0.45);
+      const dimmedFill =
+        circle.attr('data-dimmed-fill') || shiftColor(baseFill, DIMMED_FILL_LIGHTEN);
       circle.attr('fill', dimmedFill).attr('data-dimmed-fill', dimmedFill);
       if (!label.empty()) {
         label.style('opacity', 0.85);
@@ -626,6 +624,12 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     ? Math.max(0, hoveredNode.position.y - (tooltipTop + tooltipHeight))
     : 0;
   const pointerLineHeight = Math.max(0, pointerHeight - TOOLTIP_POINTER_BASE / 2);
+  const anchorTooltipLabel = hoveredNode
+    ? hoveredNode.lineage?.length
+      ? hoveredNode.lineage.join(' / ')
+      : hoveredNode.name
+    : '';
+  const showAnchorTooltip = pointerLineHeight > 16 && Boolean(anchorTooltipLabel);
 
   const handleHideFromTooltip = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -835,9 +839,16 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
               <div className="h-2 w-2 -translate-y-1/2 rotate-45 border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900/90" />
               {pointerLineHeight > 0 && (
                 <div
-                  className="w-px bg-gradient-to-b from-neutral-200 via-neutral-300 to-transparent dark:from-neutral-700 dark:via-neutral-600"
+                  className="relative flex flex-col items-center"
                   style={{ height: pointerLineHeight }}
-                />
+                >
+                  <div className="h-full w-px bg-gradient-to-b from-neutral-200 via-neutral-300 to-transparent dark:from-neutral-700 dark:via-neutral-600" />
+                  {showAnchorTooltip && (
+                    <div className="absolute bottom-0 left-1/2 w-max -translate-x-1/2 translate-y-3 rounded-2xl border border-neutral-200 bg-white/95 px-3 py-1 text-[11px] font-medium text-slate-600 shadow-lg backdrop-blur-sm dark:border-neutral-700 dark:bg-neutral-900/90 dark:text-neutral-100">
+                      {anchorTooltipLabel}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}
