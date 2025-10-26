@@ -63,6 +63,9 @@ const HOVER_TOOLTIP_COMPACT_HEIGHT = 220;
 const HOVER_TOOLTIP_EXPANDED_HEIGHT = 420;
 const TOOLTIP_LOCK_DISTANCE = 24;
 
+const SIDEBAR_TOTAL_OFFSET = 64;
+const FILTER_GAP = 16;
+
 const numberFormatter = new Intl.NumberFormat('en-US');
 
 const formatBytes = (size?: number) => {
@@ -898,7 +901,10 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       }}
     >
       {availableServices.length > 0 && (
-        <div className="pointer-events-auto absolute left-0 top-0 z-20 flex flex-wrap gap-2 px-6 py-4">
+        <div
+          className="pointer-events-auto fixed top-4 flex flex-wrap gap-2 px-4 py-3 z-[60]"
+          style={{ left: `${SIDEBAR_TOTAL_OFFSET + FILTER_GAP}px` }}
+        >
           {availableServices.map(service => {
             const isActive = activeServiceId === service.id;
             return (
