@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import React from 'react';
+import { createPortal } from 'react-dom';
 
 import { cn } from '@/lib/utils';
 import { ServiceId } from './right-sidebar/data';
@@ -30,7 +31,17 @@ export const IntegrationFilter: React.FC<IntegrationFilterProps> = ({
   allowClear = false,
   className,
 }) => {
+  const [portalContainer, setPortalContainer] = React.useState<HTMLElement | null>(null);
+
+  React.useEffect(() => {
+    setPortalContainer(document.body);
+  }, []);
+
   if (services.length === 0) {
+    return null;
+  }
+
+  if (!portalContainer) {
     return null;
   }
 
@@ -43,10 +54,10 @@ export const IntegrationFilter: React.FC<IntegrationFilterProps> = ({
     onServiceSelect(serviceId);
   };
 
-  return (
+  const content = (
     <div
       className={cn(
-        'pointer-events-none fixed left-[64px] right-[64px] top-24 z-[70] flex justify-center px-4',
+        'pointer-events-none fixed left-[64px] top-24 z-[70] flex justify-start px-4',
         className,
       )}
     >
@@ -77,6 +88,8 @@ export const IntegrationFilter: React.FC<IntegrationFilterProps> = ({
       </div>
     </div>
   );
+
+  return createPortal(content, portalContainer);
 };
 
 export default IntegrationFilter;
