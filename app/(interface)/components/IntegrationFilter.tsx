@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import React from 'react';
+import { createPortal } from 'react-dom';
 
 import { cn } from '@/lib/utils';
 import { ServiceId } from './right-sidebar/data';
@@ -30,7 +31,17 @@ export const IntegrationFilter: React.FC<IntegrationFilterProps> = ({
   allowClear = false,
   className,
 }) => {
+  const [portalContainer, setPortalContainer] = React.useState<HTMLElement | null>(null);
+
+  React.useEffect(() => {
+    setPortalContainer(document.body);
+  }, []);
+
   if (services.length === 0) {
+    return null;
+  }
+
+  if (!portalContainer) {
     return null;
   }
 
@@ -43,14 +54,14 @@ export const IntegrationFilter: React.FC<IntegrationFilterProps> = ({
     onServiceSelect(serviceId);
   };
 
-  return (
+  const content = (
     <div
       className={cn(
-        'pointer-events-none fixed left-[64px] right-[64px] top-24 z-[70] flex justify-center px-4',
+        'pointer-events-none fixed left-[calc(64px+32px)] top-5 z-[45] flex justify-start',
         className,
       )}
     >
-      <div className="pointer-events-auto flex flex-wrap items-center gap-2 rounded-full border border-border bg-white/90 px-4 py-3 shadow-[0_20px_45px_rgba(15,23,42,0.12)] backdrop-blur dark:bg-neutral-900/90">
+      <div className="pointer-events-auto inline-flex flex-wrap items-center gap-1.5 rounded-full border border-border/70 bg-white/85 px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-neutral-900/80">
         {services.map(service => {
           const isActive = activeServiceId === service.id;
 
@@ -61,14 +72,23 @@ export const IntegrationFilter: React.FC<IntegrationFilterProps> = ({
               onClick={() => handleServiceClick(service.id)}
               aria-pressed={isActive}
               className={cn(
-                'flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium text-slate-700 transition-colors',
+                'flex items-center gap-1.5 rounded-full border border-transparent px-3 py-1.5 text-[11px] font-medium transition-colors',
                 isActive
-                  ? 'border-indigo-300 bg-white text-slate-900 shadow-[0_12px_24px_rgba(15,23,42,0.16)]'
-                  : cn(service.accent, service.hover, service.border),
+                  ? 'border-slate-900/60 bg-slate-900 text-white shadow-sm dark:border-white/40'
+                  : cn(
+                      'text-muted-foreground hover:text-foreground hover:border-border/70 hover:bg-white/70 dark:hover:border-white/20 dark:hover:bg-neutral-800/70',
+                      service.border,
+                      service.hover,
+                    ),
               )}
             >
-              <span className="relative h-6 w-6 overflow-hidden rounded-full bg-white/80">
-                <Image src={service.logo} alt={`${service.name} logo`} fill sizes="24px" />
+              <span
+                className={cn(
+                  'relative h-5 w-5 overflow-hidden rounded-full border border-white/60 bg-white/80 dark:border-white/10 dark:bg-white/10',
+                  service.accent,
+                )}
+              >
+                <Image src={service.logo} alt={`${service.name} logo`} fill sizes="20px" />
               </span>
               <span>{service.name}</span>
             </button>
@@ -77,6 +97,8 @@ export const IntegrationFilter: React.FC<IntegrationFilterProps> = ({
       </div>
     </div>
   );
+
+  return createPortal(content, portalContainer);
 };
 
 export default IntegrationFilter;
