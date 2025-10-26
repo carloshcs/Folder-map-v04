@@ -13,7 +13,7 @@ import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import ReactFlow, { Edge, Node, XYPosition } from 'reactflow';
 
 import { FolderItem, ServiceId, isServiceId } from '../../right-sidebar/data';
-import { IntegrationFilter, IntegrationService } from '../../IntegrationFilter';
+import { IntegrationFilter, IntegrationService } from '@/components/IntegrationFilter';
 
 interface FoxThreeMapProps {
   folders: FolderItem[];
@@ -689,7 +689,7 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
   );
 
   return (
-    <div ref={containerRef} className="relative h-full w-full min-h-[720px] min-w-[960px] pt-16">
+    <div ref={containerRef} className="relative h-full w-full min-h-[720px] min-w-[960px] pt-28">
       <IntegrationFilter
         services={availableServices}
         activeServiceId={activeServiceId}
