@@ -586,11 +586,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   const tooltipAnchorPosition = hoveredNode?.position;
   const tooltipRadius = hoveredNode?.radius ?? 0;
   const tooltipBottomTarget = tooltipAnchorPosition ? tooltipAnchorPosition.y - tooltipRadius : 0;
-  const tooltipTopCandidate = tooltipBottomTarget - tooltipHeight;
-  const tooltipTop = Math.min(
-    Math.max(0, tooltipTopCandidate),
-    Math.max(0, size.height - tooltipHeight),
-  );
+  const tooltipTop = tooltipBottomTarget - tooltipHeight;
   const tooltipLeft = Math.min(
     Math.max(0, (tooltipAnchorPosition?.x ?? 0) - HOVER_TOOLTIP_WIDTH / 2),
     tooltipMaxLeft,
