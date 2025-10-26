@@ -11,6 +11,7 @@ import { renderNodes } from './rendering';
 import { createManualPhysics } from './physics';
 import { getNodeId } from './nodeUtils';
 import { D3GroupSelection, D3HierarchyNode, NodePosition, OrbitalMapProps, FolderItem } from './types';
+import { getNodeRadius } from './geometry';
 import {
   getPaletteColors,
   getReadableTextColor,
@@ -150,34 +151,18 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
 
   const recalculateTooltipPosition = useCallback(() => {
     const hoveredId = hoveredNodeIdRef.current;
-    if (!hoveredId || !containerRef.current || !nodeLayerRef.current) {
+    if (!hoveredId || !containerRef.current || !svgRef.current || !gRef.current) {
       return;
     }
 
     const containerRect = containerRef.current.getBoundingClientRect();
-    let anchor: { x: number; y: number; radius: number } | null = null;
+    const svgElement = svgRef.current;
+    const rootGroup = gRef.current;
+    const groupNode = rootGroup.node();
 
-    nodeLayerRef.current
-      .selectAll<SVGGElement, any>('g.node')
-      .each(function (d: any) {
-        if (anchor) return;
-        const nodeId = getNodeId(d);
-        if (nodeId !== hoveredId) return;
-
-        const circle = d3.select(this).select<SVGCircleElement>('circle.node-circle');
-        const circleNode = circle.node();
-        if (!circleNode) return;
-
-        const rect = circleNode.getBoundingClientRect();
-        const radius = rect.width / 2;
-        anchor = {
-          x: rect.left - containerRect.left + radius,
-          y: rect.top - containerRect.top + radius,
-          radius,
-        };
-      });
-
-    if (!anchor) return;
+    if (!svgElement || !groupNode) {
+      return;
+    }
 
     setHoveredNode(prev => {
       if (!prev || prev.id !== hoveredId) {
