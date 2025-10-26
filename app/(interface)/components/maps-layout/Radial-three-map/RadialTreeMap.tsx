@@ -228,10 +228,11 @@ const applyRadialLayout = (
   const descendants = layoutRoot.descendants();
   const maxDepth = d3.max(descendants, node => node.depth) ?? 0;
 
-  const treeLayout = d3
-    .tree<any>()
-    .size([Math.PI * 2, Math.max(1, maxDepth)])
-    .separation((a, b) => (a.parent === b.parent ? 1 : 2) / Math.max(1, a.depth));
+  const treeLayout = d3.tree<any>();
+  treeLayout.size([Math.PI * 2, Math.max(1, maxDepth)]);
+  treeLayout.separation(
+    (a, b) => (a.parent === b.parent ? 1 : 2) / Math.max(1, a.depth),
+  );
 
   treeLayout(layoutRoot);
 
