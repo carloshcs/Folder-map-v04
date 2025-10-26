@@ -57,7 +57,7 @@ export const IntegrationFilter: React.FC<IntegrationFilterProps> = ({
   const content = (
     <div
       className={cn(
-        'pointer-events-none fixed left-[calc(64px+32px)] top-5 z-[45] flex justify-start',
+        'pointer-events-none fixed left-[64px] top-24 z-[70] flex justify-start px-4',
         className,
       )}
     >
