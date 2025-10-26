@@ -28,7 +28,7 @@ import {
   isServiceId,
   ServiceId,
 } from '@/app/(interface)/components/right-sidebar/data';
-import { IntegrationFilter, IntegrationService } from '@/components/IntegrationFilter';
+import { IntegrationFilter, IntegrationService } from '@/app/(interface)/components/IntegrationFilter';
 
 const LEVEL_RADII: Record<number, number> = {
   1: 240,
