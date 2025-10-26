@@ -11,7 +11,7 @@ import React, {
 import * as d3 from 'd3';
 import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 
-import ReactFlow, { Background, Edge, Node } from 'reactflow';
+import ReactFlow, { Background, Edge, Node, XYPosition } from 'reactflow';
 
 import { FolderItem, ServiceId, isServiceId } from '../../right-sidebar/data';
 
@@ -550,13 +550,21 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
 
   useEffect(() => () => clearHideTimeout(), [clearHideTimeout]);
 
-  const handleNodeDrag = useCallback((id: string, position: { x: number; y: number }) => {
+  const handleNodeDrag = useCallback((id: string, position?: XYPosition | null) => {
+    if (!position) {
+      return;
+    }
+
     setFlowNodes(nodes =>
       nodes.map(node => (node.id === id ? { ...node, position } : node)),
     );
   }, []);
 
-  const handleNodeDragStop = useCallback((id: string, position: { x: number; y: number }) => {
+  const handleNodeDragStop = useCallback((id: string, position?: XYPosition | null) => {
+    if (!position) {
+      return;
+    }
+
     const snapped = { x: snapPosition(position.x), y: snapPosition(position.y) };
     setFlowNodes(nodes =>
       nodes.map(node => (node.id === id ? { ...node, position: snapped } : node)),
