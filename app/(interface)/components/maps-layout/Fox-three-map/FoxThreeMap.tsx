@@ -408,21 +408,26 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
       return;
     }
 
-    const removeNodeTitles = () => {
-      container
-        .querySelectorAll<HTMLDivElement>('.react-flow__node[title]')
-        .forEach(node => node.removeAttribute('title'));
+    const reactFlowRoot = container.querySelector('.react-flow');
+    if (!reactFlowRoot) {
+      return;
+    }
+
+    const removeTitleAttributes = () => {
+      reactFlowRoot
+        .querySelectorAll<HTMLElement>('[title]')
+        .forEach(element => element.removeAttribute('title'));
     };
 
-    removeNodeTitles();
+    removeTitleAttributes();
 
     const observer = new MutationObserver(mutations => {
       if (mutations.some(mutation => mutation.type === 'childList' || mutation.type === 'attributes')) {
-        removeNodeTitles();
+        removeTitleAttributes();
       }
     });
 
-    observer.observe(container, {
+    observer.observe(reactFlowRoot, {
       subtree: true,
       childList: true,
       attributes: true,
