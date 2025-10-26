@@ -234,10 +234,10 @@ const applyRadialLayout = (
     (a, b) => (a.parent === b.parent ? 1 : 2) / Math.max(1, a.depth),
   );
 
-  treeLayout(layoutRoot);
+  const positionedRoot = treeLayout(layoutRoot);
 
   const layoutById = new Map<string, { angle: number; radius: number }>();
-  layoutRoot.each(node => {
+  positionedRoot.each(node => {
     const id = getNodeId(node as unknown as D3HierarchyNode);
     layoutById.set(id, {
       angle: node.x,
