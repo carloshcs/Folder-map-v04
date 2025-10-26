@@ -9,7 +9,6 @@ import React, {
 } from 'react';
 import * as d3 from 'd3';
 import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
-import Image from 'next/image';
 
 import { MIN_HEIGHT, MIN_WIDTH } from '../orbital-map/constants';
 import { buildHierarchy, getVisibleNodesAndLinks } from '../orbital-map/hierarchy';
@@ -29,6 +28,7 @@ import {
   isServiceId,
   ServiceId,
 } from '@/app/(interface)/components/right-sidebar/data';
+import { IntegrationFilter, IntegrationService } from '@/app/(interface)/components/IntegrationFilter';
 
 const LEVEL_RADII: Record<number, number> = {
   1: 240,
@@ -62,9 +62,6 @@ const HOVER_TOOLTIP_WIDTH = 320;
 const HOVER_TOOLTIP_COMPACT_HEIGHT = 220;
 const HOVER_TOOLTIP_EXPANDED_HEIGHT = 420;
 const TOOLTIP_LOCK_DISTANCE = 24;
-
-const SIDEBAR_TOTAL_OFFSET = 64;
-const FILTER_GAP = 16;
 
 const numberFormatter = new Intl.NumberFormat('en-US');
 
@@ -487,15 +484,8 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
     svg.on('dblclick.zoom', null);
   }, []);
 
-  const availableServices = useMemo(() => {
-    const services: Array<{
-      id: ServiceId;
-      name: string;
-      logo: string;
-      accent: string;
-      hover: string;
-      border: string;
-    }> = [];
+  const availableServices = useMemo<IntegrationService[]>(() => {
+    const services: IntegrationService[] = [];
     const seen = new Set<ServiceId>();
 
     folders.forEach(folder => {
@@ -900,34 +890,15 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         minHeight: `${MIN_HEIGHT}px`,
       }}
     >
-      {availableServices.length > 0 && (
-        <div
-          className="pointer-events-auto fixed top-4 flex flex-wrap gap-2 px-4 py-3 z-[60]"
-          style={{ left: `${SIDEBAR_TOTAL_OFFSET + FILTER_GAP}px` }}
-        >
-          {availableServices.map(service => {
-            const isActive = activeServiceId === service.id;
-            return (
-              <button
-                key={service.id}
-                type="button"
-                onClick={() => setActiveServiceId(service.id)}
-                aria-pressed={isActive}
-                className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium text-slate-700 transition ${
-                  isActive
-                    ? 'bg-white/90 shadow-[0_12px_24px_rgba(15,23,42,0.12)] border-indigo-300'
-                    : `${service.accent} ${service.hover} ${service.border}`
-                }`}
-              >
-                <span className="relative h-6 w-6 overflow-hidden rounded-full bg-white/80">
-                  <Image src={service.logo} alt={`${service.name} logo`} fill sizes="24px" />
-                </span>
-                <span>{service.name}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <IntegrationFilter
+        services={availableServices}
+        activeServiceId={activeServiceId}
+        onServiceSelect={serviceId => {
+          if (serviceId !== null) {
+            setActiveServiceId(serviceId);
+          }
+        }}
+      />
       <svg ref={svgRef} className="w-full h-full" />
       {hoveredNode && (
         <div

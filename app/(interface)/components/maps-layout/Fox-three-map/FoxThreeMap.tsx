@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import React, {
   useCallback,
   useEffect,
@@ -14,6 +13,7 @@ import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import ReactFlow, { Edge, Node, XYPosition } from 'reactflow';
 
 import { FolderItem, ServiceId, isServiceId } from '../../right-sidebar/data';
+import { IntegrationFilter, IntegrationService } from '../../IntegrationFilter';
 
 interface FoxThreeMapProps {
   folders: FolderItem[];
@@ -439,8 +439,8 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
   const hideTimeoutRef = useRef<number>();
 
   const tree = useMemo(() => buildFoxTree(folders), [folders]);
-  const availableServices = useMemo(() => {
-    const services: Array<{ id: ServiceId; name: string; logo: string; accent: string; hover: string; border: string }> = [];
+  const availableServices = useMemo<IntegrationService[]>(() => {
+    const services: IntegrationService[] = [];
 
     tree.children?.forEach(child => {
       if (!child.serviceId) {
@@ -457,6 +457,20 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
 
     return services;
   }, [tree]);
+
+  const handleServiceSelect = useCallback((serviceId: ServiceId | null) => {
+    setActiveServiceId(current => {
+      if (serviceId === null) {
+        return null;
+      }
+
+      if (current === serviceId) {
+        return null;
+      }
+
+      return serviceId;
+    });
+  }, []);
 
   useEffect(() => {
     if (activeServiceId && !availableServices.some(service => service.id === activeServiceId)) {
@@ -676,32 +690,12 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
 
   return (
     <div ref={containerRef} className="relative h-full w-full min-h-[720px] min-w-[960px] pt-16">
-      {availableServices.length > 0 && (
-        <div className="pointer-events-auto absolute left-0 top-0 z-20 flex flex-wrap gap-2 px-6 py-4">
-          {availableServices.map(service => {
-            const isActive = activeServiceId === service.id;
-            return (
-              <button
-                key={service.id}
-                type="button"
-                onClick={() =>
-                  setActiveServiceId(current => (current === service.id ? null : service.id))
-                }
-                className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium text-slate-700 transition ${
-                  isActive
-                    ? 'bg-white/90 shadow-[0_12px_24px_rgba(15,23,42,0.12)] border-indigo-300'
-                    : `${service.accent} ${service.hover} ${service.border}`
-                }`}
-              >
-                <span className="relative h-6 w-6 overflow-hidden rounded-full bg-white/80">
-                  <Image src={service.logo} alt={`${service.name} logo`} fill sizes="24px" />
-                </span>
-                <span>{service.name}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <IntegrationFilter
+        services={availableServices}
+        activeServiceId={activeServiceId}
+        onServiceSelect={handleServiceSelect}
+        allowClear
+      />
       <ReactFlow
         nodes={nodesToRender}
         edges={edgesToRender}
