@@ -51,7 +51,6 @@ const BASE_DARKEN = -0.25;
 const HOVER_TOOLTIP_WIDTH = 320;
 const HOVER_TOOLTIP_COMPACT_HEIGHT = 220;
 const HOVER_TOOLTIP_EXPANDED_HEIGHT = 420;
-const TOOLTIP_POINTER_BASE = 8;
 const DIMMED_FILL_LIGHTEN = 0.55;
 
 const numberFormatter = new Intl.NumberFormat('en-US');
@@ -574,11 +573,6 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   const tooltipHeight = hasExtraInfo && isTooltipExpanded
     ? HOVER_TOOLTIP_EXPANDED_HEIGHT
     : HOVER_TOOLTIP_COMPACT_HEIGHT;
-  const locationPath =
-    hoveredNode?.pathSegments && hoveredNode.pathSegments.length > 0
-      ? hoveredNode.pathSegments.join(' / ')
-      : '';
-  const hasLocation = Boolean(locationPath);
   const canHideFromTooltip = Boolean(
     onFolderSelectionChange &&
       hoveredNode &&
@@ -601,17 +595,6 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     Math.max(0, (tooltipAnchorPosition?.x ?? 0) - HOVER_TOOLTIP_WIDTH / 2),
     tooltipMaxLeft,
   );
-  const pointerHeight = hoveredNode
-    ? Math.max(0, hoveredNode.position.y - tooltipRadius - (tooltipTop + tooltipHeight))
-    : 0;
-  const pointerLineHeight = Math.max(0, pointerHeight - TOOLTIP_POINTER_BASE / 2);
-  const anchorTooltipLabel = hoveredNode
-    ? hoveredNode.lineage?.length
-      ? hoveredNode.lineage.join(' / ')
-      : hoveredNode.name
-    : '';
-  const showAnchorTooltip = pointerLineHeight > 16 && Boolean(anchorTooltipLabel);
-
   const handleHideFromTooltip = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
@@ -707,15 +690,6 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
                 </div>
               </div>
             </div>
-
-            {hasLocation && (
-              <div className="border-b border-neutral-200 px-5 py-3 text-xs leading-relaxed text-slate-600 dark:border-neutral-800 dark:text-neutral-300">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-neutral-500">
-                  Location
-                </p>
-                <p className="mt-1 break-words text-sm text-slate-700 dark:text-neutral-100">{locationPath}</p>
-              </div>
-            )}
 
             {hasExtraInfo && (
               <div className="px-5 py-3">
@@ -815,24 +789,6 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
               </div>
             )}
           </div>
-          {pointerHeight > 0 && (
-            <div className="pointer-events-none absolute left-1/2 top-full -translate-x-1/2 flex flex-col items-center">
-              <div className="h-2 w-2 -translate-y-1/2 rotate-45 border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900/90" />
-              {pointerLineHeight > 0 && (
-                <div
-                  className="relative flex flex-col items-center"
-                  style={{ height: pointerLineHeight }}
-                >
-                  <div className="h-full w-px bg-gradient-to-b from-neutral-200 via-neutral-300 to-transparent dark:from-neutral-700 dark:via-neutral-600" />
-                  {showAnchorTooltip && (
-                    <div className="absolute bottom-0 left-1/2 w-max -translate-x-1/2 translate-y-3 rounded-2xl border border-neutral-200 bg-white/95 px-3 py-1 text-[11px] font-medium text-slate-600 shadow-lg backdrop-blur-sm dark:border-neutral-700 dark:bg-neutral-900/90 dark:text-neutral-100">
-                      {anchorTooltipLabel}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       )}
     </div>
