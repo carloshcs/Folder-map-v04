@@ -28,7 +28,7 @@ import {
   isServiceId,
   ServiceId,
 } from '@/app/(interface)/components/right-sidebar/data';
-import { IntegrationFilter, IntegrationService } from '@/app/(interface)/components/IntegrationFilter';
+import { IntegrationFilter, IntegrationService } from '@/components/IntegrationFilter';
 
 const LEVEL_RADII: Record<number, number> = {
   1: 240,
@@ -882,7 +882,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
   return (
     <div
       ref={containerRef}
-      className="relative"
+      className="relative pt-28"
       style={{
         width: `${size.width}px`,
         height: `${size.height}px`,
