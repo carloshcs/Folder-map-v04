@@ -23,7 +23,8 @@ type HoveredNodeInfo = {
   depth: number;
   lineage: string[];
   position: { x: number; y: number };
-  radius: number;
+  screenRadius: number;
+  baseRadius: number;
   pathSegments: string[];
   serviceName?: string;
   link?: string;
@@ -50,6 +51,7 @@ const LIGHTEN_STEP = 0.4;
 const BASE_DARKEN = -0.25;
 const HOVER_TOOLTIP_WIDTH = 320;
 const DIMMED_FILL_LIGHTEN = 0.55;
+const TOOLTIP_GAP = 16;
 
 const numberFormatter = new Intl.NumberFormat('en-US');
 
@@ -140,6 +142,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   const isTooltipHoveredRef = useRef(false);
   const closeTooltipTimeoutRef = useRef<number | null>(null);
   const isDraggingRef = useRef(false);
+  const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
 
   const closeTooltip = useCallback(() => {
     setHoveredNode(null);
@@ -181,10 +184,14 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         return prev;
       }
 
+      const currentZoom = zoomTransformRef.current?.k ?? 1;
+      const baseRadius = anchor!.radius / currentZoom;
+
       if (
         prev.position.x === anchor!.x &&
         prev.position.y === anchor!.y &&
-        prev.radius === anchor!.radius
+        prev.screenRadius === anchor!.radius &&
+        prev.baseRadius === baseRadius
       ) {
         return prev;
       }
@@ -192,7 +199,8 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       return {
         ...prev,
         position: { x: anchor!.x, y: anchor!.y },
-        radius: anchor!.radius,
+        screenRadius: anchor!.radius,
+        baseRadius,
       };
     });
   }, [setHoveredNode]);
@@ -289,6 +297,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         return false;
       })
       .on('zoom', event => {
+        zoomTransformRef.current = event.transform;
         g.attr('transform', event.transform);
         recalculateTooltipPosition();
       });
@@ -414,6 +423,8 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         (name, index) => !(index === 0 && name === 'Folder Fox'),
       );
       const anchor = getTooltipAnchorPosition(event);
+      const currentZoom = zoomTransformRef.current?.k ?? 1;
+      const baseRadius = anchor.radius / currentZoom;
       const nodeData = d.data ?? {};
       const item = (nodeData.item as FolderItem | undefined) ?? undefined;
 
@@ -436,7 +447,8 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         depth: d.depth ?? 0,
         lineage,
         position: { x: anchor.x, y: anchor.y },
-        radius: anchor.radius,
+        screenRadius: anchor.radius,
+        baseRadius,
         pathSegments: trimmedLineage,
         serviceName: trimmedLineage[0],
         link,
@@ -684,7 +696,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
             width: HOVER_TOOLTIP_WIDTH,
             left: hoveredNode.position.x,
             top: hoveredNode.position.y,
-            transform: `translate(${hoveredNode.radius + 16}px, -50%)`,
+            transform: `translate(${hoveredNode.baseRadius * (zoomTransformRef.current?.k ?? 1) + TOOLTIP_GAP}px, -50%)`,
           }}
           onMouseEnter={() => {
             setTooltipHoverState(true);
