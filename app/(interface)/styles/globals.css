@@ -199,6 +199,18 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* Fox Three Map - ensure canvas blends with the surrounding interface */
+.fox-three-map .react-flow,
+.fox-three-map .react-flow__pane,
+.fox-three-map .react-flow__viewport {
+  background: transparent !important;
+}
+
+.fox-three-map .react-flow,
+.fox-three-map .react-flow__viewport {
+  overflow: visible;
+}
+
 @keyframes fox-flow-edge-dash {
   to {
     stroke-dashoffset: -96;
