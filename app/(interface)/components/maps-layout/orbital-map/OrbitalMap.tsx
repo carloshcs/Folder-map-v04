@@ -23,7 +23,7 @@ type HoveredNodeInfo = {
   name: string;
   depth: number;
   lineage: string[];
-  position: { x: number; y: number }; // Coordinates relative to the orbital container
+  position: { x: number; y: number }; // Screen coordinates relative to the viewport
   screenRadius: number;
   baseRadius: number;
   pathSegments: string[];
@@ -52,6 +52,8 @@ const LIGHTEN_STEP = 0.4;
 const BASE_DARKEN = -0.25;
 const HOVER_TOOLTIP_WIDTH = 320;
 const DIMMED_FILL_LIGHTEN = 0.55;
+const TOOLTIP_GAP = 16;
+const TOOLTIP_VERTICAL_OFFSET = 40;
 
 const numberFormatter = new Intl.NumberFormat('en-US');
 
@@ -149,7 +151,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   }, []);
 
   type TooltipAnchor = {
-    position: { x: number; y: number }; // Coordinates relative to the orbital container
+    position: { x: number; y: number }; // Screen coordinates relative to the viewport
     screenRadius: number;
     baseRadius: number;
   };
@@ -157,7 +159,6 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   const canvasToScreen = useCallback(
     (point: { x: number; y: number }) => {
       const svgElement = svgRef.current;
-      const container = containerRef.current;
       const transform = zoomTransformRef.current ?? d3.zoomIdentity;
 
       if (!svgElement) {
@@ -175,15 +176,6 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       }
 
       const screenPoint = svgPoint.matrixTransform(ctm);
-
-      if (container) {
-        const containerRect = container.getBoundingClientRect();
-        return {
-          x: screenPoint.x - containerRect.left,
-          y: screenPoint.y - containerRect.top,
-        };
-      }
-
       return { x: screenPoint.x, y: screenPoint.y };
     },
     [],
@@ -229,7 +221,10 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       const baseRadius = getNodeRadius(depth);
 
       return {
-        position: screenPoint,
+        position: {
+          x: screenPoint.x,
+          y: screenPoint.y,
+        },
         screenRadius: baseRadius * transform.k,
         baseRadius,
       };
@@ -239,7 +234,6 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
 
   const getEventBasedAnchor = (event: PointerEvent): TooltipAnchor | null => {
     const transform = zoomTransformRef.current ?? d3.zoomIdentity;
-    const container = containerRef.current;
 
     const targetElement = event.currentTarget as Element | null;
     const circleElement = targetElement?.querySelector('circle.node-circle') as
@@ -248,14 +242,11 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     const circleRect = circleElement?.getBoundingClientRect() ?? null;
 
     if (circleRect) {
-      const containerRect = container?.getBoundingClientRect();
       const radius = circleRect.width / 2;
       return {
         position: {
-          x:
-            circleRect.left + radius - (containerRect?.left ?? 0),
-          y:
-            circleRect.top + radius - (containerRect?.top ?? 0),
+          x: circleRect.left + radius,
+          y: circleRect.top + radius,
         },
         screenRadius: radius,
         baseRadius: radius / transform.k,
@@ -263,15 +254,13 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     }
 
     const screenPosition = { x: event.clientX, y: event.clientY };
-    const containerRect = container?.getBoundingClientRect();
-    const position = {
-      x: screenPosition.x - (containerRect?.left ?? 0),
-      y: screenPosition.y - (containerRect?.top ?? 0),
-    };
     void screenToCanvas(screenPosition);
 
     return {
-      position,
+      position: {
+        x: screenPosition.x,
+        y: screenPosition.y,
+      },
       screenRadius: 0,
       baseRadius: 0,
     };
@@ -770,12 +759,11 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       <svg ref={svgRef} className="w-full h-full" />
       {hoveredNode && (
         <div
-          className="pointer-events-auto absolute w-full max-w-[320px] text-sm"
+          className="pointer-events-auto fixed w-full max-w-[320px] text-sm"
           style={{
             width: HOVER_TOOLTIP_WIDTH,
-            left: hoveredNode.position.x,
-            top: hoveredNode.position.y,
-            transform: 'translate(-50%, -100%)',
+            left: Math.max(0, hoveredNode.position.x + hoveredNode.screenRadius + TOOLTIP_GAP),
+            top: Math.max(0, hoveredNode.position.y - (hoveredNode.screenRadius + TOOLTIP_VERTICAL_OFFSET)),
           }}
           onMouseEnter={() => {
             setTooltipHoverState(true);
