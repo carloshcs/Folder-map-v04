@@ -135,6 +135,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   const physicsRef = useRef<any>(null);
   const nodePositionsRef = useRef<Map<string, NodePosition>>(new Map());
   const [hoveredNode, setHoveredNode] = useState<HoveredNodeInfo | null>(null);
+  const hoveredNodeIdRef = useRef<string | null>(null);
   const [isTooltipExpanded, setIsTooltipExpanded] = useState(false);
   const isTooltipHoveredRef = useRef(false);
   const closeTooltipTimeoutRef = useRef<number | null>(null);
@@ -143,6 +144,58 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   const closeTooltip = useCallback(() => {
     setHoveredNode(null);
   }, []);
+
+  const recalculateTooltipPosition = useCallback(() => {
+    const hoveredId = hoveredNodeIdRef.current;
+    if (!hoveredId || !containerRef.current || !nodeLayerRef.current) {
+      return;
+    }
+
+    const containerRect = containerRef.current.getBoundingClientRect();
+    let anchor: { x: number; y: number; radius: number } | null = null;
+
+    nodeLayerRef.current
+      .selectAll<SVGGElement, any>('g.node')
+      .each(function (d: any) {
+        if (anchor) return;
+        const nodeId = getNodeId(d);
+        if (nodeId !== hoveredId) return;
+
+        const circle = d3.select(this).select<SVGCircleElement>('circle.node-circle');
+        const circleNode = circle.node();
+        if (!circleNode) return;
+
+        const rect = circleNode.getBoundingClientRect();
+        const radius = rect.width / 2;
+        anchor = {
+          x: rect.left - containerRect.left + radius,
+          y: rect.top - containerRect.top + radius,
+          radius,
+        };
+      });
+
+    if (!anchor) return;
+
+    setHoveredNode(prev => {
+      if (!prev || prev.id !== hoveredId) {
+        return prev;
+      }
+
+      if (
+        prev.position.x === anchor!.x &&
+        prev.position.y === anchor!.y &&
+        prev.radius === anchor!.radius
+      ) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        position: { x: anchor!.x, y: anchor!.y },
+        radius: anchor!.radius,
+      };
+    });
+  }, [setHoveredNode]);
 
   const setTooltipHoverState = (value: boolean) => {
     isTooltipHoveredRef.current = value;
@@ -235,11 +288,14 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         }
         return false;
       })
-      .on('zoom', event => g.attr('transform', event.transform));
+      .on('zoom', event => {
+        g.attr('transform', event.transform);
+        recalculateTooltipPosition();
+      });
 
     svg.call(zoom as any);
     svg.on('dblclick.zoom', null);
-  }, []);
+  }, [recalculateTooltipPosition]);
 
   useEffect(() => {
     if (!svgRef.current || !gRef.current || !nodeLayerRef.current || !linkLayerRef.current) return;
@@ -392,6 +448,16 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         isExpanded: Boolean(d.isExpanded),
         isSelected,
       });
+      hoveredNodeIdRef.current = id;
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => {
+          recalculateTooltipPosition();
+        });
+      } else {
+        setTimeout(() => {
+          recalculateTooltipPosition();
+        }, 0);
+      }
     };
 
     const handleNodeLeave = () => {
@@ -455,8 +521,19 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   }, [closeTooltip, folders, size, expanded, colorPaletteId]);
 
   useEffect(() => {
+    if (hoveredNode?.id) {
+      hoveredNodeIdRef.current = hoveredNode.id;
+      recalculateTooltipPosition();
+    } else {
+      hoveredNodeIdRef.current = null;
+    }
+
     setIsTooltipExpanded(false);
-  }, [hoveredNode?.id]);
+  }, [hoveredNode?.id, recalculateTooltipPosition]);
+
+  useEffect(() => {
+    recalculateTooltipPosition();
+  }, [size.width, size.height, recalculateTooltipPosition]);
 
   useEffect(() => {
     const hoveredId = hoveredNode?.id;
@@ -605,6 +682,9 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
           className="pointer-events-auto absolute w-full max-w-[320px] text-sm"
           style={{
             width: HOVER_TOOLTIP_WIDTH,
+            left: hoveredNode.position.x,
+            top: hoveredNode.position.y,
+            transform: `translate(${hoveredNode.radius + 16}px, -50%)`,
           }}
           onMouseEnter={() => {
             setTooltipHoverState(true);
@@ -619,6 +699,11 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
             <div className="border-b border-neutral-200 bg-white/70 px-5 py-4 dark:border-neutral-800 dark:bg-neutral-900/60">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
+                  {hoveredNode.lineage.length > 1 && (
+                    <p className="mb-1 truncate text-[11px] text-slate-400 dark:text-neutral-500">
+                      {hoveredNode.lineage.join(' › ')}
+                    </p>
+                  )}
                   <div className="flex items-center gap-2">
                     <span aria-hidden className="text-lg leading-none">
                       📁
