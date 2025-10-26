@@ -11,7 +11,7 @@ import React, {
 import * as d3 from 'd3';
 import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 
-import ReactFlow, { Background, Edge, Node, XYPosition } from 'reactflow';
+import ReactFlow, { Edge, Node, XYPosition } from 'reactflow';
 
 import { FolderItem, ServiceId, isServiceId } from '../../right-sidebar/data';
 
@@ -710,6 +710,14 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
             <FoxThreeNode data={data as FoxNodeData} dragging={dragging} />
           ),
         }}
+        className="bg-transparent"
+        proOptions={{ hideAttribution: true }}
+        panOnDrag={false}
+        selectionOnDrag={false}
+        zoomOnScroll={false}
+        zoomOnPinch={false}
+        zoomOnDoubleClick={false}
+        panOnScroll={false}
         onNodeDragStart={(_, node) => {
           setDraggingId(node.id);
           setHoveredNode(null);
@@ -733,9 +741,7 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
             typedNode.data.childrenCount,
           );
         }}
-      >
-        <Background />
-      </ReactFlow>
+      />
 
       {hoveredNode && (
         <FoxTooltip
