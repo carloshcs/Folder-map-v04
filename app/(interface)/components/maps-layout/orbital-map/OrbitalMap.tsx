@@ -23,7 +23,7 @@ type HoveredNodeInfo = {
   name: string;
   depth: number;
   lineage: string[];
-  position: { x: number; y: number };
+  position: { x: number; y: number }; // Screen coordinates relative to the viewport
   screenRadius: number;
   baseRadius: number;
   pathSegments: string[];
@@ -53,6 +53,7 @@ const BASE_DARKEN = -0.25;
 const HOVER_TOOLTIP_WIDTH = 320;
 const DIMMED_FILL_LIGHTEN = 0.55;
 const TOOLTIP_GAP = 16;
+const TOOLTIP_VERTICAL_OFFSET = 40;
 
 const numberFormatter = new Intl.NumberFormat('en-US');
 
@@ -150,10 +151,60 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   }, []);
 
   type TooltipAnchor = {
-    position: { x: number; y: number };
+    position: { x: number; y: number }; // Screen coordinates relative to the viewport
     screenRadius: number;
     baseRadius: number;
   };
+
+  const canvasToScreen = useCallback(
+    (point: { x: number; y: number }) => {
+      const svgElement = svgRef.current;
+      const transform = zoomTransformRef.current ?? d3.zoomIdentity;
+
+      if (!svgElement) {
+        return { x: point.x, y: point.y };
+      }
+
+      const svgPoint = svgElement.createSVGPoint();
+      const [tx, ty] = transform.apply([point.x, point.y]);
+      svgPoint.x = tx;
+      svgPoint.y = ty;
+
+      const ctm = svgElement.getScreenCTM();
+      if (!ctm) {
+        return { x: tx, y: ty };
+      }
+
+      const screenPoint = svgPoint.matrixTransform(ctm);
+      return { x: screenPoint.x, y: screenPoint.y };
+    },
+    [],
+  );
+
+  const screenToCanvas = useCallback(
+    (point: { x: number; y: number }) => {
+      const svgElement = svgRef.current;
+      const transform = zoomTransformRef.current ?? d3.zoomIdentity;
+
+      if (!svgElement) {
+        return { x: point.x, y: point.y };
+      }
+
+      const ctm = svgElement.getScreenCTM();
+      if (!ctm) {
+        return { x: point.x, y: point.y };
+      }
+
+      const svgPoint = svgElement.createSVGPoint();
+      svgPoint.x = point.x;
+      svgPoint.y = point.y;
+
+      const localPoint = svgPoint.matrixTransform(ctm.inverse());
+      const [cx, cy] = transform.invert([localPoint.x, localPoint.y]);
+      return { x: cx, y: cy };
+    },
+    [],
+  );
 
   const computeTooltipAnchor = useCallback(
     (nodeId: string, depth: number): TooltipAnchor | null => {
@@ -166,41 +217,24 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         return null;
       }
 
-      const [tx, ty] = transform.apply([nodePosition.x, nodePosition.y]);
-      const point = svgElement.createSVGPoint();
-      point.x = tx;
-      point.y = ty;
-      const ctm = svgElement.getScreenCTM();
-
-      if (!ctm) {
-        return null;
-      }
-
-      const result = point.matrixTransform(ctm);
-      const containerRect = container.getBoundingClientRect();
+      const screenPoint = canvasToScreen(nodePosition);
       const baseRadius = getNodeRadius(depth);
 
       return {
         position: {
-          x: result.x - containerRect.left,
-          y: result.y - containerRect.top,
+          x: screenPoint.x,
+          y: screenPoint.y,
         },
         screenRadius: baseRadius * transform.k,
         baseRadius,
       };
     },
-    [],
+    [canvasToScreen],
   );
 
   const getEventBasedAnchor = (event: PointerEvent): TooltipAnchor | null => {
-    const container = containerRef.current;
     const transform = zoomTransformRef.current ?? d3.zoomIdentity;
 
-    if (!container) {
-      return null;
-    }
-
-    const containerRect = container.getBoundingClientRect();
     const targetElement = event.currentTarget as Element | null;
     const circleElement = targetElement?.querySelector('circle.node-circle') as
       | SVGCircleElement
@@ -211,18 +245,21 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       const radius = circleRect.width / 2;
       return {
         position: {
-          x: circleRect.left - containerRect.left + radius,
-          y: circleRect.top - containerRect.top + radius,
+          x: circleRect.left + radius,
+          y: circleRect.top + radius,
         },
         screenRadius: radius,
         baseRadius: radius / transform.k,
       };
     }
 
+    const screenPosition = { x: event.clientX, y: event.clientY };
+    void screenToCanvas(screenPosition);
+
     return {
       position: {
-        x: event.clientX - containerRect.left,
-        y: event.clientY - containerRect.top,
+        x: screenPosition.x,
+        y: screenPosition.y,
       },
       screenRadius: 0,
       baseRadius: 0,
@@ -722,12 +759,11 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       <svg ref={svgRef} className="w-full h-full" />
       {hoveredNode && (
         <div
-          className="pointer-events-auto absolute w-full max-w-[320px] text-sm"
+          className="pointer-events-auto fixed w-full max-w-[320px] text-sm"
           style={{
             width: HOVER_TOOLTIP_WIDTH,
-            left: hoveredNode.position.x,
-            top: hoveredNode.position.y,
-            transform: `translate(${hoveredNode.baseRadius * (zoomTransformRef.current?.k ?? 1) + TOOLTIP_GAP}px, -50%)`,
+            left: Math.max(0, hoveredNode.position.x + hoveredNode.screenRadius + TOOLTIP_GAP),
+            top: Math.max(0, hoveredNode.position.y - (hoveredNode.screenRadius + TOOLTIP_VERTICAL_OFFSET)),
           }}
           onMouseEnter={() => {
             setTooltipHoverState(true);
