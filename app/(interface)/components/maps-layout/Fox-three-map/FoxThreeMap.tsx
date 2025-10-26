@@ -689,7 +689,7 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
   );
 
   return (
-    <div ref={containerRef} className="relative h-full w-full min-h-[720px] min-w-[960px] pt-28">
+    <div ref={containerRef} className="fox-three-map relative h-full w-full pt-28">
       <IntegrationFilter
         services={availableServices}
         activeServiceId={activeServiceId}
@@ -705,6 +705,7 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
           ),
         }}
         className="bg-transparent"
+        style={{ background: 'transparent', overflow: 'visible' }}
         proOptions={{ hideAttribution: true }}
         panOnDrag={false}
         selectionOnDrag={false}
