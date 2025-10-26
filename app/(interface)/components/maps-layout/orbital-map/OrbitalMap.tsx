@@ -52,8 +52,6 @@ const LIGHTEN_STEP = 0.4;
 const BASE_DARKEN = -0.25;
 const HOVER_TOOLTIP_WIDTH = 320;
 const DIMMED_FILL_LIGHTEN = 0.55;
-const TOOLTIP_GAP = 16;
-const TOOLTIP_VERTICAL_OFFSET = 40;
 
 const numberFormatter = new Intl.NumberFormat('en-US');
 
@@ -206,30 +204,46 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     [],
   );
 
-  const computeTooltipAnchor = useCallback(
-    (nodeId: string, depth: number): TooltipAnchor | null => {
-      const container = containerRef.current;
-      const svgElement = svgRef.current;
+  const getNodePerimeterTopPosition = useCallback(
+    (nodeId: string, depth: number) => {
       const transform = zoomTransformRef.current ?? d3.zoomIdentity;
       const nodePosition = nodePositionsRef.current.get(nodeId);
 
-      if (!container || !svgElement || !nodePosition) {
+      if (!nodePosition) {
         return null;
       }
 
-      const screenPoint = canvasToScreen(nodePosition);
+      const screenCenter = canvasToScreen(nodePosition);
       const baseRadius = getNodeRadius(depth);
+      const screenRadius = baseRadius * transform.k;
 
       return {
-        position: {
-          x: screenPoint.x,
-          y: screenPoint.y,
+        anchor: {
+          x: screenCenter.x,
+          y: screenCenter.y - screenRadius,
         },
-        screenRadius: baseRadius * transform.k,
+        screenRadius,
         baseRadius,
       };
     },
     [canvasToScreen],
+  );
+
+  const computeTooltipAnchor = useCallback(
+    (nodeId: string, depth: number): TooltipAnchor | null => {
+      const perimeterTop = getNodePerimeterTopPosition(nodeId, depth);
+
+      if (!perimeterTop) {
+        return null;
+      }
+
+      return {
+        position: perimeterTop.anchor,
+        screenRadius: perimeterTop.screenRadius,
+        baseRadius: perimeterTop.baseRadius,
+      };
+    },
+    [getNodePerimeterTopPosition],
   );
 
   const getEventBasedAnchor = (event: PointerEvent): TooltipAnchor | null => {
@@ -246,7 +260,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       return {
         position: {
           x: circleRect.left + radius,
-          y: circleRect.top + radius,
+          y: circleRect.top,
         },
         screenRadius: radius,
         baseRadius: radius / transform.k,
@@ -762,8 +776,9 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
           className="pointer-events-auto fixed w-full max-w-[320px] text-sm"
           style={{
             width: HOVER_TOOLTIP_WIDTH,
-            left: Math.max(0, hoveredNode.position.x + hoveredNode.screenRadius + TOOLTIP_GAP),
-            top: Math.max(0, hoveredNode.position.y - (hoveredNode.screenRadius + TOOLTIP_VERTICAL_OFFSET)),
+            left: hoveredNode.position.x,
+            top: hoveredNode.position.y,
+            transform: 'translate(-50%, -100%)',
           }}
           onMouseEnter={() => {
             setTooltipHoverState(true);
