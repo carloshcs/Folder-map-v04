@@ -52,3 +52,32 @@ export interface NodePosition {
   offsetAngle: number;
   orbitAngle: number;
 }
+
+export type NodeVisualStyle = {
+  fill: string;
+  textColor: string;
+};
+
+export type HoveredNodeInfo = {
+  id: string;
+  name: string;
+  depth: number;
+  lineage: string[];
+  position: { x: number; y: number };
+  screenRadius: number;
+  baseRadius: number;
+  pathSegments: string[];
+  serviceName?: string;
+  link?: string;
+  metrics?: {
+    totalSize?: number;
+    fileCount?: number;
+    folderCount?: number;
+  };
+  createdDate?: string;
+  modifiedDate?: string;
+  activityScore?: number;
+  canExpand: boolean;
+  isExpanded: boolean;
+  isSelected?: boolean;
+};

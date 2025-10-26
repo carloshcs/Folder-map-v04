@@ -20,15 +20,12 @@ import {
   FolderItem,
 } from '../orbital-map/types';
 import {
-  getPaletteColors,
-  getReadableTextColor,
-  shiftColor,
-} from '@/app/(interface)/lib/utils/colors';
-import {
   isServiceId,
   ServiceId,
 } from '@/app/(interface)/components/right-sidebar/data';
 import { IntegrationFilter, IntegrationService } from '@/app/(interface)/components/IntegrationFilter';
+import { computeNodeStyles } from '../utils/styles';
+import { formatBytes, formatDate, numberFormatter } from '../utils/formatting';
 
 const LEVEL_RADII: Record<number, number> = {
   1: 240,
@@ -54,38 +51,10 @@ const getRadiusForDepth = (depth: number) => {
   return MAX_PREDEFINED_RADIUS + (depth - MAX_PREDEFINED_DEPTH) * RADIAL_SPACING;
 };
 
-const MAX_LIGHTENING = 0.85;
-const LIGHTEN_STEP = 0.4;
-const BASE_DARKEN = -0.25;
 const HOVER_TOOLTIP_WIDTH = 320;
 const HOVER_TOOLTIP_COMPACT_HEIGHT = 220;
 const HOVER_TOOLTIP_EXPANDED_HEIGHT = 420;
 const TOOLTIP_LOCK_DISTANCE = 24;
-
-const numberFormatter = new Intl.NumberFormat('en-US');
-
-const formatBytes = (size?: number) => {
-  if (typeof size !== 'number') return null;
-  if (size === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let value = size;
-  let unitIndex = 0;
-
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-
-  const formatted = value >= 100 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1);
-  return `${formatted} ${units[unitIndex]}`;
-};
-
-const formatDate = (iso?: string) => {
-  if (!iso) return null;
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return null;
-  return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(date);
-};
 
 const SERVICE_DETAILS: Record<
   ServiceId,
@@ -156,52 +125,6 @@ type HoveredNodeInfo = {
   canExpand: boolean;
   isExpanded: boolean;
   isSelected?: boolean;
-};
-
-type NodeVisualStyle = {
-  fill: string;
-  textColor: string;
-};
-
-const computeNodeStyles = (root: D3HierarchyNode, paletteId?: string | null) => {
-  const palette = getPaletteColors(paletteId);
-  if (!palette.length) {
-    return new Map<string, NodeVisualStyle>();
-  }
-
-  let paletteIndex = 0;
-  const styles = new Map<string, NodeVisualStyle>();
-
-  const assign = (node: D3HierarchyNode, branchColor?: string) => {
-    const nodeId = getNodeId(node);
-
-    if (node.depth === 2) {
-      const basePaletteColor = palette[paletteIndex % palette.length];
-      paletteIndex += 1;
-      const fill = shiftColor(basePaletteColor, BASE_DARKEN);
-      styles.set(nodeId, {
-        fill,
-        textColor: getReadableTextColor(fill),
-      });
-      node.children?.forEach(child => assign(child, basePaletteColor));
-    } else if (node.depth > 2) {
-      const basePaletteColor = branchColor ?? palette[Math.max(paletteIndex - 1, 0) % palette.length];
-      const relativeDepth = node.depth - 2;
-      const amount = Math.min(MAX_LIGHTENING, BASE_DARKEN + relativeDepth * LIGHTEN_STEP);
-      const fill = shiftColor(basePaletteColor, amount);
-      styles.set(nodeId, {
-        fill,
-        textColor: getReadableTextColor(fill),
-      });
-      node.children?.forEach(child => assign(child, basePaletteColor));
-    } else {
-      node.children?.forEach(child => assign(child, branchColor));
-    }
-  };
-
-  assign(root);
-
-  return styles;
 };
 
 const applyRadialLayout = (

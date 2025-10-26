@@ -3,121 +3,23 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
-import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 
 import { MIN_HEIGHT, MIN_WIDTH } from './constants';
 import { buildHierarchy, getVisibleNodesAndLinks } from './hierarchy';
 import { renderNodes } from './rendering';
 import { createManualPhysics } from './physics';
 import { getNodeId } from './nodeUtils';
-import { D3GroupSelection, D3HierarchyNode, NodePosition, OrbitalMapProps, FolderItem } from './types';
-import { getNodeRadius } from './geometry';
 import {
-  getPaletteColors,
-  getReadableTextColor,
-  shiftColor,
-} from '@/app/(interface)/lib/utils/colors';
-
-type HoveredNodeInfo = {
-  id: string;
-  name: string;
-  depth: number;
-  lineage: string[];
-  position: { x: number; y: number }; // Screen coordinates relative to the viewport
-  screenRadius: number;
-  baseRadius: number;
-  pathSegments: string[];
-  serviceName?: string;
-  link?: string;
-  metrics?: {
-    totalSize?: number;
-    fileCount?: number;
-    folderCount?: number;
-  };
-  createdDate?: string;
-  modifiedDate?: string;
-  activityScore?: number;
-  canExpand: boolean;
-  isExpanded: boolean;
-  isSelected?: boolean;
-};
-
-type NodeVisualStyle = {
-  fill: string;
-  textColor: string;
-};
-
-const MAX_LIGHTENING = 0.85;
-const LIGHTEN_STEP = 0.4;
-const BASE_DARKEN = -0.25;
-const HOVER_TOOLTIP_WIDTH = 320;
-const DIMMED_FILL_LIGHTEN = 0.55;
-
-const numberFormatter = new Intl.NumberFormat('en-US');
-
-const formatBytes = (size?: number) => {
-  if (typeof size !== 'number') return null;
-  if (size === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let value = size;
-  let unitIndex = 0;
-
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-
-  const formatted = value >= 100 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1);
-  return `${formatted} ${units[unitIndex]}`;
-};
-
-const formatDate = (iso?: string) => {
-  if (!iso) return null;
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return null;
-  return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(date);
-};
-
-const computeNodeStyles = (root: D3HierarchyNode, paletteId?: string | null) => {
-  const palette = getPaletteColors(paletteId);
-  if (!palette.length) {
-    return new Map<string, NodeVisualStyle>();
-  }
-
-  let paletteIndex = 0;
-  const styles = new Map<string, NodeVisualStyle>();
-
-  const assign = (node: D3HierarchyNode, branchColor?: string) => {
-    const nodeId = getNodeId(node);
-
-    if (node.depth === 2) {
-      const basePaletteColor = palette[paletteIndex % palette.length];
-      paletteIndex += 1;
-      const fill = shiftColor(basePaletteColor, BASE_DARKEN);
-      styles.set(nodeId, {
-        fill,
-        textColor: getReadableTextColor(fill),
-      });
-      node.children?.forEach(child => assign(child, basePaletteColor));
-    } else if (node.depth > 2) {
-      const basePaletteColor = branchColor ?? palette[Math.max(paletteIndex - 1, 0) % palette.length];
-      const relativeDepth = node.depth - 2;
-      const amount = Math.min(MAX_LIGHTENING, BASE_DARKEN + relativeDepth * LIGHTEN_STEP);
-      const fill = shiftColor(basePaletteColor, amount);
-      styles.set(nodeId, {
-        fill,
-        textColor: getReadableTextColor(fill),
-      });
-      node.children?.forEach(child => assign(child, basePaletteColor));
-    } else {
-      node.children?.forEach(child => assign(child, branchColor));
-    }
-  };
-
-  assign(root);
-
-  return styles;
-};
+  D3GroupSelection,
+  D3HierarchyNode,
+  HoveredNodeInfo,
+  NodePosition,
+  OrbitalMapProps,
+  FolderItem,
+} from './types';
+import { getNodeRadius } from './geometry';
+import { computeNodeStyles, DIMMED_FILL_LIGHTEN } from '../utils/styles';
+import { OrbitalTooltip } from './OrbitalTooltip';
 
 export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   folders,
@@ -731,14 +633,6 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     };
   }, []);
 
-  const hasMetrics =
-    typeof hoveredNode?.metrics?.folderCount === 'number' ||
-    typeof hoveredNode?.metrics?.fileCount === 'number' ||
-    typeof hoveredNode?.metrics?.totalSize === 'number' ||
-    typeof hoveredNode?.activityScore === 'number';
-  const hasDates = Boolean(hoveredNode?.modifiedDate || hoveredNode?.createdDate);
-  const hasExtraInfo = hasMetrics || hasDates;
-  const showExtraInfo = hasExtraInfo && isTooltipExpanded;
   const canHideFromTooltip = Boolean(
     onFolderSelectionChange &&
       hoveredNode &&
@@ -772,179 +666,23 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     >
       <svg ref={svgRef} className="w-full h-full" />
       {hoveredNode && (
-        <div
-          className="pointer-events-auto fixed left-1/2 top-24 z-50 w-full max-w-[320px] -translate-x-1/2 text-sm"
-          style={{
-            width: HOVER_TOOLTIP_WIDTH,
-          }}
-          onMouseEnter={() => {
+        <OrbitalTooltip
+          hoveredNode={hoveredNode}
+          isDetailsExpanded={isTooltipExpanded}
+          onToggleDetails={() => setIsTooltipExpanded(prev => !prev)}
+          onToggleExpand={hoveredNode.canExpand ? toggleHoveredExpansion : undefined}
+          onHide={canHideFromTooltip ? handleHideFromTooltip : undefined}
+          hideButtonDisabled={hideButtonDisabled}
+          hideButtonLabel={hideButtonLabel}
+          onPointerEnter={() => {
             setTooltipHoverState(true);
             clearTooltipTimeout();
           }}
-          onMouseLeave={() => {
+          onPointerLeave={() => {
             setTooltipHoverState(false);
             scheduleTooltipClose();
           }}
-        >
-          <div className="relative overflow-hidden rounded-3xl border border-neutral-200 bg-white/95 shadow-2xl backdrop-blur-sm transition-shadow dark:border-neutral-700 dark:bg-neutral-900/90">
-            <div className="border-b border-neutral-200 bg-white/70 px-5 py-4 dark:border-neutral-800 dark:bg-neutral-900/60">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  {hoveredNode.lineage.length > 1 && (
-                    <p className="mb-1 truncate text-[11px] text-slate-400 dark:text-neutral-500">
-                      {hoveredNode.lineage.join(' › ')}
-                    </p>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <span aria-hidden className="text-lg leading-none">
-                      📁
-                    </span>
-                    <p className="truncate text-base font-semibold text-slate-900 dark:text-neutral-100">
-                      {hoveredNode.name}
-                    </p>
-                  </div>
-                  {hoveredNode.serviceName && (
-                    <p className="mt-1 text-[11px] uppercase tracking-wide text-slate-400 dark:text-neutral-500">
-                      {hoveredNode.serviceName}
-                    </p>
-                  )}
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  {hoveredNode.canExpand && (
-                    <button
-                      type="button"
-                      className="inline-flex h-8 items-center justify-center gap-1 rounded-full border border-neutral-200 bg-white px-3 text-xs font-medium text-slate-600 transition hover:border-indigo-200 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:border-indigo-500/40 dark:hover:text-indigo-300"
-                      onClick={event => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        toggleHoveredExpansion();
-                      }}
-                    >
-                      {hoveredNode.isExpanded ? 'Collapse' : 'Expand'}
-                      {hoveredNode.isExpanded ? (
-                        <ChevronUp className="h-3.5 w-3.5" />
-                      ) : (
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      )}
-                    </button>
-                  )}
-                  {hoveredNode.link && (
-                    <a
-                      href={hoveredNode.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-200 bg-white text-slate-500 transition hover:border-indigo-200 hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:border-indigo-500/40 dark:hover:text-indigo-300"
-                      onClick={event => {
-                        event.stopPropagation();
-                      }}
-                      title="Open in new tab"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {hasExtraInfo && (
-              <div className="px-5 py-3">
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between rounded-xl bg-slate-100/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:bg-neutral-800/60 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                  onClick={event => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setIsTooltipExpanded(prev => !prev);
-                  }}
-                >
-                  <span>Details</span>
-                  {isTooltipExpanded ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </button>
-
-                {showExtraInfo && (
-                  <div className="mt-3 space-y-4 rounded-2xl border border-neutral-200/70 bg-white/90 px-4 py-4 text-[12px] shadow-sm dark:border-neutral-700/60 dark:bg-neutral-900/60">
-                    {hasMetrics && (
-                      <div className="grid grid-cols-1 gap-3 text-xs text-slate-600 dark:text-neutral-200 sm:grid-cols-2">
-                        {typeof hoveredNode.metrics?.folderCount === 'number' && (
-                          <div className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-sm dark:bg-neutral-800/60">
-                            <span className="font-medium text-slate-500 dark:text-neutral-200">Folders</span>
-                            <span className="font-semibold text-slate-900 dark:text-neutral-50">
-                              {numberFormatter.format(hoveredNode.metrics?.folderCount ?? 0)}
-                            </span>
-                          </div>
-                        )}
-                        {typeof hoveredNode.metrics?.fileCount === 'number' && (
-                          <div className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-sm dark:bg-neutral-800/60">
-                            <span className="font-medium text-slate-500 dark:text-neutral-200">Files</span>
-                            <span className="font-semibold text-slate-900 dark:text-neutral-50">
-                              {numberFormatter.format(hoveredNode.metrics?.fileCount ?? 0)}
-                            </span>
-                          </div>
-                        )}
-                        {typeof hoveredNode.metrics?.totalSize === 'number' && (
-                          <div className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-sm dark:bg-neutral-800/60">
-                            <span className="font-medium text-slate-500 dark:text-neutral-200">Storage</span>
-                            <span className="font-semibold text-slate-900 dark:text-neutral-50">
-                              {formatBytes(hoveredNode.metrics?.totalSize ?? undefined)}
-                            </span>
-                          </div>
-                        )}
-                        {typeof hoveredNode.activityScore === 'number' && (
-                          <div className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-sm dark:bg-neutral-800/60">
-                            <span className="font-medium text-slate-500 dark:text-neutral-200">Activity</span>
-                            <span className="font-semibold text-slate-900 dark:text-neutral-50">
-                              {numberFormatter.format(hoveredNode.activityScore)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {hasDates && (
-                      <div className="grid grid-cols-1 gap-3 text-xs text-slate-600 dark:text-neutral-200 sm:grid-cols-2">
-                        {hoveredNode.modifiedDate && (
-                          <div className="rounded-lg bg-white px-3 py-2 shadow-sm dark:bg-neutral-800/60">
-                            <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-neutral-500">
-                              Modified
-                            </p>
-                            <p className="mt-1 font-semibold text-slate-900 dark:text-neutral-100">
-                              {formatDate(hoveredNode.modifiedDate)}
-                            </p>
-                          </div>
-                        )}
-                        {hoveredNode.createdDate && (
-                          <div className="rounded-lg bg-white px-3 py-2 shadow-sm dark:bg-neutral-800/60">
-                            <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-neutral-500">
-                              Created
-                            </p>
-                            <p className="mt-1 font-semibold text-slate-900 dark:text-neutral-100">
-                              {formatDate(hoveredNode.createdDate)}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {canHideFromTooltip && (
-                      <button
-                        type="button"
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 dark:bg-neutral-200 dark:text-neutral-900 dark:hover:bg-neutral-100 dark:disabled:bg-neutral-700 dark:disabled:text-neutral-400"
-                        onClick={handleHideFromTooltip}
-                        disabled={hideButtonDisabled}
-                      >
-                        {hideButtonLabel}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+        />
       )}
     </div>
   );
