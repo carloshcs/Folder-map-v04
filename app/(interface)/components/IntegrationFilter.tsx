@@ -58,7 +58,7 @@ export const IntegrationFilter: React.FC<IntegrationFilterProps> = ({
         className,
       )}
     >
-      <div className="pointer-events-auto inline-flex items-center gap-2 rounded-2xl border border-black/20 bg-white/90 px-3 py-2 text-xs font-medium shadow-lg backdrop-blur-md transition-colors dark:border-black/30 dark:bg-neutral-900/85">
+      <div className="pointer-events-auto inline-flex items-center gap-2 rounded-2xl border border-black/15 bg-white/95 px-3 py-1.5 text-xs font-medium shadow-lg backdrop-blur-md transition-colors dark:border-white/10 dark:bg-neutral-900/95">
         <div className="flex flex-wrap items-center gap-1.5">
           {services.map(service => {
             const isActive = activeServiceId === service.id;
@@ -69,19 +69,19 @@ export const IntegrationFilter: React.FC<IntegrationFilterProps> = ({
                 onClick={() => handleServiceClick(service.id)}
                 aria-pressed={isActive}
                 className={cn(
-                  'group flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-all duration-150 hover:-translate-y-px',
+                  'group flex h-8 items-center gap-2 rounded-full border px-3 text-[11px] font-medium transition-all duration-150 hover:-translate-y-px',
                   isActive
-                    ? 'border-black bg-slate-900 text-white shadow-md dark:border-white/30 dark:bg-white/10 dark:text-white'
+                    ? 'border-black bg-slate-900 text-white shadow-md dark:border-white/20 dark:bg-neutral-800 dark:text-white'
                     : cn(
-                        'border-black/20 text-muted-foreground hover:bg-white dark:border-white/20 dark:text-neutral-300 dark:hover:bg-neutral-800/80',
+                        'border-black/20 text-muted-foreground hover:bg-white dark:border-white/10 dark:text-neutral-300 dark:hover:bg-neutral-800/80',
                         service.hover,
                       ),
                 )}
               >
                 <span
                   className={cn(
-                    'relative flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-black/15 bg-white shadow-sm transition-all duration-150 dark:border-white/20 dark:bg-neutral-800',
-                    isActive && 'scale-105 border-black/25 shadow-md dark:border-white/30',
+                    'relative flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-black/15 bg-white shadow-sm transition-all duration-150 dark:border-white/15 dark:bg-neutral-800/80',
+                    isActive && 'scale-105 border-black/25 shadow-md dark:border-white/25 dark:bg-neutral-700',
                   )}
                 >
                   <Image
