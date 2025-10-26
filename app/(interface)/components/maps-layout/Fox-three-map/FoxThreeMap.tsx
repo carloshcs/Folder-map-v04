@@ -401,6 +401,37 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
     [flowEdges, visibleNodeIds],
   );
 
+  useEffect(() => {
+    const container = containerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    const removeNodeTitles = () => {
+      container
+        .querySelectorAll<HTMLDivElement>('.react-flow__node[title]')
+        .forEach(node => node.removeAttribute('title'));
+    };
+
+    removeNodeTitles();
+
+    const observer = new MutationObserver(mutations => {
+      if (mutations.some(mutation => mutation.type === 'childList' || mutation.type === 'attributes')) {
+        removeNodeTitles();
+      }
+    });
+
+    observer.observe(container, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['title'],
+    });
+
+    return () => observer.disconnect();
+  }, [nodesToRender]);
+
   const toggleNodeExpansionById = useCallback(
     (nodeId: string, depth: number, childrenCount: number) => {
       if (childrenCount <= 0) {
