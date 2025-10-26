@@ -11,6 +11,7 @@ import { renderNodes } from './rendering';
 import { createManualPhysics } from './physics';
 import { getNodeId } from './nodeUtils';
 import { D3GroupSelection, D3HierarchyNode, NodePosition, OrbitalMapProps, FolderItem } from './types';
+import { getNodeRadius } from './geometry';
 import {
   getPaletteColors,
   getReadableTextColor,
@@ -23,7 +24,9 @@ type HoveredNodeInfo = {
   depth: number;
   lineage: string[];
   position: { x: number; y: number };
-  radius: number;
+  screenRadius: number;
+  baseRadius: number;
+  nodePosition: { x: number; y: number };
   pathSegments: string[];
   serviceName?: string;
   link?: string;
@@ -50,6 +53,7 @@ const LIGHTEN_STEP = 0.4;
 const BASE_DARKEN = -0.25;
 const HOVER_TOOLTIP_WIDTH = 320;
 const DIMMED_FILL_LIGHTEN = 0.55;
+const TOOLTIP_GAP = 16;
 
 const numberFormatter = new Intl.NumberFormat('en-US');
 
@@ -140,6 +144,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   const isTooltipHoveredRef = useRef(false);
   const closeTooltipTimeoutRef = useRef<number | null>(null);
   const isDraggingRef = useRef(false);
+  const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
 
   const closeTooltip = useCallback(() => {
     setHoveredNode(null);
@@ -147,52 +152,60 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
 
   const recalculateTooltipPosition = useCallback(() => {
     const hoveredId = hoveredNodeIdRef.current;
-    if (!hoveredId || !containerRef.current || !nodeLayerRef.current) {
+    if (!hoveredId || !containerRef.current || !svgRef.current || !gRef.current) {
       return;
     }
 
     const containerRect = containerRef.current.getBoundingClientRect();
-    let anchor: { x: number; y: number; radius: number } | null = null;
+    const svgElement = svgRef.current;
+    const rootGroup = gRef.current;
+    const groupNode = rootGroup.node();
 
-    nodeLayerRef.current
-      .selectAll<SVGGElement, any>('g.node')
-      .each(function (d: any) {
-        if (anchor) return;
-        const nodeId = getNodeId(d);
-        if (nodeId !== hoveredId) return;
-
-        const circle = d3.select(this).select<SVGCircleElement>('circle.node-circle');
-        const circleNode = circle.node();
-        if (!circleNode) return;
-
-        const rect = circleNode.getBoundingClientRect();
-        const radius = rect.width / 2;
-        anchor = {
-          x: rect.left - containerRect.left + radius,
-          y: rect.top - containerRect.top + radius,
-          radius,
-        };
-      });
-
-    if (!anchor) return;
+    if (!svgElement || !groupNode) {
+      return;
+    }
 
     setHoveredNode(prev => {
       if (!prev || prev.id !== hoveredId) {
         return prev;
       }
 
+      const currentZoom = zoomTransformRef.current?.k ?? 1;
+      const storedPosition = nodePositionsRef.current.get(hoveredId);
+      const nodePosition = storedPosition
+        ? { x: storedPosition.x, y: storedPosition.y }
+        : prev.nodePosition;
+      const svgPoint = svgElement.createSVGPoint();
+      svgPoint.x = nodePosition.x;
+      svgPoint.y = nodePosition.y;
+
+      const screenMatrix = groupNode.getScreenCTM();
+      if (!screenMatrix) {
+        return prev;
+      }
+
+      const screenPoint = svgPoint.matrixTransform(screenMatrix);
+      const nextPosition = {
+        x: screenPoint.x - containerRect.left,
+        y: screenPoint.y - containerRect.top,
+      };
+      const screenRadius = prev.baseRadius * currentZoom;
+
       if (
-        prev.position.x === anchor!.x &&
-        prev.position.y === anchor!.y &&
-        prev.radius === anchor!.radius
+        prev.position.x === nextPosition.x &&
+        prev.position.y === nextPosition.y &&
+        prev.screenRadius === screenRadius &&
+        prev.nodePosition.x === nodePosition.x &&
+        prev.nodePosition.y === nodePosition.y
       ) {
         return prev;
       }
 
       return {
         ...prev,
-        position: { x: anchor!.x, y: anchor!.y },
-        radius: anchor!.radius,
+        position: nextPosition,
+        screenRadius,
+        nodePosition,
       };
     });
   }, [setHoveredNode]);
@@ -289,6 +302,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         return false;
       })
       .on('zoom', event => {
+        zoomTransformRef.current = event.transform;
         g.attr('transform', event.transform);
         recalculateTooltipPosition();
       });
@@ -414,6 +428,9 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         (name, index) => !(index === 0 && name === 'Folder Fox'),
       );
       const anchor = getTooltipAnchorPosition(event);
+      const currentZoom = zoomTransformRef.current?.k ?? 1;
+      const baseRadius = getNodeRadius(d.depth ?? 0);
+      const screenRadius = anchor.radius > 0 ? anchor.radius : baseRadius * currentZoom;
       const nodeData = d.data ?? {};
       const item = (nodeData.item as FolderItem | undefined) ?? undefined;
 
@@ -436,7 +453,9 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         depth: d.depth ?? 0,
         lineage,
         position: { x: anchor.x, y: anchor.y },
-        radius: anchor.radius,
+        screenRadius,
+        baseRadius,
+        nodePosition: { x: d.x ?? 0, y: d.y ?? 0 },
         pathSegments: trimmedLineage,
         serviceName: trimmedLineage[0],
         link,
@@ -684,7 +703,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
             width: HOVER_TOOLTIP_WIDTH,
             left: hoveredNode.position.x,
             top: hoveredNode.position.y,
-            transform: `translate(${hoveredNode.radius + 16}px, -50%)`,
+            transform: `translate(${hoveredNode.screenRadius + TOOLTIP_GAP}px, -50%)`,
           }}
           onMouseEnter={() => {
             setTooltipHoverState(true);
