@@ -1,9 +1,7 @@
 'use client';
-
 import Image from 'next/image';
 import React from 'react';
 import { createPortal } from 'react-dom';
-
 import { cn } from '@/lib/utils';
 import { ServiceId } from './right-sidebar/data';
 
@@ -50,7 +48,6 @@ export const IntegrationFilter: React.FC<IntegrationFilterProps> = ({
       onServiceSelect(null);
       return;
     }
-
     onServiceSelect(serviceId);
   };
 
@@ -61,29 +58,10 @@ export const IntegrationFilter: React.FC<IntegrationFilterProps> = ({
         className,
       )}
     >
-      <div className="pointer-events-auto inline-flex items-center gap-3 rounded-2xl border border-border/60 bg-white/90 px-4 py-2 text-xs font-medium shadow-lg backdrop-blur-md transition-colors dark:border-white/10 dark:bg-neutral-900/85">
-        <div className="hidden items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground sm:flex">
-          <span>Integrations</span>
-          <span className="h-4 w-px bg-border/60" aria-hidden="true" />
-        </div>
+      <div className="pointer-events-auto inline-flex items-center gap-2 rounded-2xl border border-black/20 bg-white/90 px-3 py-2 text-xs font-medium shadow-lg backdrop-blur-md transition-colors dark:border-black/30 dark:bg-neutral-900/85">
         <div className="flex flex-wrap items-center gap-1.5">
-          {allowClear && (
-            <button
-              type="button"
-              onClick={() => onServiceSelect(null)}
-              aria-label="Show all integrations"
-              className={cn(
-                'flex items-center gap-2 rounded-full border border-transparent px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground transition-all duration-150 hover:-translate-y-px hover:border-border/70 hover:bg-white',
-                activeServiceId === null &&
-                  'border-slate-900/60 bg-slate-900 text-white shadow-sm hover:-translate-y-0 dark:border-white/30 dark:bg-white/15 dark:text-white',
-              )}
-            >
-              <span>All</span>
-            </button>
-          )}
           {services.map(service => {
             const isActive = activeServiceId === service.id;
-
             return (
               <button
                 key={service.id}
@@ -91,29 +69,27 @@ export const IntegrationFilter: React.FC<IntegrationFilterProps> = ({
                 onClick={() => handleServiceClick(service.id)}
                 aria-pressed={isActive}
                 className={cn(
-                  'group flex items-center gap-2 rounded-full border border-transparent px-3 py-1.5 text-[11px] font-medium transition-all duration-150 hover:-translate-y-px',
+                  'group flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-all duration-150 hover:-translate-y-px',
                   isActive
-                    ? 'border-slate-900/60 bg-slate-900 text-white shadow-md dark:border-white/30 dark:bg-white/10 dark:text-white'
+                    ? 'border-black bg-slate-900 text-white shadow-md dark:border-white/30 dark:bg-white/10 dark:text-white'
                     : cn(
-                        'text-muted-foreground hover:border-border/70 hover:bg-white dark:text-neutral-300 dark:hover:border-white/20 dark:hover:bg-neutral-800/80',
-                        service.border,
+                        'border-black/20 text-muted-foreground hover:bg-white dark:border-white/20 dark:text-neutral-300 dark:hover:bg-neutral-800/80',
                         service.hover,
                       ),
                 )}
               >
                 <span
                   className={cn(
-                    'flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border border-white/70 bg-white/95 shadow-sm ring-1 ring-black/5 transition-all duration-150 dark:border-white/10 dark:bg-white/10 dark:ring-black/40',
-                    service.accent,
-                    isActive && 'scale-105 border-white/80 ring-black/10 dark:border-white/30',
+                    'relative flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-black/15 bg-white shadow-sm transition-all duration-150 dark:border-white/20 dark:bg-neutral-800',
+                    isActive && 'scale-105 border-black/25 shadow-md dark:border-white/30',
                   )}
                 >
                   <Image
                     src={service.logo}
                     alt={`${service.name} logo`}
-                    fill
-                    sizes="24px"
-                    style={{ objectFit: 'contain' }}
+                    width={24}
+                    height={24}
+                    className="h-full w-full object-contain"
                   />
                 </span>
                 <span className="whitespace-nowrap">{service.name}</span>
