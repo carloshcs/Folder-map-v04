@@ -78,6 +78,7 @@ export function renderNodes(
         const group = enter
           .append('g')
           .attr('class', 'node')
+          .attr('data-node-id', d => getNodeId(d))
           .style('cursor', 'pointer')
           .style('opacity', 0)
           .attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`)
@@ -151,6 +152,7 @@ export function renderNodes(
 
   node
     .attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`)
+    .attr('data-node-id', d => getNodeId(d))
     .attr('filter', 'url(#node-shadow)')
     .on('mouseenter', onNodeEnter ?? null)
     .on('mousemove', onNodeMove ?? null)
