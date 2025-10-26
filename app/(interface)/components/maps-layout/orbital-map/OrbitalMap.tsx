@@ -151,31 +151,49 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
 
   const recalculateTooltipPosition = useCallback(() => {
     const hoveredId = hoveredNodeIdRef.current;
-    if (!hoveredId || !containerRef.current || !svgRef.current || !gRef.current) {
+    const container = containerRef.current;
+    const nodeLayer = nodeLayerRef.current;
+
+    if (!hoveredId || !container || !nodeLayer) {
       return;
     }
 
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const svgElement = svgRef.current;
-    const rootGroup = gRef.current;
-    const groupNode = rootGroup.node();
+    const containerRect = container.getBoundingClientRect();
+    const hoveredSelection = nodeLayer
+      .selectAll<SVGGElement, any>('g.node')
+      .filter(d => getNodeId(d) === hoveredId);
+    const hoveredElement = hoveredSelection.node() as SVGGElement | null;
 
-    if (!svgElement || !groupNode) {
+    if (!hoveredElement) {
       return;
     }
+
+    const circleElement = hoveredElement.querySelector('circle.node-circle') as
+      | SVGCircleElement
+      | null;
+    const circleRect = circleElement?.getBoundingClientRect() ?? null;
+    const fallbackRect = hoveredElement.getBoundingClientRect();
+    const rect = circleRect ?? fallbackRect;
+
+    const radius = circleRect ? circleRect.width / 2 : Math.max(rect.width, rect.height) / 2;
+    const anchor = {
+      x: rect.left - containerRect.left + rect.width / 2,
+      y: rect.top - containerRect.top + rect.height / 2,
+      radius,
+    };
+
+    const currentZoom = zoomTransformRef.current?.k ?? 1;
+    const baseRadius = radius / currentZoom;
 
     setHoveredNode(prev => {
       if (!prev || prev.id !== hoveredId) {
         return prev;
       }
 
-      const currentZoom = zoomTransformRef.current?.k ?? 1;
-      const baseRadius = anchor!.radius / currentZoom;
-
       if (
-        prev.position.x === anchor!.x &&
-        prev.position.y === anchor!.y &&
-        prev.screenRadius === anchor!.radius &&
+        prev.position.x === anchor.x &&
+        prev.position.y === anchor.y &&
+        prev.screenRadius === anchor.radius &&
         prev.baseRadius === baseRadius
       ) {
         return prev;
@@ -183,8 +201,8 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
 
       return {
         ...prev,
-        position: { x: anchor!.x, y: anchor!.y },
-        screenRadius: anchor!.radius,
+        position: { x: anchor.x, y: anchor.y },
+        screenRadius: anchor.radius,
         baseRadius,
       };
     });
