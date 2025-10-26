@@ -3,11 +3,13 @@
 import React, {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
 import * as d3 from 'd3';
 import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import Image from 'next/image';
 
 import { MIN_HEIGHT, MIN_WIDTH } from '../orbital-map/constants';
 import { buildHierarchy, getVisibleNodesAndLinks } from '../orbital-map/hierarchy';
@@ -23,6 +25,10 @@ import {
   getReadableTextColor,
   shiftColor,
 } from '@/app/(interface)/lib/utils/colors';
+import {
+  isServiceId,
+  ServiceId,
+} from '@/app/(interface)/components/right-sidebar/data';
 
 const LEVEL_RADII: Record<number, number> = {
   1: 240,
@@ -80,6 +86,55 @@ const formatDate = (iso?: string) => {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
   return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(date);
+};
+
+const SERVICE_DETAILS: Record<
+  ServiceId,
+  { name: string; logo: string; accent: string; hover: string; border: string }
+> = {
+  notion: {
+    name: 'Notion',
+    logo: '/assets/notion-logo.png',
+    accent: 'bg-slate-100',
+    hover: 'hover:bg-slate-200/80',
+    border: 'border-slate-200',
+  },
+  onedrive: {
+    name: 'OneDrive',
+    logo: '/assets/onedrive-logo.png',
+    accent: 'bg-sky-100',
+    hover: 'hover:bg-sky-100/90',
+    border: 'border-sky-200',
+  },
+  dropbox: {
+    name: 'Dropbox',
+    logo: '/assets/dropbox-logo.png',
+    accent: 'bg-blue-100',
+    hover: 'hover:bg-blue-100/90',
+    border: 'border-blue-200',
+  },
+  googledrive: {
+    name: 'Google Drive',
+    logo: '/assets/google-drive-logo.png',
+    accent: 'bg-amber-100',
+    hover: 'hover:bg-amber-100/90',
+    border: 'border-amber-200',
+  },
+};
+
+const resolveServiceId = (
+  folder: FolderItem,
+  fallback?: ServiceId,
+): ServiceId | undefined => {
+  if (folder.serviceId && isServiceId(folder.serviceId)) {
+    return folder.serviceId;
+  }
+
+  if (isServiceId(folder.id)) {
+    return folder.id;
+  }
+
+  return fallback;
 };
 
 type HoveredNodeInfo = {
@@ -306,6 +361,15 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [hoveredNode, setHoveredNode] = useState<HoveredNodeInfo | null>(null);
   const [isTooltipExpanded, setIsTooltipExpanded] = useState(false);
+  const [activeServiceId, setActiveServiceId] = useState<ServiceId | null>(() => {
+    for (const folder of folders) {
+      const resolved = resolveServiceId(folder);
+      if (resolved) {
+        return resolved;
+      }
+    }
+    return null;
+  });
 
   const isTooltipHoveredRef = useRef(false);
   const closeTooltipTimeoutRef = useRef<number | null>(null);
@@ -420,6 +484,65 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
     svg.on('dblclick.zoom', null);
   }, []);
 
+  const availableServices = useMemo(() => {
+    const services: Array<{
+      id: ServiceId;
+      name: string;
+      logo: string;
+      accent: string;
+      hover: string;
+      border: string;
+    }> = [];
+    const seen = new Set<ServiceId>();
+
+    folders.forEach(folder => {
+      const resolved = resolveServiceId(folder);
+      if (!resolved || seen.has(resolved)) {
+        return;
+      }
+
+      if (!folder.children || folder.children.length === 0) {
+        return;
+      }
+
+      const details = SERVICE_DETAILS[resolved];
+      if (!details) {
+        return;
+      }
+
+      seen.add(resolved);
+      services.push({ id: resolved, ...details });
+    });
+
+    return services;
+  }, [folders]);
+
+  useEffect(() => {
+    if (availableServices.length === 0) {
+      if (activeServiceId !== null) {
+        setActiveServiceId(null);
+      }
+      return;
+    }
+
+    if (!activeServiceId || !availableServices.some(service => service.id === activeServiceId)) {
+      setActiveServiceId(availableServices[0].id);
+    }
+  }, [activeServiceId, availableServices]);
+
+  useEffect(() => {
+    setExpanded(new Set());
+    closeTooltip();
+  }, [activeServiceId, closeTooltip]);
+
+  const filteredFolders = useMemo(() => {
+    if (!activeServiceId) {
+      return folders;
+    }
+
+    return folders.filter(folder => resolveServiceId(folder) === activeServiceId);
+  }, [folders, activeServiceId]);
+
   useEffect(() => {
     if (!svgRef.current || !gRef.current || !nodeLayerRef.current || !linkLayerRef.current || !ringLayerRef.current) {
       return;
@@ -428,7 +551,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
     const svg = d3.select(svgRef.current);
     const { width, height } = size;
 
-    const root = buildHierarchy(folders);
+    const root = buildHierarchy(filteredFolders);
     const nodeStyles = computeNodeStyles(root, colorPaletteId);
     const { visibleNodes, visibleLinks } = getVisibleNodesAndLinks(root, expanded);
 
@@ -615,7 +738,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         return next;
       });
     });
-  }, [closeTooltip, colorPaletteId, expanded, folders, resetTooltipPositionLock, size]);
+  }, [closeTooltip, colorPaletteId, expanded, filteredFolders, resetTooltipPositionLock, size]);
 
   useEffect(() => {
     setIsTooltipExpanded(false);
@@ -774,6 +897,31 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         minHeight: `${MIN_HEIGHT}px`,
       }}
     >
+      {availableServices.length > 0 && (
+        <div className="pointer-events-auto absolute left-0 top-0 z-20 flex flex-wrap gap-2 px-6 py-4">
+          {availableServices.map(service => {
+            const isActive = activeServiceId === service.id;
+            return (
+              <button
+                key={service.id}
+                type="button"
+                onClick={() => setActiveServiceId(service.id)}
+                aria-pressed={isActive}
+                className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium text-slate-700 transition ${
+                  isActive
+                    ? 'bg-white/90 shadow-[0_12px_24px_rgba(15,23,42,0.12)] border-indigo-300'
+                    : `${service.accent} ${service.hover} ${service.border}`
+                }`}
+              >
+                <span className="relative h-6 w-6 overflow-hidden rounded-full bg-white/80">
+                  <Image src={service.logo} alt={`${service.name} logo`} fill sizes="24px" />
+                </span>
+                <span>{service.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       <svg ref={svgRef} className="w-full h-full" />
       {hoveredNode && (
         <div
