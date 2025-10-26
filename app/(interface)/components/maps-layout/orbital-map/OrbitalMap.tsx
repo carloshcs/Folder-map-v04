@@ -49,8 +49,6 @@ const MAX_LIGHTENING = 0.85;
 const LIGHTEN_STEP = 0.4;
 const BASE_DARKEN = -0.25;
 const HOVER_TOOLTIP_WIDTH = 320;
-const HOVER_TOOLTIP_COMPACT_HEIGHT = 220;
-const HOVER_TOOLTIP_EXPANDED_HEIGHT = 420;
 const DIMMED_FILL_LIGHTEN = 0.55;
 
 const numberFormatter = new Intl.NumberFormat('en-US');
@@ -570,9 +568,6 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   const hasDates = Boolean(hoveredNode?.modifiedDate || hoveredNode?.createdDate);
   const hasExtraInfo = hasMetrics || hasDates;
   const showExtraInfo = hasExtraInfo && isTooltipExpanded;
-  const tooltipHeight = hasExtraInfo && isTooltipExpanded
-    ? HOVER_TOOLTIP_EXPANDED_HEIGHT
-    : HOVER_TOOLTIP_COMPACT_HEIGHT;
   const canHideFromTooltip = Boolean(
     onFolderSelectionChange &&
       hoveredNode &&
@@ -581,16 +576,6 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   );
   const hideButtonDisabled = hoveredNode?.isSelected === false;
   const hideButtonLabel = hideButtonDisabled ? 'Hidden' : 'Hide';
-
-  const tooltipMaxLeft = Math.max(0, size.width - HOVER_TOOLTIP_WIDTH);
-  const tooltipAnchorPosition = hoveredNode?.position;
-  const tooltipRadius = hoveredNode?.radius ?? 0;
-  const tooltipBottomTarget = tooltipAnchorPosition ? tooltipAnchorPosition.y - tooltipRadius : 0;
-  const tooltipTop = tooltipBottomTarget - tooltipHeight;
-  const tooltipLeft = Math.min(
-    Math.max(0, (tooltipAnchorPosition?.x ?? 0) - HOVER_TOOLTIP_WIDTH / 2),
-    tooltipMaxLeft,
-  );
   const handleHideFromTooltip = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
@@ -619,8 +604,6 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         <div
           className="pointer-events-auto absolute w-full max-w-[320px] text-sm"
           style={{
-            left: tooltipLeft,
-            top: tooltipTop,
             width: HOVER_TOOLTIP_WIDTH,
           }}
           onMouseEnter={() => {
