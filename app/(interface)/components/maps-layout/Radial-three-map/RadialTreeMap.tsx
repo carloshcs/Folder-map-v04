@@ -37,23 +37,22 @@ const LEVEL_RADII: Record<number, number> = {
 };
 
 const RADIAL_SPACING = 170;
-const FULL_CIRCLE_START_ANGLE = -Math.PI / 2;
 const VIEWBOX_PADDING = 260;
 
-const SERVICE_ORDER = ['Google Drive', 'Dropbox', 'Notion', 'OneDrive'] as const;
-const SERVICE_BASE_ANGLES: Record<string, number> = SERVICE_ORDER.reduce(
-  (acc, service, index) => {
-    const step = (2 * Math.PI) / SERVICE_ORDER.length;
-    acc[service] = FULL_CIRCLE_START_ANGLE + step * index;
-    return acc;
-  },
-  {} as Record<string, number>,
-);
-const SERVICE_SPREAD = Math.PI / 2.4;
-const SUBTREE_RANGE_DECAY = 0.68;
-const MIN_CHILD_SPREAD = Math.PI / 36;
-const CHILD_RANGE_SHRINK = 0.65;
-const SINGLE_CHILD_SPREAD = Math.PI / 24;
+const PREDEFINED_LEVELS = Object.keys(LEVEL_RADII).map(level => Number(level));
+const MAX_PREDEFINED_DEPTH = PREDEFINED_LEVELS.length
+  ? Math.max(...PREDEFINED_LEVELS)
+  : 0;
+const MAX_PREDEFINED_RADIUS = MAX_PREDEFINED_DEPTH ? LEVEL_RADII[MAX_PREDEFINED_DEPTH] : 0;
+
+const getRadiusForDepth = (depth: number) => {
+  if (depth <= 0) return 0;
+  if (LEVEL_RADII[depth]) return LEVEL_RADII[depth];
+  if (!MAX_PREDEFINED_DEPTH) {
+    return depth * RADIAL_SPACING;
+  }
+  return MAX_PREDEFINED_RADIUS + (depth - MAX_PREDEFINED_DEPTH) * RADIAL_SPACING;
+};
 
 const MAX_LIGHTENING = 0.85;
 const LIGHTEN_STEP = 0.4;
@@ -210,133 +209,56 @@ const applyRadialLayout = (
   visibleNodes: D3HierarchyNode[],
 ) => {
   const visibleIds = new Set(visibleNodes.map(node => getNodeId(node)));
-  const metadata = new Map<
-    D3HierarchyNode,
-    { angle: number; radius: number; rangeStart: number; rangeEnd: number }
-  >();
+  if (!visibleIds.size) {
+    return;
+  }
 
-  const setPosition = (
-    node: D3HierarchyNode,
-    angle: number,
-    radius: number,
-    rangeStart?: number,
-    rangeEnd?: number,
-  ) => {
-    node.x = Math.cos(angle) * radius;
-    node.y = Math.sin(angle) * radius;
-    const start = rangeStart ?? angle;
-    const end = rangeEnd ?? angle;
-    metadata.set(node, { angle, radius, rangeStart: start, rangeEnd: end });
-  };
+  const layoutRoot = (root as unknown as d3.HierarchyNode<any>).copy();
 
-  const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
-
-  setPosition(
-    root,
-    -Math.PI / 2,
-    0,
-    FULL_CIRCLE_START_ANGLE,
-    FULL_CIRCLE_START_ANGLE + Math.PI * 2,
-  );
-
-  const layoutChildren = (parent: D3HierarchyNode) => {
-    const parentMeta = metadata.get(parent);
-    if (!parentMeta) return;
-
-    const children = (parent.children ?? []).filter(child =>
-      visibleIds.has(getNodeId(child)),
+  const prune = (node: d3.HierarchyNode<any>) => {
+    if (!node.children) return;
+    node.children = node.children.filter(child =>
+      visibleIds.has(getNodeId(child as unknown as D3HierarchyNode)),
     );
-
-    if (!children.length) return;
-
-    const childCount = children.length;
-
-    if (parent.depth === 0) {
-      const sorted = [...children].sort((a, b) => {
-        const aName = a.data?.name ?? '';
-        const bName = b.data?.name ?? '';
-        const aIndex = SERVICE_ORDER.indexOf(aName as (typeof SERVICE_ORDER)[number]);
-        const bIndex = SERVICE_ORDER.indexOf(bName as (typeof SERVICE_ORDER)[number]);
-        const normalizedA = aIndex === -1 ? SERVICE_ORDER.length : aIndex;
-        const normalizedB = bIndex === -1 ? SERVICE_ORDER.length : bIndex;
-        if (normalizedA === normalizedB) {
-          return aName.localeCompare(bName);
-        }
-        return normalizedA - normalizedB;
-      });
-
-      const fallbackStep = (2 * Math.PI) / sorted.length;
-      let fallbackIndex = 0;
-
-      sorted.forEach(child => {
-        const serviceName = child.data?.name ?? '';
-        const baseAngle =
-          SERVICE_BASE_ANGLES[serviceName] ??
-          FULL_CIRCLE_START_ANGLE + fallbackStep * (fallbackIndex++);
-        const rangeStart = baseAngle - SERVICE_SPREAD / 2;
-        const rangeEnd = baseAngle + SERVICE_SPREAD / 2;
-        setPosition(child, baseAngle, LEVEL_RADII[1], rangeStart, rangeEnd);
-        layoutChildren(child);
-      });
-      return;
-    }
-
-    let childRadius = parentMeta.radius;
-    if (parent.depth === 1) {
-      childRadius = LEVEL_RADII[2];
-    } else if (parent.depth === 2) {
-      childRadius = LEVEL_RADII[3];
-    } else {
-      childRadius = parentMeta.radius + RADIAL_SPACING;
-    }
-
-    const availableStart = parentMeta.rangeStart;
-    const availableEnd = parentMeta.rangeEnd;
-    const availableSpan = Math.max(availableEnd - availableStart, MIN_CHILD_SPREAD);
-    let span = availableSpan;
-    if (parent.depth >= 2) {
-      span = Math.max(availableSpan * SUBTREE_RANGE_DECAY, MIN_CHILD_SPREAD);
-    }
-
-    if (childCount === 1) {
-      const mid = parentMeta.angle;
-      const halfSpan = Math.max(span / 2, SINGLE_CHILD_SPREAD / 2);
-      const rawStart = clamp(mid - halfSpan, availableStart, availableEnd);
-      const rawEnd = clamp(mid + halfSpan, availableStart, availableEnd);
-      const rangeStart = Math.min(rawStart, rawEnd);
-      const rangeEnd = Math.max(rawStart, rawEnd);
-      setPosition(children[0], mid, childRadius, rangeStart, rangeEnd);
-      layoutChildren(children[0]);
-      return;
-    }
-
-    let startAngle = clamp(parentMeta.angle - span / 2, availableStart, availableEnd - MIN_CHILD_SPREAD);
-    let endAngle = clamp(parentMeta.angle + span / 2, startAngle + MIN_CHILD_SPREAD, availableEnd);
-    let actualSpan = endAngle - startAngle;
-
-    if (actualSpan < MIN_CHILD_SPREAD) {
-      const mid = parentMeta.angle;
-      startAngle = mid - MIN_CHILD_SPREAD / 2;
-      endAngle = mid + MIN_CHILD_SPREAD / 2;
-      actualSpan = MIN_CHILD_SPREAD;
-    }
-
-    const step = actualSpan / (childCount - 1);
-    const rangeSegment = Math.max(step * CHILD_RANGE_SHRINK, MIN_CHILD_SPREAD * 0.5);
-
-    children.forEach((child, index) => {
-      const angle = startAngle + step * index;
-      const half = rangeSegment / 2;
-      const rawStart = clamp(angle - half, availableStart, availableEnd);
-      const rawEnd = clamp(angle + half, availableStart, availableEnd);
-      const rangeStart = Math.min(rawStart, rawEnd);
-      const rangeEnd = Math.max(rawStart, rawEnd);
-      setPosition(child, angle, childRadius, rangeStart, rangeEnd);
-      layoutChildren(child);
-    });
+    node.children.forEach(child => prune(child));
   };
 
-  layoutChildren(root);
+  prune(layoutRoot);
+
+  const descendants = layoutRoot.descendants();
+  const maxDepth = d3.max(descendants, node => node.depth) ?? 0;
+
+  const treeLayout = d3
+    .tree<any>()
+    .size([Math.PI * 2, Math.max(1, maxDepth)])
+    .separation((a, b) => (a.parent === b.parent ? 1 : 2) / Math.max(1, a.depth));
+
+  treeLayout(layoutRoot);
+
+  const layoutById = new Map<string, { angle: number; radius: number }>();
+  layoutRoot.each(node => {
+    const id = getNodeId(node as unknown as D3HierarchyNode);
+    layoutById.set(id, {
+      angle: node.x,
+      radius: getRadiusForDepth(node.depth),
+    });
+  });
+
+  const assignLayout = (node: D3HierarchyNode) => {
+    const layout = layoutById.get(getNodeId(node));
+    if (!layout) return;
+
+    const adjustedAngle = layout.angle - Math.PI / 2;
+    const { radius } = layout;
+    node.x = Math.cos(adjustedAngle) * radius;
+    node.y = Math.sin(adjustedAngle) * radius;
+    (node as any).layoutAngle = layout.angle;
+    (node as any).layoutRadius = radius;
+
+    node.children?.forEach(child => assignLayout(child));
+  };
+
+  assignLayout(root);
 };
 
 export interface RadialTreeMapProps {
@@ -550,8 +472,12 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
 
     applyRadialLayout(root, visibleNodes);
 
+    const renderableNodes = visibleNodes.filter(node => getNodeId(node) !== 'folder-fox');
+
+    const nodesForMetrics = renderableNodes.length ? renderableNodes : visibleNodes;
+
     const maxRadius =
-      d3.max(visibleNodes, node => Math.hypot(node.x ?? 0, node.y ?? 0)) ?? LEVEL_RADII[3];
+      d3.max(nodesForMetrics, node => Math.hypot(node.x ?? 0, node.y ?? 0)) ?? LEVEL_RADII[3];
 
     const viewWidth = width + VIEWBOX_PADDING * 2;
     const viewHeight = height + VIEWBOX_PADDING * 2;
@@ -570,7 +496,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
 
     const ringRadii = (() => {
       const radiusByDepth = new Map<number, number>();
-      visibleNodes.forEach(node => {
+      nodesForMetrics.forEach(node => {
         if (typeof node.depth !== 'number' || node.depth === 0) return;
         const radius = Math.hypot(node.x ?? 0, node.y ?? 0);
         const existing = radiusByDepth.get(node.depth);
@@ -599,8 +525,13 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       )
       .attr('r', d => d);
 
-    const link = linkLayer
-      .selectAll<SVGLineElement, any>('line')
+    const radialLink = d3
+      .linkRadial<any, any>()
+      .angle(d => d.angle)
+      .radius(d => d.radius);
+
+    linkLayer
+      .selectAll<SVGPathElement, any>('path.radial-link')
       .data(visibleLinks, (d: any) => {
         const sourceId = getNodeId(d.source);
         const targetId = getNodeId(d.target);
@@ -609,20 +540,31 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       .join(
         enter =>
           enter
-            .append('line')
+            .append('path')
+            .attr('class', 'radial-link')
+            .attr('fill', 'none')
             .attr('stroke', '#b8bec9')
             .attr('stroke-width', 1.4)
-            .attr('opacity', 0.85),
+            .attr('opacity', 0.85)
+            .attr('stroke-linecap', 'round'),
         update => update,
         exit => exit.remove(),
       )
       .attr('stroke', '#b8bec9')
       .attr('stroke-width', 1.4)
       .attr('opacity', 0.85)
-      .attr('x1', (d: any) => d.source.x ?? 0)
-      .attr('y1', (d: any) => d.source.y ?? 0)
-      .attr('x2', (d: any) => d.target.x ?? 0)
-      .attr('y2', (d: any) => d.target.y ?? 0);
+      .attr('stroke-linecap', 'round')
+      .attr('d', (d: any) => {
+        const source = {
+          angle: (d.source as any).layoutAngle ?? 0,
+          radius: (d.source as any).layoutRadius ?? 0,
+        };
+        const target = {
+          angle: (d.target as any).layoutAngle ?? 0,
+          radius: (d.target as any).layoutRadius ?? 0,
+        };
+        return radialLink({ source, target }) ?? undefined;
+      });
 
     const getLineageNames = (node: any) => {
       const lineage: string[] = [];
@@ -711,7 +653,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       scheduleTooltipClose();
     };
 
-    const node = renderNodes(svg, nodeLayer, visibleNodes, {
+    const node = renderNodes(svg, nodeLayer, renderableNodes, {
       colorAssignments: nodeStyles,
       onNodeEnter: handleNodeEnter,
       onNodeMove: handleNodeMove,
@@ -742,7 +684,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
 
     const hoveredId = hoveredNode?.id;
     const nodeSelection = nodeLayerRef.current.selectAll<SVGGElement, any>('g.node');
-    const linkSelection = linkLayerRef.current.selectAll<SVGLineElement, any>('line');
+    const linkSelection = linkLayerRef.current.selectAll<SVGPathElement, any>('path.radial-link');
 
     const relatedIds = new Set<string>();
 
@@ -832,7 +774,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
             label.style('opacity', 1);
           }
         });
-      linkSelection.attr('stroke', '#b8bec9').attr('stroke-width', 1.4).attr('opacity', 0.95);
+      linkSelection.attr('stroke', '#b8bec9').attr('stroke-width', 1.4).attr('opacity', 0.85);
     };
   }, [hoveredNode?.id]);
 
