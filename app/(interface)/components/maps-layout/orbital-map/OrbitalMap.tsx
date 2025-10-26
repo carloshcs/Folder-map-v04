@@ -26,7 +26,6 @@ type HoveredNodeInfo = {
   position: { x: number; y: number };
   screenRadius: number;
   baseRadius: number;
-  nodePosition: { x: number; y: number };
   pathSegments: string[];
   serviceName?: string;
   link?: string;
@@ -171,41 +170,22 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       }
 
       const currentZoom = zoomTransformRef.current?.k ?? 1;
-      const storedPosition = nodePositionsRef.current.get(hoveredId);
-      const nodePosition = storedPosition
-        ? { x: storedPosition.x, y: storedPosition.y }
-        : prev.nodePosition;
-      const svgPoint = svgElement.createSVGPoint();
-      svgPoint.x = nodePosition.x;
-      svgPoint.y = nodePosition.y;
-
-      const screenMatrix = groupNode.getScreenCTM();
-      if (!screenMatrix) {
-        return prev;
-      }
-
-      const screenPoint = svgPoint.matrixTransform(screenMatrix);
-      const nextPosition = {
-        x: screenPoint.x - containerRect.left,
-        y: screenPoint.y - containerRect.top,
-      };
-      const screenRadius = prev.baseRadius * currentZoom;
+      const baseRadius = anchor!.radius / currentZoom;
 
       if (
-        prev.position.x === nextPosition.x &&
-        prev.position.y === nextPosition.y &&
-        prev.screenRadius === screenRadius &&
-        prev.nodePosition.x === nodePosition.x &&
-        prev.nodePosition.y === nodePosition.y
+        prev.position.x === anchor!.x &&
+        prev.position.y === anchor!.y &&
+        prev.screenRadius === anchor!.radius &&
+        prev.baseRadius === baseRadius
       ) {
         return prev;
       }
 
       return {
         ...prev,
-        position: nextPosition,
-        screenRadius,
-        nodePosition,
+        position: { x: anchor!.x, y: anchor!.y },
+        screenRadius: anchor!.radius,
+        baseRadius,
       };
     });
   }, [setHoveredNode]);
@@ -429,8 +409,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       );
       const anchor = getTooltipAnchorPosition(event);
       const currentZoom = zoomTransformRef.current?.k ?? 1;
-      const baseRadius = getNodeRadius(d.depth ?? 0);
-      const screenRadius = anchor.radius > 0 ? anchor.radius : baseRadius * currentZoom;
+      const baseRadius = anchor.radius / currentZoom;
       const nodeData = d.data ?? {};
       const item = (nodeData.item as FolderItem | undefined) ?? undefined;
 
@@ -453,9 +432,8 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         depth: d.depth ?? 0,
         lineage,
         position: { x: anchor.x, y: anchor.y },
-        screenRadius,
+        screenRadius: anchor.radius,
         baseRadius,
-        nodePosition: { x: d.x ?? 0, y: d.y ?? 0 },
         pathSegments: trimmedLineage,
         serviceName: trimmedLineage[0],
         link,
@@ -703,7 +681,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
             width: HOVER_TOOLTIP_WIDTH,
             left: hoveredNode.position.x,
             top: hoveredNode.position.y,
-            transform: `translate(${hoveredNode.screenRadius + TOOLTIP_GAP}px, -50%)`,
+            transform: `translate(${hoveredNode.baseRadius * (zoomTransformRef.current?.k ?? 1) + TOOLTIP_GAP}px, -50%)`,
           }}
           onMouseEnter={() => {
             setTooltipHoverState(true);
