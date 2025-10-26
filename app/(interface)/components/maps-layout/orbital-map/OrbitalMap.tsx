@@ -746,10 +746,6 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       hoveredNode.depth > 0,
   );
   const hideButtonDisabled = hoveredNode?.isSelected === false;
-  const tooltipVerticalShift =
-    hoveredNode && Number.isFinite(hoveredNode.screenRadius)
-      ? Math.min(Math.max(hoveredNode.screenRadius * 0.6, 12), 64)
-      : 0;
   const hideButtonLabel = hideButtonDisabled ? 'Hidden' : 'Hide';
   const handleHideFromTooltip = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -777,15 +773,9 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       <svg ref={svgRef} className="w-full h-full" />
       {hoveredNode && (
         <div
-          className="pointer-events-auto fixed w-full max-w-[320px] text-sm"
+          className="pointer-events-auto fixed left-1/2 top-24 z-50 w-full max-w-[320px] -translate-x-1/2 text-sm"
           style={{
             width: HOVER_TOOLTIP_WIDTH,
-            left: hoveredNode.position.x,
-            top: hoveredNode.position.y,
-            transform:
-              tooltipVerticalShift > 0
-                ? `translate(-50%, calc(-100% + ${tooltipVerticalShift}px))`
-                : 'translate(-50%, -100%)',
           }}
           onMouseEnter={() => {
             setTooltipHoverState(true);
