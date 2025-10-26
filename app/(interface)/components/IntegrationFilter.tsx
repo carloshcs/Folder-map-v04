@@ -4,7 +4,7 @@ import Image from 'next/image';
 import React from 'react';
 
 import { cn } from '@/lib/utils';
-import { ServiceId } from '@/app/(interface)/components/right-sidebar/data';
+import { ServiceId } from './right-sidebar/data';
 
 export type IntegrationService = {
   id: ServiceId;
@@ -46,11 +46,11 @@ export const IntegrationFilter: React.FC<IntegrationFilterProps> = ({
   return (
     <div
       className={cn(
-        'pointer-events-none fixed inset-x-0 top-0 z-[70] flex justify-center px-4 pt-6',
+        'pointer-events-none fixed left-[64px] right-[64px] top-24 z-[70] flex justify-center px-4',
         className,
       )}
     >
-      <div className="pointer-events-auto flex flex-wrap items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-4 py-3 shadow-[0_20px_45px_rgba(15,23,42,0.12)] backdrop-blur">
+      <div className="pointer-events-auto flex flex-wrap items-center gap-2 rounded-full border border-border bg-white/90 px-4 py-3 shadow-[0_20px_45px_rgba(15,23,42,0.12)] backdrop-blur dark:bg-neutral-900/90">
         {services.map(service => {
           const isActive = activeServiceId === service.id;
 
