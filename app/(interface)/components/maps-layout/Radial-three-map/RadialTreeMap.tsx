@@ -191,6 +191,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
     }
     return null;
   });
+  const [activeInfoNodeId, setActiveInfoNodeId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -271,6 +272,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
 
   useEffect(() => {
     setExpandedNodes(new Set());
+    setActiveInfoNodeId(null);
   }, [activeServiceId]);
 
   useEffect(() => {
@@ -371,7 +373,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
 
     const getNodeHalfSize = (node: d3.HierarchyPointNode<any>) => {
       const baseRadius = getNodeRadius(Math.min(node.depth, 3));
-      return node.depth === 0 ? baseRadius * 1.12 : baseRadius;
+      return node.depth === 0 ? baseRadius * 1.12 : baseRadius * 1.2;
     };
 
     const getNodeSize = (node: d3.HierarchyPointNode<any>) => getNodeHalfSize(node) * 2;
@@ -570,26 +572,27 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       const labelDetails = nodeId ? nodeLabelCache.get(nodeId) : undefined;
       const labelText = labelDetails?.text ?? node.data?.name ?? 'Folder';
       const labelColor = labelDetails?.color ?? '#0F172A';
+      const isInfoOpen = nodeId ? activeInfoNodeId === nodeId : false;
 
       const wrapper = container
         .append('xhtml:div')
         .attr('class', 'pointer-events-none relative h-full w-full');
 
+      const toolbar = wrapper
+        .append('xhtml:div')
+        .attr(
+          'class',
+          'pointer-events-auto absolute left-1/2 -top-5 flex -translate-x-1/2 items-center gap-1 rounded-full border border-slate-200/70 bg-white/95 px-1.5 py-0.5 text-[11px] font-medium text-slate-500 shadow-sm ring-1 ring-black/5 backdrop-blur-md dark:border-slate-700/70 dark:bg-slate-900/85 dark:text-slate-200 dark:ring-white/10',
+        );
+
+      const controlsRow = toolbar.append('xhtml:div').attr('class', 'flex items-center gap-1');
+
       const card = wrapper
         .append('xhtml:div')
         .attr(
           'class',
-          'pointer-events-none flex h-full w-full flex-col overflow-hidden rounded-2xl',
+          'pointer-events-none flex h-full w-full flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white/95 text-left shadow-xl ring-1 ring-black/5 backdrop-blur-md transition dark:border-slate-700/80 dark:bg-slate-900/85 dark:ring-white/10',
         );
-
-      const header = card
-        .append('xhtml:div')
-        .attr(
-          'class',
-          'pointer-events-auto flex items-center justify-end gap-1 border-b border-slate-200/70 bg-slate-100/80 px-2 py-1.5 text-slate-500 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-800/70 dark:text-slate-300',
-        );
-
-      const controlsRow = header.append('xhtml:div').attr('class', 'flex items-center gap-1');
 
       if (hasChildren && nodeId) {
         const isExpanded = expandedNodes.has(nodeId);
@@ -599,7 +602,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           .attr('data-control', 'toggle')
           .attr(
             'class',
-            'inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-slate-500 transition hover:border-slate-300 hover:bg-slate-200/70 hover:text-slate-700 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700/70 dark:hover:text-slate-100',
+            'inline-flex h-5 w-5 items-center justify-center rounded-full border border-transparent text-slate-500 transition hover:border-slate-300 hover:bg-slate-200/60 hover:text-slate-700 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700/70 dark:hover:text-slate-100',
           )
           .attr('aria-label', `${isExpanded ? 'Collapse' : 'Expand'} ${node.data?.name ?? 'folder'}`)
           .html(renderToggleIcon(isExpanded))
@@ -627,7 +630,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           .attr('rel', 'noreferrer')
           .attr(
             'class',
-            'inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-slate-500 transition hover:border-slate-300 hover:bg-slate-200/70 hover:text-slate-700 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700/70 dark:hover:text-slate-100',
+            'inline-flex h-5 w-5 items-center justify-center rounded-full border border-transparent text-slate-500 transition hover:border-slate-300 hover:bg-slate-200/60 hover:text-slate-700 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700/70 dark:hover:text-slate-100',
           )
           .attr('aria-label', `Open ${node.data?.name ?? 'folder'}`)
           .html(renderExternalLinkIcon())
@@ -636,17 +639,93 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           });
       }
 
-      card
+      controlsRow
+        .append('xhtml:button')
+        .attr('type', 'button')
+        .attr('data-control', 'info')
+        .attr(
+          'class',
+          `inline-flex h-5 w-5 items-center justify-center rounded-full border border-transparent transition hover:border-slate-300 hover:bg-slate-200/60 hover:text-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-700/70 ${
+            isInfoOpen
+              ? 'bg-indigo-100/80 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200'
+              : 'text-slate-500 dark:text-slate-300'
+          }`,
+        )
+        .attr('aria-label', `Show info for ${node.data?.name ?? 'folder'}`)
+        .html(
+          `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${
+            isInfoOpen ? '#6366F1' : 'currentColor'
+          }" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 8h.01" />
+            <path d="M11 12h1v4h1" />
+          </svg>`,
+        )
+        .on('click', event => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!nodeId) {
+            return;
+          }
+          setActiveInfoNodeId(prev => (prev === nodeId ? null : nodeId));
+        });
+
+      const content = card
         .append('xhtml:div')
         .attr(
           'class',
-          'pointer-events-none flex flex-1 items-center justify-center px-3 py-3 text-center text-[13px] font-medium leading-snug text-slate-700 dark:text-slate-100',
-        )
+          'pointer-events-none flex flex-1 flex-col items-center justify-center gap-2 px-4 py-4 text-center text-[13px] font-medium leading-snug text-slate-700 dark:text-slate-100',
+        );
+
+      const name = content
         .append('xhtml:span')
-        .attr('class', 'radial-node-name block truncate')
+        .attr('class', 'radial-node-name block w-full break-words text-[14px] font-semibold')
         .style('color', labelColor)
         .attr('title', labelText)
         .text(labelText);
+
+      name.style('white-space', 'normal');
+
+      if (isInfoOpen) {
+        const infoPanel = content
+          .append('xhtml:div')
+          .attr(
+            'class',
+            'pointer-events-none w-full rounded-xl border border-slate-200/70 bg-white/85 p-3 text-left text-[11px] leading-relaxed text-slate-600 shadow-inner dark:border-slate-700/70 dark:bg-slate-800/80 dark:text-slate-200',
+          );
+
+        const formatDate = (value?: string | null) => {
+          if (!value) {
+            return 'Not available';
+          }
+          const parsed = new Date(value);
+          if (Number.isNaN(parsed.getTime())) {
+            return value;
+          }
+          return parsed.toLocaleString(undefined, {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          });
+        };
+
+        const addInfoRow = (label: string, value?: string | null) => {
+          const normalized = typeof value === 'string' ? value.trim() : '';
+          const displayValue = normalized.length > 0 ? normalized : 'Not available';
+          const row = infoPanel.append('xhtml:div').attr('class', 'flex flex-col gap-0.5');
+          row
+            .append('xhtml:span')
+            .attr('class', 'text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500')
+            .text(label);
+          row
+            .append('xhtml:span')
+            .attr('class', 'text-[11px] font-medium text-slate-600 dark:text-slate-100')
+            .text(displayValue);
+        };
+
+        addInfoRow('Path', folderItem?.path ?? folderItem?.name ?? labelText);
+        addInfoRow('Created', formatDate(folderItem?.createdDate));
+        addInfoRow('Last modified', formatDate(folderItem?.modifiedDate));
+      }
     });
 
     const nodeById = new Map<string, d3.HierarchyPointNode<any>>();
@@ -801,6 +880,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
     activeServiceId,
     colorPaletteId,
     expandedNodes,
+    activeInfoNodeId,
   ]);
 
   const showEmptyState = filteredFolders.length === 0;
