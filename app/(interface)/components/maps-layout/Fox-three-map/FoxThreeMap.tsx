@@ -163,12 +163,13 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
   }, [nodesWithControls]);
 
   return (
-    <div ref={containerRef} className="fox-three-map relative h-full w-full pt-28">
+    <div ref={containerRef} className="fox-three-map relative h-full w-full">
       <IntegrationFilter
         services={availableServices}
         activeServiceId={activeServiceId}
         onServiceSelect={handleServiceSelect}
         allowClear
+        mountToBody={false}
       />
       <ReactFlow
         nodes={nodesWithControls}

@@ -20,6 +20,11 @@ type IntegrationFilterProps = {
   onServiceSelect: (serviceId: ServiceId | null) => void;
   allowClear?: boolean;
   className?: string;
+  /**
+   * When true (default) the filter is rendered in a body-level portal so it remains fixed to the viewport.
+   * Set to false to keep the filter positioned relative to its parent container.
+   */
+  mountToBody?: boolean;
 };
 
 export const IntegrationFilter: React.FC<IntegrationFilterProps> = ({
@@ -28,18 +33,19 @@ export const IntegrationFilter: React.FC<IntegrationFilterProps> = ({
   onServiceSelect,
   allowClear = false,
   className,
+  mountToBody = true,
 }) => {
   const [portalContainer, setPortalContainer] = React.useState<HTMLElement | null>(null);
 
   React.useEffect(() => {
+    if (!mountToBody) {
+      return;
+    }
+
     setPortalContainer(document.body);
-  }, []);
+  }, [mountToBody]);
 
   if (services.length === 0) {
-    return null;
-  }
-
-  if (!portalContainer) {
     return null;
   }
 
@@ -51,10 +57,15 @@ export const IntegrationFilter: React.FC<IntegrationFilterProps> = ({
     onServiceSelect(serviceId);
   };
 
+  const positioningClassName = mountToBody
+    ? 'fixed left-[64px] right-[64px] top-4 md:top-5'
+    : 'absolute left-[64px] right-[64px] top-4 md:top-5';
+
   const content = (
     <div
       className={cn(
-        'pointer-events-none fixed left-[64px] right-[64px] top-4 z-[70] flex justify-center px-4 sm:justify-start md:top-5',
+        'pointer-events-none z-[70] flex justify-center px-4 sm:justify-start',
+        positioningClassName,
         className,
       )}
     >
@@ -100,6 +111,14 @@ export const IntegrationFilter: React.FC<IntegrationFilterProps> = ({
       </div>
     </div>
   );
+
+  if (!mountToBody) {
+    return content;
+  }
+
+  if (!portalContainer) {
+    return null;
+  }
 
   return createPortal(content, portalContainer);
 };
