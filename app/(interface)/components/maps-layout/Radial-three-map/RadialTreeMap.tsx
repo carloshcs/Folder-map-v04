@@ -20,7 +20,7 @@ const LEVEL_RADII: Record<number, number> = {
 };
 
 const RADIAL_SPACING = 220;
-const VIEWBOX_PADDING = 260;
+const INFINITE_CANVAS_PADDING = 4800;
 
 const PREDEFINED_LEVELS = Object.keys(LEVEL_RADII).map(level => Number(level));
 const MAX_PREDEFINED_DEPTH = PREDEFINED_LEVELS.length
@@ -40,11 +40,11 @@ const getRadiusForDepth = (depth: number) => {
 const ensureLabelFits = (
   text: d3.Selection<SVGTextElement, unknown, null, undefined>,
   content: string,
-  radius: number,
+  size: number,
   textColor: string,
 ) => {
-  const maxWidth = radius * 1.7;
-  let fontSize = Math.max(8, Math.min(16, radius * 0.5));
+  const maxWidth = size * 0.9;
+  let fontSize = Math.max(8, Math.min(16, size * 0.25));
 
   text
     .attr('fill', textColor)
@@ -282,15 +282,15 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
     svg.selectAll('*').remove();
 
     const { width, height } = size;
-    const viewExtent = Math.max(width, height, getRadiusForDepth(6) * 2 + VIEWBOX_PADDING);
-
-    svg
-      .attr('width', width)
-      .attr('height', height)
-      .attr('viewBox', [(-viewExtent) / 2, (-viewExtent) / 2, viewExtent, viewExtent].join(' '))
-      .style('background', 'none');
 
     if (!filteredFolders.length) {
+      svg.selectAll('*').remove();
+      svg
+        .attr('width', width)
+        .attr('height', height)
+        .attr('viewBox', [(-width) / 2, (-height) / 2, width, height].join(' '))
+        .style('background', 'none')
+        .style('overflow', 'visible');
       return;
     }
 
@@ -343,6 +343,15 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
 
     const descendants = layoutRoot.descendants();
     const maxDepth = d3.max(descendants, node => node.depth) ?? 1;
+    const maxRadius = getRadiusForDepth(maxDepth + 2);
+    const viewExtent = Math.max(width, height, maxRadius * 2 + INFINITE_CANVAS_PADDING);
+
+    svg
+      .attr('width', width)
+      .attr('height', height)
+      .attr('viewBox', [(-viewExtent) / 2, (-viewExtent) / 2, viewExtent, viewExtent].join(' '))
+      .style('background', 'none')
+      .style('overflow', 'visible');
 
     const treeLayout = d3.tree<any>();
     treeLayout
@@ -359,10 +368,12 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       node.y = getRadiusForDepth(node.depth);
     });
 
-    const getCircleRadius = (node: d3.HierarchyPointNode<any>) => {
+    const getNodeHalfSize = (node: d3.HierarchyPointNode<any>) => {
       const baseRadius = getNodeRadius(Math.min(node.depth, 3));
       return node.depth === 0 ? baseRadius * 1.12 : baseRadius;
     };
+
+    const getNodeSize = (node: d3.HierarchyPointNode<any>) => getNodeHalfSize(node) * 2;
 
     const radialLink = d3
       .linkRadial<d3.HierarchyPointLink<any>, d3.HierarchyPointNode<any>>()
@@ -431,11 +442,16 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
     nodeGroups.append('title').text(node => node.data?.name ?? 'Folder');
 
     nodeGroups
-      .append('circle')
-      .attr('class', 'radial-node-circle')
-      .attr('r', node => getCircleRadius(node))
+      .append('rect')
+      .attr('class', 'radial-node-rect')
+      .attr('width', node => getNodeSize(node))
+      .attr('height', node => getNodeSize(node))
+      .attr('x', node => -getNodeHalfSize(node))
+      .attr('y', node => -getNodeHalfSize(node))
+      .attr('rx', node => Math.max(12, getNodeHalfSize(node) * 0.35))
+      .attr('ry', node => Math.max(12, getNodeHalfSize(node) * 0.35))
       .each(function (node) {
-        const circle = d3.select(this);
+        const rect = d3.select(this);
         const folderItem: FolderItem | undefined = node.data?.item;
         const resolved = folderItem
           ? resolveServiceId(folderItem, fallbackServiceId)
@@ -457,7 +473,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
             ? details?.stroke ?? rootServiceDetails?.stroke ?? '#0F172A'
             : details?.stroke ?? '#1F2937';
 
-        circle
+        rect
           .attr('fill', fill)
           .attr('stroke', stroke)
           .attr('stroke-width', node.depth === 0 ? 3.5 : 1.8)
@@ -471,10 +487,10 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       .filter(node => node.depth === 0)
       .attr('class', 'radial-node-logo')
       .attr('href', () => rootServiceDetails?.logo ?? '')
-      .attr('width', node => getCircleRadius(node) * 1.25)
-      .attr('height', node => getCircleRadius(node) * 1.25)
-      .attr('x', node => -getCircleRadius(node) * 0.625)
-      .attr('y', node => -getCircleRadius(node) * 0.625)
+      .attr('width', node => getNodeHalfSize(node) * 1.4)
+      .attr('height', node => getNodeHalfSize(node) * 1.4)
+      .attr('x', node => -getNodeHalfSize(node) * 0.7)
+      .attr('y', node => -getNodeHalfSize(node) * 0.7)
       .style('pointer-events', 'none');
 
     nodeGroups
@@ -483,7 +499,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       .attr('class', 'radial-node-root-label')
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'hanging')
-      .attr('dy', node => getCircleRadius(node) + 16)
+      .attr('dy', node => getNodeHalfSize(node) + 20)
       .attr('fill', rootServiceDetails?.stroke ?? '#0F172A')
       .attr('font-weight', '600')
       .attr('font-size', 14)
@@ -502,9 +518,97 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           : fallbackServiceId;
         const details = resolved ? SERVICE_DETAILS[resolved] : undefined;
         const textColor = style?.textColor ?? details?.stroke ?? '#0F172A';
-        const radius = getCircleRadius(node);
-        ensureLabelFits(selection, node.data?.name ?? 'Folder', radius, textColor);
+        const size = getNodeSize(node);
+        ensureLabelFits(selection, node.data?.name ?? 'Folder', size, textColor);
       });
+
+    const renderToggleIcon = (isExpanded: boolean) =>
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
+        <path d="${isExpanded ? 'm18 15-6-6-6 6' : 'm6 9 6 6 6-6'}" />
+      </svg>`;
+
+    const renderExternalLinkIcon = () =>
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
+        <path d="M15 3h6v6" />
+        <path d="M10 14 21 3" />
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      </svg>`;
+
+    const controlContainers = nodeGroups
+      .filter(node => node.depth > 0)
+      .append('foreignObject')
+      .attr('class', 'radial-node-controls')
+      .attr('x', node => -getNodeHalfSize(node))
+      .attr('y', node => -getNodeHalfSize(node))
+      .attr('width', node => getNodeSize(node))
+      .attr('height', node => getNodeSize(node))
+      .style('overflow', 'visible');
+
+    controlContainers.each(function (node) {
+      const container = d3.select(this);
+      const nodeId = getNodeIdentifier(node);
+      const hasChildren = Array.isArray(node.data?.children) && node.data.children.length > 0;
+      const folderItem: FolderItem | undefined = node.data?.item;
+      const link = folderItem?.link ?? folderItem?.path ?? null;
+
+      if (!hasChildren && !link) {
+        container.remove();
+        return;
+      }
+
+      const wrapper = container
+        .append('xhtml:div')
+        .attr('class', 'pointer-events-none relative h-full w-full');
+
+      const controlsRow = wrapper
+        .append('xhtml:div')
+        .attr('class', 'pointer-events-auto absolute right-2 top-2 flex gap-1');
+
+      if (hasChildren && nodeId) {
+        const isExpanded = expandedNodes.has(nodeId);
+        controlsRow
+          .append('xhtml:button')
+          .attr('type', 'button')
+          .attr('data-control', 'toggle')
+          .attr(
+            'class',
+            'inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-500 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600',
+          )
+          .attr('aria-label', `${isExpanded ? 'Collapse' : 'Expand'} ${node.data?.name ?? 'folder'}`)
+          .html(renderToggleIcon(isExpanded))
+          .on('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            setExpandedNodes(prev => {
+              const next = new Set(prev);
+              if (next.has(nodeId)) {
+                next.delete(nodeId);
+              } else {
+                next.add(nodeId);
+              }
+              return next;
+            });
+          });
+      }
+
+      if (link) {
+        controlsRow
+          .append('xhtml:a')
+          .attr('data-control', 'link')
+          .attr('href', link)
+          .attr('target', '_blank')
+          .attr('rel', 'noreferrer')
+          .attr(
+            'class',
+            'inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-500 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600',
+          )
+          .attr('aria-label', `Open ${node.data?.name ?? 'folder'}`)
+          .html(renderExternalLinkIcon())
+          .on('click', event => {
+            event.stopPropagation();
+          });
+      }
+    });
 
     const nodeById = new Map<string, d3.HierarchyPointNode<any>>();
     nodes.forEach(node => {
@@ -541,11 +645,11 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
 
       nodeGroups.each(function (node) {
         const selection = d3.select(this);
-        const circle = selection.select<SVGCircleElement>('circle.radial-node-circle');
-        if (circle.empty()) {
+        const rect = selection.select<SVGRectElement>('rect.radial-node-rect');
+        if (rect.empty()) {
           return;
         }
-        const baseFill = circle.attr('data-base-fill');
+        const baseFill = rect.attr('data-base-fill');
         if (!baseFill) {
           return;
         }
@@ -553,15 +657,15 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         const label = selection.select<SVGTextElement>('text');
 
         if (!hoveredId || (nodeIdentifier && relatedIds.has(nodeIdentifier))) {
-          circle.attr('fill', baseFill);
+          rect.attr('fill', baseFill);
           if (!label.empty()) {
             label.style('opacity', 1);
           }
           return;
         }
 
-        const dimmedFill = circle.attr('data-dimmed-fill') || shiftColor(baseFill, DIMMED_FILL_LIGHTEN);
-        circle.attr('fill', dimmedFill).attr('data-dimmed-fill', dimmedFill);
+        const dimmedFill = rect.attr('data-dimmed-fill') || shiftColor(baseFill, DIMMED_FILL_LIGHTEN);
+        rect.attr('fill', dimmedFill).attr('data-dimmed-fill', dimmedFill);
         if (!label.empty()) {
           label.style('opacity', 0.75);
         }
