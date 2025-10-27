@@ -4,7 +4,7 @@ import { getPaletteColors, getReadableTextColor, shiftColor } from '@/app/(inter
 
 const MAX_LIGHTENING = 0.85;
 const LIGHTEN_STEP = 0.4;
-const BASE_DARKEN = -0.25;
+const FIRST_CHILD_LIGHTEN = 0.15;
 
 export const DIMMED_FILL_LIGHTEN = 0.55;
 
@@ -23,7 +23,7 @@ export const computeNodeStyles = (root: D3HierarchyNode, paletteId?: string | nu
     if (node.depth === 2) {
       const basePaletteColor = palette[paletteIndex % palette.length];
       paletteIndex += 1;
-      const fill = shiftColor(basePaletteColor, BASE_DARKEN);
+      const fill = basePaletteColor;
       styles.set(nodeId, {
         fill,
         textColor: getReadableTextColor(fill),
@@ -32,7 +32,10 @@ export const computeNodeStyles = (root: D3HierarchyNode, paletteId?: string | nu
     } else if (node.depth > 2) {
       const basePaletteColor = branchColor ?? palette[Math.max(paletteIndex - 1, 0) % palette.length];
       const relativeDepth = node.depth - 2;
-      const amount = Math.min(MAX_LIGHTENING, BASE_DARKEN + relativeDepth * LIGHTEN_STEP);
+      const amount = Math.min(
+        MAX_LIGHTENING,
+        FIRST_CHILD_LIGHTEN + (Math.max(relativeDepth - 1, 0) * LIGHTEN_STEP),
+      );
       const fill = shiftColor(basePaletteColor, amount);
       styles.set(nodeId, {
         fill,
