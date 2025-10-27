@@ -19,6 +19,7 @@ import {
 } from './types';
 import { getNodeRadius } from './geometry';
 import { computeNodeStyles, DIMMED_FILL_LIGHTEN } from '../utils/styles';
+import { shiftColor } from '@/app/(interface)/lib/utils/colors';
 import { OrbitalTooltip } from './OrbitalTooltip';
 import { getTooltipAnchorForNode } from './tooltipPositioning';
 import type { TooltipAnchor } from './tooltipPositioning';
