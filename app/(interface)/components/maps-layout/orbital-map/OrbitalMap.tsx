@@ -511,18 +511,34 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     const relatedIds = new Set<string>();
 
     if (hoveredId) {
+      let hoveredDatum: any = null;
+
       nodeSelection.each(function (d: any) {
-        const nodeId = getNodeId(d);
-        if (nodeId === hoveredId) {
-          relatedIds.add(nodeId);
-          if (d.parent) {
-            relatedIds.add(getNodeId(d.parent));
-          }
-          if (d.children) {
-            d.children.forEach((child: any) => relatedIds.add(getNodeId(child)));
-          }
+        if (!hoveredDatum && getNodeId(d) === hoveredId) {
+          hoveredDatum = d;
         }
       });
+
+      if (hoveredDatum) {
+        const collectAncestors = (node: any | null) => {
+          let current = node;
+          while (current) {
+            relatedIds.add(getNodeId(current));
+            current = current.parent ?? null;
+          }
+        };
+
+        const collectImmediateChildren = (node: any | null) => {
+          if (!node?.children) return;
+          node.children.forEach((child: any) => {
+            relatedIds.add(getNodeId(child));
+          });
+        };
+
+        relatedIds.add(hoveredId);
+        collectAncestors(hoveredDatum.parent ?? null);
+        collectImmediateChildren(hoveredDatum);
+      }
     }
 
     nodeSelection
@@ -562,19 +578,19 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         if (!hoveredId) return '#b8bec9';
         const sourceId = getNodeId(d.source);
         const targetId = getNodeId(d.target);
-        return sourceId === hoveredId || targetId === hoveredId ? '#6b7bff' : '#c5cad3';
+        return relatedIds.has(sourceId) && relatedIds.has(targetId) ? '#6b7bff' : '#c5cad3';
       })
       .attr('stroke-width', (d: any) => {
         if (!hoveredId) return 1.4;
         const sourceId = getNodeId(d.source);
         const targetId = getNodeId(d.target);
-        return sourceId === hoveredId || targetId === hoveredId ? 2.4 : 1;
+        return relatedIds.has(sourceId) && relatedIds.has(targetId) ? 2.4 : 1;
       })
       .attr('opacity', (d: any) => {
         if (!hoveredId) return 0.95;
         const sourceId = getNodeId(d.source);
         const targetId = getNodeId(d.target);
-        return sourceId === hoveredId || targetId === hoveredId ? 1 : 0.55;
+        return relatedIds.has(sourceId) && relatedIds.has(targetId) ? 1 : 0.55;
       });
 
     return () => {
