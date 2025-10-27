@@ -37,40 +37,20 @@ const getRadiusForDepth = (depth: number) => {
   return MAX_PREDEFINED_RADIUS + (depth - MAX_PREDEFINED_DEPTH) * RADIAL_SPACING;
 };
 
-interface LabelFitOptions {
-  anchor?: 'start' | 'middle' | 'end';
-  baseline?: 'middle' | 'hanging' | 'central';
-  fontSize?: number;
-  fontWeight?: string;
-  maxWidthRatio?: number;
-  padding?: number;
-}
-
 const ensureLabelFits = (
   text: d3.Selection<SVGTextElement, unknown, null, undefined>,
   content: string,
   size: number,
   textColor: string,
-  options: LabelFitOptions = {},
 ) => {
-  const {
-    anchor = 'middle',
-    baseline = 'middle',
-    fontSize: explicitFontSize,
-    fontWeight = '600',
-    maxWidthRatio = 0.9,
-    padding = 0,
-  } = options;
-
-  const availableWidth = Math.max(0, size - padding * 2);
-  const maxWidth = availableWidth * maxWidthRatio;
-  let fontSize = explicitFontSize ?? Math.max(8, Math.min(16, size * 0.25));
+  const maxWidth = size * 0.9;
+  let fontSize = Math.max(8, Math.min(16, size * 0.25));
 
   text
     .attr('fill', textColor)
-    .attr('font-weight', fontWeight)
-    .attr('text-anchor', anchor)
-    .attr('dominant-baseline', baseline)
+    .attr('font-weight', '600')
+    .attr('text-anchor', 'middle')
+    .attr('dominant-baseline', 'middle')
     .attr('pointer-events', 'none')
     .attr('font-size', fontSize)
     .text(content);
@@ -395,61 +375,12 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
 
     const getNodeSize = (node: d3.HierarchyPointNode<any>) => getNodeHalfSize(node) * 2;
 
-    const getCardCornerRadius = (node: d3.HierarchyPointNode<any>) =>
-      Math.max(14, getNodeHalfSize(node) * 0.4);
-
-    const getHeaderHeight = (node: d3.HierarchyPointNode<any>) => {
-      const size = getNodeSize(node);
-      const minHeight = 28;
-      const maxHeight = Math.min(size * 0.48, 56);
-      return Math.max(minHeight, maxHeight);
-    };
-
-    const HEADER_HORIZONTAL_PADDING = 16;
-    const getHeaderPath = (node: d3.HierarchyPointNode<any>) => {
-      const width = getNodeSize(node);
-      const radius = Math.min(getCardCornerRadius(node), width / 2);
-      const height = Math.min(getHeaderHeight(node), getNodeHalfSize(node) * 1.4);
-      const x = -width / 2;
-      const y = -getNodeHalfSize(node);
-      const rightX = x + width;
-      const bottomY = y + height;
-      const corner = Math.min(radius, height);
-
-      return [
-        `M ${x} ${bottomY}`,
-        `V ${y + corner}`,
-        `Q ${x} ${y}, ${x + corner} ${y}`,
-        `H ${rightX - corner}`,
-        `Q ${rightX} ${y}, ${rightX} ${y + corner}`,
-        `V ${bottomY}`,
-        'Z',
-      ].join(' ');
-    };
-
     const radialLink = d3
       .linkRadial<d3.HierarchyPointLink<any>, d3.HierarchyPointNode<any>>()
       .angle(d => d.x)
       .radius(d => d.y);
 
     svg.on('.zoom', null);
-
-    const defs = svg.append('defs');
-    const shadowFilter = defs
-      .append('filter')
-      .attr('id', 'radial-node-shadow')
-      .attr('x', '-20%')
-      .attr('y', '-20%')
-      .attr('width', '140%')
-      .attr('height', '160%');
-
-    shadowFilter
-      .append('feDropShadow')
-      .attr('dx', 0)
-      .attr('dy', 10)
-      .attr('stdDeviation', 12)
-      .attr('flood-color', 'rgba(15, 23, 42, 0.35)')
-      .attr('flood-opacity', 0.28);
 
     const g = svg.append('g');
 
@@ -517,8 +448,8 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       .attr('height', node => getNodeSize(node))
       .attr('x', node => -getNodeHalfSize(node))
       .attr('y', node => -getNodeHalfSize(node))
-      .attr('rx', node => getCardCornerRadius(node))
-      .attr('ry', node => getCardCornerRadius(node))
+      .attr('rx', node => Math.max(12, getNodeHalfSize(node) * 0.35))
+      .attr('ry', node => Math.max(12, getNodeHalfSize(node) * 0.35))
       .each(function (node) {
         const rect = d3.select(this);
         const folderItem: FolderItem | undefined = node.data?.item;
@@ -528,69 +459,28 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         const details = resolved ? SERVICE_DETAILS[resolved] : undefined;
         const style = nodeStyles.get(getNodeId(node as any));
 
-        const isRootNode = node.depth === 0;
-        const cardBase = style?.fill ?? details?.fill ?? '#E2E8F0';
-        const fill = isRootNode ? cardBase : shiftColor(cardBase, 0.08);
-        const stroke = isRootNode
-          ? details?.stroke ?? rootServiceDetails?.stroke ?? '#0F172A'
-          : 'var(--radial-card-outline)';
+        let fill = '#E2E8F0';
+        if (node.depth === 0) {
+          fill = details?.fill ?? rootServiceDetails?.fill ?? '#ffffff';
+        } else if (style?.fill) {
+          fill = style.fill;
+        } else if (details?.fill) {
+          fill = details.fill;
+        }
+
+        const stroke =
+          node.depth === 0
+            ? details?.stroke ?? rootServiceDetails?.stroke ?? '#0F172A'
+            : details?.stroke ?? '#1F2937';
 
         rect
           .attr('fill', fill)
           .attr('stroke', stroke)
-          .attr('stroke-width', isRootNode ? 2.6 : 1)
+          .attr('stroke-width', node.depth === 0 ? 3.5 : 1.8)
           .attr('opacity', node.data?.item?.isSelected === false ? 0.3 : 1)
           .attr('data-base-fill', fill)
-          .attr('data-dimmed-fill', null)
-          .attr('filter', 'url(#radial-node-shadow)');
+          .attr('data-dimmed-fill', null);
       });
-
-    nodeGroups
-      .filter(node => node.depth > 0)
-      .append('path')
-      .attr('class', 'radial-node-card-header')
-      .attr('d', node => getHeaderPath(node))
-      .attr('fill', 'var(--radial-card-header-bg)')
-      .attr('fill-opacity', 0.96)
-      .attr('stroke', 'var(--radial-card-outline)')
-      .attr('stroke-width', 0.6)
-      .style('pointer-events', 'none');
-
-    nodeGroups
-      .filter(node => node.depth > 0)
-      .append('circle')
-      .attr('class', 'radial-node-card-header-accent')
-      .attr('cx', node => -getNodeHalfSize(node) + HEADER_HORIZONTAL_PADDING)
-      .attr('cy', node => -getNodeHalfSize(node) + getHeaderHeight(node) / 2)
-      .attr('r', 5)
-      .each(function (node) {
-        const accent = d3.select(this);
-        const folderItem: FolderItem | undefined = node.data?.item;
-        const resolved = folderItem
-          ? resolveServiceId(folderItem, fallbackServiceId)
-          : fallbackServiceId;
-        const details = resolved ? SERVICE_DETAILS[resolved] : undefined;
-        const style = nodeStyles.get(getNodeId(node as any));
-        const base = style?.stroke ?? details?.stroke ?? '#6366F1';
-        accent
-          .attr('fill', shiftColor(base, 0.12))
-          .attr('stroke', base)
-          .attr('stroke-width', 1.2)
-          .style('pointer-events', 'none');
-      });
-
-    nodeGroups
-      .filter(node => node.depth > 0)
-      .append('line')
-      .attr('class', 'radial-node-card-divider')
-      .attr('x1', node => -getNodeHalfSize(node) + HEADER_HORIZONTAL_PADDING)
-      .attr('x2', node => getNodeHalfSize(node) - HEADER_HORIZONTAL_PADDING)
-      .attr('y1', node => -getNodeHalfSize(node) + getHeaderHeight(node))
-      .attr('y2', node => -getNodeHalfSize(node) + getHeaderHeight(node))
-      .attr('stroke', 'var(--radial-card-divider)')
-      .attr('stroke-width', 0.8)
-      .attr('stroke-linecap', 'round')
-      .style('pointer-events', 'none');
 
     nodeGroups
       .append('image')
@@ -629,19 +519,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         const details = resolved ? SERVICE_DETAILS[resolved] : undefined;
         const textColor = style?.textColor ?? details?.stroke ?? '#0F172A';
         const size = getNodeSize(node);
-        const headerHeight = getHeaderHeight(node);
-        const centerY = -getNodeHalfSize(node) + headerHeight + (size - headerHeight) / 2;
-        const labelX = -getNodeHalfSize(node) + HEADER_HORIZONTAL_PADDING;
-        selection
-          .attr('class', 'radial-node-label')
-          .attr('x', labelX)
-          .attr('y', centerY);
-        ensureLabelFits(selection, node.data?.name ?? 'Folder', size, textColor, {
-          anchor: 'start',
-          baseline: 'middle',
-          padding: HEADER_HORIZONTAL_PADDING,
-          maxWidthRatio: 1,
-        });
+        ensureLabelFits(selection, node.data?.name ?? 'Folder', size, textColor);
       });
 
     const renderToggleIcon = (isExpanded: boolean) =>
@@ -672,8 +550,6 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       const hasChildren = Array.isArray(node.data?.children) && node.data.children.length > 0;
       const folderItem: FolderItem | undefined = node.data?.item;
       const link = folderItem?.link ?? folderItem?.path ?? null;
-      const headerHeight = getHeaderHeight(node);
-      const buttonSize = 32;
 
       if (!hasChildren && !link) {
         container.remove();
@@ -686,9 +562,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
 
       const controlsRow = wrapper
         .append('xhtml:div')
-        .attr('class', 'pointer-events-auto absolute flex items-center gap-2')
-        .style('right', '16px')
-        .style('top', `${Math.max(8, headerHeight / 2 - buttonSize / 2)}px`);
+        .attr('class', 'pointer-events-auto absolute right-2 top-2 flex gap-1');
 
       if (hasChildren && nodeId) {
         const isExpanded = expandedNodes.has(nodeId);
@@ -698,7 +572,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           .attr('data-control', 'toggle')
           .attr(
             'class',
-            'radial-card-control inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--radial-card-button-icon)] transition-all duration-200',
+            'inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-500 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600',
           )
           .attr('aria-label', `${isExpanded ? 'Collapse' : 'Expand'} ${node.data?.name ?? 'folder'}`)
           .html(renderToggleIcon(isExpanded))
@@ -726,7 +600,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           .attr('rel', 'noreferrer')
           .attr(
             'class',
-            'radial-card-control inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--radial-card-button-icon)] transition-all duration-200',
+            'inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-500 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600',
           )
           .attr('aria-label', `Open ${node.data?.name ?? 'folder'}`)
           .html(renderExternalLinkIcon())
