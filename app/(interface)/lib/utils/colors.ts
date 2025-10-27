@@ -6,7 +6,7 @@ export const MAP_COLOR_PALETTES: Record<string, string[]> = {
   'system-light': ['#1d4ed8', '#2563eb', '#0ea5e9', '#10b981', '#f97316', '#f59e0b', '#6366f1', '#0f172a'],
   'system-dark': ['#93c5fd', '#60a5fa', '#38bdf8', '#34d399', '#fbbf24', '#f97316', '#c084fc', '#f4f4f5'],
   rainbow: ['#ef4444', '#f97316', '#facc15', '#22c55e', '#10b981', '#3b82f6', '#6366f1', '#a855f7'],
-  heatmap: ['#b91c1c', '#dc2626', '#ef4444', '#f97316', '#fb923c', '#60a5fa', '#2563eb', '#1d4ed8'],
+  heatmap: ['#991b1b', '#ef4444', '#f97316', '#facc15', '#22c55e', '#0ea5e9', '#2563eb', '#1d4ed8'],
   slate: ['#0f172a', '#1f2937', '#27364a', '#334155', '#475569', '#64748b', '#94a3b8', '#cbd5f5'],
   stone: ['#1f2933', '#323f4b', '#3e4c59', '#52606d', '#7b8794', '#9aa5b1', '#bcccdc', '#d9e2ec'],
   forest: ['#0b3d2e', '#14553c', '#1f6f4a', '#2f8552', '#3f9c61', '#55b776', '#74d39e', '#c4f1c5'],
