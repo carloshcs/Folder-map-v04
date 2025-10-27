@@ -8,6 +8,9 @@ import { buildHierarchy } from '../orbital-map/hierarchy';
 import { FolderItem } from '../orbital-map/types';
 import { isServiceId, ServiceId } from '@/app/(interface)/components/right-sidebar/data';
 import { IntegrationFilter, IntegrationService } from '@/app/(interface)/components/IntegrationFilter';
+import { getNodeRadius } from '../orbital-map/geometry';
+import { computeNodeStyles } from '../utils/styles';
+import { getNodeId } from '../orbital-map/nodeUtils';
 
 const LEVEL_RADII: Record<number, number> = {
   1: 220,
@@ -31,6 +34,47 @@ const getRadiusForDepth = (depth: number) => {
     return depth * RADIAL_SPACING;
   }
   return MAX_PREDEFINED_RADIUS + (depth - MAX_PREDEFINED_DEPTH) * RADIAL_SPACING;
+};
+
+const ensureLabelFits = (
+  text: d3.Selection<SVGTextElement, unknown, null, undefined>,
+  content: string,
+  radius: number,
+  textColor: string,
+) => {
+  const maxWidth = radius * 1.7;
+  let fontSize = Math.max(8, Math.min(16, radius * 0.5));
+
+  text
+    .attr('fill', textColor)
+    .attr('font-weight', '600')
+    .attr('text-anchor', 'middle')
+    .attr('dominant-baseline', 'middle')
+    .attr('pointer-events', 'none')
+    .attr('font-size', fontSize)
+    .text(content);
+
+  const node = text.node();
+  if (!node) return;
+
+  let textLength = node.getComputedTextLength();
+
+  while (textLength > maxWidth && fontSize > 8) {
+    fontSize -= 1;
+    text.attr('font-size', fontSize);
+    textLength = node.getComputedTextLength();
+  }
+
+  if (textLength <= maxWidth) {
+    return;
+  }
+
+  let truncated = content;
+  while (truncated.length > 1 && textLength > maxWidth) {
+    truncated = truncated.slice(0, -1);
+    text.text(`${truncated.trimEnd()}…`);
+    textLength = node.getComputedTextLength();
+  }
 };
 
 const SERVICE_DETAILS: Record<
@@ -104,8 +148,31 @@ export interface RadialTreeMapProps {
   onFolderSelectionChange?: (folderId: string, isSelected: boolean) => void;
 }
 
+const getDataIdentifier = (data: any): string | null => {
+  if (!data) {
+    return null;
+  }
+
+  return (
+    data?.item?.id ??
+    data?.id ??
+    data?.path ??
+    data?.name ??
+    null
+  );
+};
+
+const getNodeIdentifier = (node: d3.HierarchyNode<any>): string | null => {
+  if (!node) {
+    return null;
+  }
+
+  return getDataIdentifier(node.data);
+};
+
 export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
   folders,
+  colorPaletteId,
   onFolderSelectionChange,
 }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -142,6 +209,8 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
 
     return () => observer.disconnect();
   }, []);
+
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
 
   const availableServices = useMemo<IntegrationService[]>(() => {
     const services: IntegrationService[] = [];
@@ -198,6 +267,10 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
   }, [folders, activeServiceId]);
 
   useEffect(() => {
+    setExpandedNodes(new Set());
+  }, [activeServiceId]);
+
+  useEffect(() => {
     if (!svgRef.current) {
       return;
     }
@@ -219,7 +292,53 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
     }
 
     const hierarchyRoot = buildHierarchy(filteredFolders) as unknown as d3.HierarchyNode<any>;
-    const layoutRoot = hierarchyRoot.copy();
+    const integrationNode = hierarchyRoot.children?.[0];
+
+    if (!integrationNode) {
+      return;
+    }
+
+    const rootData = integrationNode.data;
+    const rootFolderItem: FolderItem | undefined = rootData?.item;
+    const resolvedRootService = rootFolderItem
+      ? resolveServiceId(rootFolderItem, activeServiceId ?? undefined)
+      : activeServiceId;
+    const fallbackServiceId = resolvedRootService ?? activeServiceId ?? undefined;
+    const rootServiceDetails = resolvedRootService ? SERVICE_DETAILS[resolvedRootService] : undefined;
+
+    const fullRoot = d3.hierarchy(rootData);
+
+    const layoutRoot = d3.hierarchy(rootData);
+    layoutRoot.eachBefore(node => {
+      const nodeId = getNodeIdentifier(node);
+      if (!nodeId) {
+        return;
+      }
+
+      const isRootNode = node.depth === 0;
+      const hasChildren = Array.isArray(node.data?.children) && node.data.children.length > 0;
+
+      if (!hasChildren) {
+        return;
+      }
+
+      const shouldExpand = expandedNodes.has(nodeId);
+
+      if (!isRootNode) {
+        const parentId = node.parent ? getNodeIdentifier(node.parent) : null;
+        if (parentId && !expandedNodes.has(parentId)) {
+          node.children = undefined;
+          return;
+        }
+      }
+
+      if (!shouldExpand) {
+        node.children = undefined;
+      }
+    });
+
+    const nodeStyles = computeNodeStyles(fullRoot as any, colorPaletteId);
+
     const descendants = layoutRoot.descendants();
     const maxDepth = d3.max(descendants, node => node.depth) ?? 1;
 
@@ -261,55 +380,122 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       .data(nodes)
       .join('g')
       .attr('transform', node => {
-        const angle = (node.x * 180) / Math.PI - 90;
-        return `rotate(${angle}) translate(${node.y},0)`;
-      });
+        const angle = node.x - Math.PI / 2;
+        const x = node.y * Math.cos(angle);
+        const y = node.y * Math.sin(angle);
+        return `translate(${x},${y})`;
+      })
+      .style('cursor', 'pointer');
+
+    nodeGroups.append('title').text(node => node.data?.name ?? 'Folder');
 
     nodeGroups
       .append('circle')
-      .attr('r', node => (node.depth === 0 ? 20 : 10))
+      .attr('class', 'radial-node-circle')
+      .attr('r', node => getNodeRadius(Math.min(node.depth, 3)))
       .attr('fill', node => {
         if (node.depth === 0) {
-          return '#0F172A';
+          return '#FFFFFF';
         }
+        const style = nodeStyles.get(getNodeId(node as any));
         const folderItem: FolderItem | undefined = node.data?.item;
-        const resolved = folderItem ? resolveServiceId(folderItem, activeServiceId ?? undefined) : undefined;
+        const resolved = folderItem
+          ? resolveServiceId(folderItem, fallbackServiceId)
+          : fallbackServiceId;
         const details = resolved ? SERVICE_DETAILS[resolved] : undefined;
-        return details?.fill ?? '#E2E8F0';
+        return style?.fill ?? details?.fill ?? '#E2E8F0';
       })
       .attr('stroke', node => {
-        if (node.depth === 0) {
-          return '#1E293B';
-        }
         const folderItem: FolderItem | undefined = node.data?.item;
-        const resolved = folderItem ? resolveServiceId(folderItem, activeServiceId ?? undefined) : undefined;
+        const resolved = folderItem
+          ? resolveServiceId(folderItem, fallbackServiceId)
+          : fallbackServiceId;
         const details = resolved ? SERVICE_DETAILS[resolved] : undefined;
-        return details?.stroke ?? '#94A3B8';
+        if (node.depth === 0) {
+          return details?.stroke ?? rootServiceDetails?.stroke ?? '#0F172A';
+        }
+        return details?.stroke ?? '#1F2937';
       })
       .attr('stroke-width', node => (node.depth === 0 ? 3 : 1.6))
-      .attr('opacity', node => (node.data?.item?.isSelected === false ? 0.3 : 0.95))
-      .on('click', (_event, node) => {
+      .attr('opacity', node => (node.data?.item?.isSelected === false ? 0.3 : 1));
+
+    nodeGroups
+      .append('image')
+      .filter(node => node.depth === 0)
+      .attr('class', 'radial-node-logo')
+      .attr('href', () => rootServiceDetails?.logo ?? '')
+      .attr('width', node => getNodeRadius(Math.min(node.depth, 3)) * 1.3)
+      .attr('height', node => getNodeRadius(Math.min(node.depth, 3)) * 1.3)
+      .attr('x', node => -getNodeRadius(Math.min(node.depth, 3)) * 0.65)
+      .attr('y', node => -getNodeRadius(Math.min(node.depth, 3)) * 0.65)
+      .style('pointer-events', 'none');
+
+    nodeGroups
+      .filter(node => node.depth === 0)
+      .append('text')
+      .attr('class', 'radial-node-root-label')
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'hanging')
+      .attr('dy', getNodeRadius(0) + 12)
+      .attr('fill', rootServiceDetails?.stroke ?? '#0F172A')
+      .attr('font-weight', '600')
+      .attr('font-size', 14)
+      .attr('pointer-events', 'none')
+      .text(node => node.data?.name ?? '');
+
+    nodeGroups
+      .filter(node => node.depth > 0)
+      .append('text')
+      .each(function (node) {
+        const selection = d3.select(this);
+        const style = nodeStyles.get(getNodeId(node as any));
+        const folderItem: FolderItem | undefined = node.data?.item;
+        const resolved = folderItem
+          ? resolveServiceId(folderItem, fallbackServiceId)
+          : fallbackServiceId;
+        const details = resolved ? SERVICE_DETAILS[resolved] : undefined;
+        const textColor = style?.textColor ?? details?.stroke ?? '#0F172A';
+        const radius = getNodeRadius(Math.min(node.depth, 3));
+        ensureLabelFits(selection, node.data?.name ?? 'Folder', radius, textColor);
+      });
+
+    nodeGroups
+      .on('click', (event, node) => {
+        if (event.detail > 1) {
+          return;
+        }
         if (!node?.data?.id || !node.data?.item) {
           return;
         }
         const isSelected = node.data.item.isSelected !== false;
         onFolderSelectionChange?.(node.data.id, !isSelected);
       })
-      .append('title')
-      .text(node => node.data?.name ?? 'Folder');
-
-    nodeGroups
-      .append('text')
-      .attr('dy', '0.32em')
-      .attr('x', node => (node.x < Math.PI ? 14 : -14))
-      .attr('text-anchor', node => (node.x < Math.PI ? 'start' : 'end'))
-      .attr('transform', node => (node.x >= Math.PI ? 'rotate(180)' : null))
-      .attr('fill', '#0F172A')
-      .attr('font-size', 12)
-      .attr('font-weight', node => (node.depth === 1 ? '600' : '400'))
-      .attr('opacity', node => (node.data?.item?.isSelected === false ? 0.35 : 0.9))
-      .text(node => node.data?.name ?? 'Folder');
-  }, [filteredFolders, size, onFolderSelectionChange, activeServiceId]);
+      .on('dblclick', (event, node) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const nodeId = getNodeIdentifier(node);
+        const hasChildData = Array.isArray(node.data?.children) && node.data.children.length > 0;
+        if (!nodeId || !hasChildData) {
+          return;
+        }
+        setExpandedNodes(prev => {
+          const next = new Set(prev);
+          if (next.has(nodeId)) {
+            next.delete(nodeId);
+          } else {
+            next.add(nodeId);
+          }
+          return next;
+        });
+      });
+  }, [
+    filteredFolders,
+    size,
+    onFolderSelectionChange,
+    activeServiceId,
+    colorPaletteId,
+    expandedNodes,
+  ]);
 
   const showEmptyState = filteredFolders.length === 0;
 
