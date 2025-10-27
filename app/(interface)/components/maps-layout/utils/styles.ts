@@ -2,9 +2,9 @@ import { getNodeId } from '../orbital-map/nodeUtils';
 import { D3HierarchyNode, NodeVisualStyle } from '../orbital-map/types';
 import { getPaletteColors, getReadableTextColor, shiftColor } from '@/app/(interface)/lib/utils/colors';
 
-const MAX_LIGHTENING = 0.85;
-const LIGHTEN_STEP = 0.4;
-const FIRST_CHILD_LIGHTEN = 0.15;
+const MAX_LIGHTENING = 0.75;
+const LIGHTEN_STEP = 0.18;
+const FIRST_CHILD_LIGHTEN = 0;
 
 export const DIMMED_FILL_LIGHTEN = 0.55;
 
@@ -34,7 +34,7 @@ export const computeNodeStyles = (root: D3HierarchyNode, paletteId?: string | nu
       const relativeDepth = node.depth - 2;
       const amount = Math.min(
         MAX_LIGHTENING,
-        FIRST_CHILD_LIGHTEN + (Math.max(relativeDepth - 1, 0) * LIGHTEN_STEP),
+        FIRST_CHILD_LIGHTEN + Math.max(relativeDepth - 1, 0) * LIGHTEN_STEP,
       );
       const fill = shiftColor(basePaletteColor, amount);
       styles.set(nodeId, {
