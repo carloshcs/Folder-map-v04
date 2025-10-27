@@ -115,15 +115,6 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --radial-card-header-bg: #f4f4f5;
-  --radial-card-outline: rgba(15, 23, 42, 0.08);
-  --radial-card-divider: rgba(148, 163, 184, 0.32);
-  --radial-card-button-bg: rgba(99, 102, 241, 0.12);
-  --radial-card-button-bg-hover: rgba(99, 102, 241, 0.2);
-  --radial-card-button-border: rgba(99, 102, 241, 0.32);
-  --radial-card-button-border-hover: rgba(99, 102, 241, 0.45);
-  --radial-card-button-icon: #312e81;
-  --radial-card-button-icon-hover: #1e1b4b;
 }
 
 /* --------------------------
@@ -162,15 +153,6 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.269 0 0);
   --sidebar-ring: oklch(0.439 0 0);
-  --radial-card-header-bg: #1f2937;
-  --radial-card-outline: rgba(148, 163, 184, 0.2);
-  --radial-card-divider: rgba(148, 163, 184, 0.28);
-  --radial-card-button-bg: rgba(99, 102, 241, 0.2);
-  --radial-card-button-bg-hover: rgba(129, 140, 248, 0.28);
-  --radial-card-button-border: rgba(129, 140, 248, 0.35);
-  --radial-card-button-border-hover: rgba(196, 181, 253, 0.45);
-  --radial-card-button-icon: #e0e7ff;
-  --radial-card-button-icon-hover: #f8fafc;
 }
 
 /* --------------------------
@@ -215,25 +197,6 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-}
-
-.radial-card-control {
-  background: var(--radial-card-button-bg);
-  border: 1px solid var(--radial-card-button-border);
-  box-shadow: 0 14px 32px -24px rgba(15, 23, 42, 0.65);
-  color: var(--radial-card-button-icon);
-}
-
-.radial-card-control:hover {
-  background: var(--radial-card-button-bg-hover);
-  border-color: var(--radial-card-button-border-hover);
-  color: var(--radial-card-button-icon-hover);
-  transform: translateY(-1px);
-}
-
-.radial-card-control:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.35);
 }
 
 /* Fox Three Map - ensure canvas blends with the surrounding interface */
