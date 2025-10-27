@@ -4,7 +4,7 @@ import { Network } from 'vis-network';
 import { DataSet } from 'vis-data';
 import { D3HierarchyNode, NodePosition } from './types';
 import { INTEGRATION_NAMES } from './constants';
-import { getNodeId } from './nodeUtils';
+import { getNodeId, getNodeLineage } from './nodeUtils';
 
 export function createManualPhysics(
   nodes: D3HierarchyNode[],
@@ -55,9 +55,12 @@ export function createManualPhysics(
       y = Math.sin(angle) * radius;
     }
 
+    const labelLineage = getNodeLineage(node);
+    const label = labelLineage.length > 0 ? labelLineage.join(' / ') : node.data?.name ?? id;
+
     visNodes.add({
       id,
-      label: node.data?.name ?? id,
+      label,
       size,
       mass,
       level,
