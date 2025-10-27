@@ -577,6 +577,14 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       const labelDetails = nodeId ? nodeLabelCache.get(nodeId) : undefined;
       const labelText = labelDetails?.text ?? node.data?.name ?? 'Folder';
       const labelColor = labelDetails?.color ?? '#0F172A';
+      const nodeStyle = nodeStyles.get(getNodeId(node as any));
+      const baseFillColor =
+        nodeStyle?.fill ??
+        (node.depth === 1 ? rootServiceDetails?.fill : undefined) ??
+        details?.fill ??
+        '#E2E8F0';
+      const menuBorderColor = shiftColor(baseFillColor, -0.25);
+      const menuShadowColor = shiftColor(baseFillColor, -0.45);
 
       const wrapper = container
         .append('xhtml:div')
@@ -590,21 +598,25 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         .append('xhtml:div')
         .attr(
           'class',
-          'absolute left-1/2 top-0 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-1.5 py-0.5 text-[11px] font-medium text-slate-600 shadow-sm opacity-0 transition dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-200',
+          'absolute left-1/2 top-0 z-30 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-white/60 bg-white/90 px-1.5 py-[2px] text-[10px] font-medium text-slate-600 shadow-sm opacity-0 transition backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-950/90 dark:text-slate-200',
         )
-        .style('transform', 'translate(-50%, calc(-100% - 6px))')
-        .style('pointer-events', 'none');
+        .style('transform', 'translate(-50%, calc(-100% - 8px))')
+        .style('pointer-events', 'none')
+        .style('border-color', menuBorderColor)
+        .style('box-shadow', `0 16px 32px -22px ${menuShadowColor}`);
 
-      const controlsRow = menu.append('xhtml:div').attr('class', 'flex items-center gap-1');
+      const controlsRow = menu.append('xhtml:div').attr('class', 'flex items-center gap-1.5');
 
       const infoPanel = interactive
         .append('xhtml:div')
         .attr(
           'class',
-          'absolute left-1/2 top-0 z-10 hidden w-max -translate-x-1/2 space-y-1 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-left text-[11px] text-slate-600 shadow-lg dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-200',
+          'absolute left-1/2 top-0 z-20 hidden max-w-[260px] -translate-x-1/2 space-y-1 rounded-xl border border-white/70 bg-white/95 px-3 py-2 text-left text-[11px] leading-relaxed text-slate-600 shadow-lg backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-950/95 dark:text-slate-200',
         )
-        .style('transform', 'translate(-50%, calc(-100% - 12px))')
-        .style('pointer-events', 'none');
+        .style('transform', 'translate(-50%, calc(-100% - 14px))')
+        .style('pointer-events', 'none')
+        .style('border-color', menuBorderColor)
+        .style('box-shadow', `0 24px 40px -26px ${menuShadowColor}`);
 
       const infoEntries: { label: string; value: string | null | undefined }[] = [
         { label: 'Path', value: folderItem?.path ?? folderItem?.name ?? null },
@@ -621,7 +633,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           .text(entry.label);
         row
           .append('xhtml:span')
-          .attr('class', 'truncate text-[11px] text-slate-700 dark:text-slate-200')
+          .attr('class', 'max-w-[240px] break-words text-[11px] text-slate-700 dark:text-slate-200')
           .attr('title', entry.value ?? '—')
           .text(entry.value ?? '—');
       });
@@ -664,7 +676,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         .attr('data-control', 'info')
         .attr(
           'class',
-          'inline-flex h-6 w-6 items-center justify-center rounded-full border border-transparent text-slate-500 transition hover:border-slate-300 hover:bg-slate-200/80 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700/70 dark:hover:text-slate-100 dark:focus-visible:ring-slate-500',
+          'inline-flex h-5 w-5 items-center justify-center rounded-md border border-transparent text-slate-500 transition hover:border-slate-300 hover:bg-white/70 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-800/80 dark:hover:text-slate-100 dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-900',
         )
         .attr('aria-label', `Show info for ${node.data?.name ?? 'folder'}`)
         .html(renderInfoIcon())
@@ -686,7 +698,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           .attr('data-control', 'toggle')
           .attr(
             'class',
-            'inline-flex h-6 w-6 items-center justify-center rounded-full border border-transparent text-slate-500 transition hover:border-slate-300 hover:bg-slate-200/80 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700/70 dark:hover:text-slate-100 dark:focus-visible:ring-slate-500',
+            'inline-flex h-5 w-5 items-center justify-center rounded-md border border-transparent text-slate-500 transition hover:border-slate-300 hover:bg-white/70 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-800/80 dark:hover:text-slate-100 dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-900',
           )
           .attr('aria-label', `${isExpanded ? 'Collapse' : 'Expand'} ${node.data?.name ?? 'folder'}`)
           .html(renderToggleIcon(isExpanded))
@@ -715,7 +727,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           .attr('rel', 'noreferrer')
           .attr(
             'class',
-            'inline-flex h-6 w-6 items-center justify-center rounded-full border border-transparent text-slate-500 transition hover:border-slate-300 hover:bg-slate-200/80 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700/70 dark:hover:text-slate-100 dark:focus-visible:ring-slate-500',
+            'inline-flex h-5 w-5 items-center justify-center rounded-md border border-transparent text-slate-500 transition hover:border-slate-300 hover:bg-white/70 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-800/80 dark:hover:text-slate-100 dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-900',
           )
           .attr('aria-label', `Open ${node.data?.name ?? 'folder'}`)
           .html(renderExternalLinkIcon())
