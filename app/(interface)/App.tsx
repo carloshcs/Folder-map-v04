@@ -778,7 +778,7 @@ export default function App() {
                   <FoxThreeMap folders={folderData} />
                 )}
                 {selectedLayout === 'radial-tree' && (
-                  <RadialTreeMap folders={folderData} />
+                  <RadialTreeMap folders={folderData} colorPaletteId={selectedPaletteId} />
                 )}
                 {selectedLayout === 'sun-burst' && (
                   <SunBurstMap folders={folderData} />
