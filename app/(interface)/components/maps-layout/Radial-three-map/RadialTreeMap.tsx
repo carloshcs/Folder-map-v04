@@ -815,7 +815,6 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         services={availableServices}
         activeServiceId={activeServiceId}
         onServiceSelect={serviceId => setActiveServiceId(serviceId)}
-        mountToBody={false}
       />
       <svg ref={svgRef} className="w-full h-full" />
       {showEmptyState && (

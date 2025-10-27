@@ -169,7 +169,6 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
         activeServiceId={activeServiceId}
         onServiceSelect={handleServiceSelect}
         allowClear
-        mountToBody={false}
       />
       <ReactFlow
         nodes={nodesWithControls}
