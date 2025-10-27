@@ -42,60 +42,56 @@ const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data
 
   return (
     <div
-      className={`flex h-full w-full flex-col rounded-3xl border border-slate-200 bg-white/95 p-3 shadow-[0_12px_30px_rgba(111,125,255,0.12)] transition-transform duration-300 ${
-        dragging ? 'scale-[1.02] shadow-[0_16px_40px_rgba(111,125,255,0.18)]' : 'group-hover:scale-[1.01]'
+      className={`group flex h-full w-full items-center justify-between rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-[0_12px_24px_rgba(111,125,255,0.12)] transition-transform duration-300 ${
+        dragging ? 'scale-[1.02] shadow-[0_16px_32px_rgba(111,125,255,0.16)]' : 'group-hover:scale-[1.01]'
       }`}
       style={{
         boxShadow:
-          '0 12px 24px rgba(111, 125, 255, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
+          '0 8px 18px rgba(111, 125, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
         backdropFilter: 'blur(12px)',
       }}
     >
-      <div className="flex items-start gap-3">
-        <div className="flex min-w-0 flex-1 items-start gap-3">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-500">
-            <Icon className="h-4 w-4" aria-hidden />
-          </div>
-          <p className="min-w-0 text-sm font-semibold leading-5 text-slate-800 break-words">
-            {data.label}
-          </p>
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-500">
+          <Icon className="h-4 w-4" aria-hidden />
         </div>
-        <div className="flex flex-shrink-0 items-center gap-1.5">
-          {isExpandable ? (
-            <button
-              type="button"
-              onClick={event => {
-                event.preventDefault();
-                event.stopPropagation();
-                data.onToggle?.();
-              }}
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-full border text-slate-500 transition ${
-                data.isExpanded
-                  ? 'border-indigo-200 bg-indigo-50 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-100'
-                  : 'border-slate-200 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600'
-              }`}
-              aria-label={`${data.isExpanded ? 'Collapse' : 'Expand'} ${data.label}`}
-            >
-              {data.isExpanded ? (
-                <ChevronUp className="h-4 w-4" aria-hidden />
-              ) : (
-                <ChevronDown className="h-4 w-4" aria-hidden />
-              )}
-            </button>
-          ) : null}
-          {data.link ? (
-            <a
-              href={data.link}
-              target="_blank"
-              rel="noreferrer"
-              onClick={event => event.stopPropagation()}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-              aria-label={`Open ${data.label}`}
-            >
-              <ExternalLink className="h-4 w-4" aria-hidden />
-            </a>
-          ) : null}
-        </div>
+        <p className="truncate text-sm font-medium leading-5 text-slate-800">{data.label}</p>
+      </div>
+      <div className="flex flex-shrink-0 items-center gap-1.5">
+        {isExpandable ? (
+          <button
+            type="button"
+            onClick={event => {
+              event.preventDefault();
+              event.stopPropagation();
+              data.onToggle?.();
+            }}
+            className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-slate-500 transition ${
+              data.isExpanded
+                ? 'border-indigo-200 bg-indigo-50 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-100'
+                : 'border-slate-200 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600'
+            }`}
+            aria-label={`${data.isExpanded ? 'Collapse' : 'Expand'} ${data.label}`}
+          >
+            {data.isExpanded ? (
+              <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+            )}
+          </button>
+        ) : null}
+        {data.link ? (
+          <a
+            href={data.link}
+            target="_blank"
+            rel="noreferrer"
+            onClick={event => event.stopPropagation()}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+            aria-label={`Open ${data.label}`}
+          >
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+          </a>
+        ) : null}
       </div>
     </div>
   );
