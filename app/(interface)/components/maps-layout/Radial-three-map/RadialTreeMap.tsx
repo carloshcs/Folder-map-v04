@@ -372,11 +372,25 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
 
     const getNodeDimensions = (node: d3.HierarchyPointNode<any>) => {
       const baseRadius = getNodeRadius(Math.min(node.depth, 3));
-      const width = baseRadius * (node.depth === 0 ? 2.4 : 2.1);
-      const height = baseRadius * (node.depth === 0 ? 1.8 : 1.4);
+
+      if (node.depth === 0) {
+        return {
+          width: baseRadius * 2.4,
+          height: baseRadius * 1.8,
+        };
+      }
+
+      if (node.depth === 1) {
+        const size = baseRadius * 1.75;
+        return {
+          width: size,
+          height: size,
+        };
+      }
+
       return {
-        width,
-        height,
+        width: baseRadius * 2.1,
+        height: baseRadius * 1.4,
       };
     };
 
@@ -685,13 +699,25 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         );
 
       let isInfoOpen = false;
+      let hideTimeout: ReturnType<typeof setTimeout> | null = null;
 
       const closeInfoPanel = () => {
         isInfoOpen = false;
         infoPanel.style('display', 'none').classed('hidden', true).style('pointer-events', 'none');
       };
 
+      const clearHideTimeout = () => {
+        if (hideTimeout !== null) {
+          clearTimeout(hideTimeout);
+          hideTimeout = null;
+        }
+      };
+
       const toggleMenuVisibility = (isVisible: boolean) => {
+        if (isVisible) {
+          clearHideTimeout();
+        }
+
         menu
           .style('opacity', isVisible ? '1' : '0')
           .style('pointer-events', isVisible ? 'auto' : 'none');
@@ -699,6 +725,14 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         if (!isVisible) {
           closeInfoPanel();
         }
+      };
+
+      const scheduleHide = () => {
+        clearHideTimeout();
+        hideTimeout = setTimeout(() => {
+          toggleMenuVisibility(false);
+          hideTimeout = null;
+        }, 160);
       };
 
       const shouldKeepMenuVisible = (target: EventTarget | null) => {
@@ -712,11 +746,13 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       };
 
       const handleExit = (event: MouseEvent | FocusEvent) => {
-        const related = (event.relatedTarget as Node | null) ?? null;
+        const relatedTarget =
+          (event as MouseEvent).relatedTarget ?? (event as FocusEvent).relatedTarget ?? null;
+        const related = (relatedTarget as Node | null) ?? null;
         if (shouldKeepMenuVisible(related)) {
           return;
         }
-        toggleMenuVisibility(false);
+        scheduleHide();
       };
 
       interactive
@@ -816,19 +852,21 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           });
       }
 
-      card
-        .append('xhtml:div')
-        .attr(
-          'class',
-          'pointer-events-none flex flex-1 items-center justify-center px-4 py-2 text-center text-[13px] font-medium leading-tight text-slate-700 dark:text-slate-100',
-        )
-        .append('xhtml:span')
-        .attr('class', 'radial-node-name inline-flex max-w-full flex-wrap justify-center text-center leading-tight')
-        .style('white-space', 'normal')
-        .style('word-break', 'break-word')
-        .style('color', labelColor)
-        .attr('title', labelText)
-        .text(labelText);
+      if (node.depth !== 1) {
+        card
+          .append('xhtml:div')
+          .attr(
+            'class',
+            'pointer-events-none flex flex-1 items-center justify-center px-4 py-2 text-center text-[13px] font-medium leading-tight text-slate-700 dark:text-slate-100',
+          )
+          .append('xhtml:span')
+          .attr('class', 'radial-node-name inline-flex max-w-full flex-wrap justify-center text-center leading-tight')
+          .style('white-space', 'normal')
+          .style('word-break', 'break-word')
+          .style('color', labelColor)
+          .attr('title', labelText)
+          .text(labelText);
+      }
     });
 
     const nodeById = new Map<string, d3.HierarchyPointNode<any>>();
