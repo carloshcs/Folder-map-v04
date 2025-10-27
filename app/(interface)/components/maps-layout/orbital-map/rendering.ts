@@ -4,6 +4,7 @@ import { LOGO_MAP } from './constants';
 import { getNodeColor, getNodeId } from './nodeUtils';
 import { getNodeRadius } from './geometry';
 import { D3HierarchyNode } from './types';
+import { resolveNodeVisualStyle } from '../utils/styles';
 
 type NodeVisualStyle = {
   fill: string;
@@ -18,6 +19,7 @@ interface NodeEventHandlers {
 
 interface RenderNodesOptions extends NodeEventHandlers {
   colorAssignments?: Map<string, NodeVisualStyle>;
+  paletteId?: string | null;
 }
 
 const MAX_FONT_SIZE = 16;
@@ -68,7 +70,7 @@ export function renderNodes(
   visibleNodes: D3HierarchyNode[],
   options?: RenderNodesOptions,
 ) {
-  const { colorAssignments, onNodeEnter, onNodeLeave, onNodeMove } = options ?? {};
+  const { colorAssignments, onNodeEnter, onNodeLeave, onNodeMove, paletteId } = options ?? {};
 
   const node = nodeLayer
     .selectAll<SVGGElement, D3HierarchyNode>('g.node')
@@ -90,7 +92,9 @@ export function renderNodes(
           const isFolderFox = d.depth === 0 && name === 'Folder Fox';
           const isIntegration = d.depth === 1 && LOGO_MAP[name];
           const nodeId = getNodeId(d);
-          const style = colorAssignments?.get(nodeId);
+          const style = colorAssignments
+            ? resolveNodeVisualStyle(d, colorAssignments, paletteId)
+            : null;
 
           if (isFolderFox || isIntegration) {
             const radius = getNodeRadius(d.depth);
@@ -185,7 +189,9 @@ export function renderNodes(
         selection.selectAll('text.node-label').remove();
       } else {
         const circle = selection.select<SVGCircleElement>('circle.node-circle');
-        const style = colorAssignments?.get(getNodeId(d));
+        const style = colorAssignments
+          ? resolveNodeVisualStyle(d, colorAssignments, paletteId)
+          : null;
         const fillColor = style?.fill ?? getNodeColor(d.depth);
 
         circle
