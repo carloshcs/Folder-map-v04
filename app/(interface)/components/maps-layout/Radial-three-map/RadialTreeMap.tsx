@@ -374,17 +374,18 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       const baseRadius = getNodeRadius(Math.min(node.depth, 3));
 
       if (node.depth === 0) {
+        const size = baseRadius * 2.1;
         return {
-          width: baseRadius * 2.4,
-          height: baseRadius * 1.8,
+          width: size,
+          height: size,
         };
       }
 
       if (node.depth === 1) {
-        const size = baseRadius * 1.75;
+        const height = baseRadius * 1.75;
         return {
-          width: size,
-          height: size,
+          width: height * 2,
+          height,
         };
       }
 
@@ -550,19 +551,6 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       .style('pointer-events', 'none');
 
     nodeGroups
-      .filter(node => node.depth === 0)
-      .append('text')
-      .attr('class', 'radial-node-root-label')
-      .attr('text-anchor', 'middle')
-      .attr('dominant-baseline', 'hanging')
-      .attr('dy', node => getNodeHalfHeight(node) + 22)
-      .attr('fill', rootServiceDetails?.stroke ?? '#0F172A')
-      .attr('font-weight', '600')
-      .attr('font-size', 14)
-      .attr('pointer-events', 'none')
-      .text(node => node.data?.name ?? '');
-
-    nodeGroups
       .filter(node => node.depth > 0)
       .append('text')
       .each(function (node) {
@@ -649,16 +637,19 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         .append('xhtml:div')
         .attr('class', 'group/menu relative flex h-full w-full pointer-events-auto');
 
+      const controlButtonClasses =
+        'inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
+
       const menu = interactive
         .append('xhtml:div')
         .attr(
           'class',
-          'absolute left-1/2 top-0 z-30 flex -translate-x-1/2 items-center gap-1 rounded-md border border-black/70 bg-white px-2 py-[3px] text-[11px] font-semibold text-slate-700 opacity-0 shadow-[0_16px_30px_-20px_rgba(17,24,39,0.4)] transition backdrop-blur-sm dark:border-0 dark:bg-slate-900/95 dark:text-slate-100 dark:shadow-[0_24px_36px_-22px_rgba(36,36,36,0.65)]',
+          'absolute left-1/2 top-0 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-lg border border-border bg-popover/95 px-2.5 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-lg transition-opacity duration-300 ease-out backdrop-blur-sm dark:bg-popover/95',
         )
         .style('transform', 'translate(-50%, calc(-100% - 8px))')
         .style('pointer-events', 'none');
 
-      const controlsRow = menu.append('xhtml:div').attr('class', 'flex items-center gap-1.5');
+      const controlsRow = menu.append('xhtml:div').attr('class', 'flex items-center gap-2');
 
       const infoPanel = interactive
         .append('xhtml:div')
@@ -719,6 +710,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         }
 
         menu
+          .interrupt()
           .style('opacity', isVisible ? '1' : '0')
           .style('pointer-events', isVisible ? 'auto' : 'none');
 
@@ -732,7 +724,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         hideTimeout = setTimeout(() => {
           toggleMenuVisibility(false);
           hideTimeout = null;
-        }, 160);
+        }, 360);
       };
 
       const shouldKeepMenuVisible = (target: EventTarget | null) => {
@@ -789,10 +781,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         .append('xhtml:button')
         .attr('type', 'button')
         .attr('data-control', 'info')
-        .attr(
-          'class',
-          'inline-flex h-5 w-5 items-center justify-center rounded-md border border-transparent text-slate-500 transition hover:border-slate-300 hover:bg-white/70 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-800/80 dark:hover:text-slate-100 dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-900',
-        )
+        .attr('class', controlButtonClasses)
         .attr('aria-label', `Show info for ${node.data?.name ?? 'folder'}`)
         .html(renderInfoIcon())
         .on('click', event => {
@@ -811,10 +800,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           .append('xhtml:button')
           .attr('type', 'button')
           .attr('data-control', 'toggle')
-          .attr(
-            'class',
-            'inline-flex h-5 w-5 items-center justify-center rounded-md border border-transparent text-slate-500 transition hover:border-slate-300 hover:bg-white/70 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-800/80 dark:hover:text-slate-100 dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-900',
-          )
+          .attr('class', controlButtonClasses)
           .attr('aria-label', `${isExpanded ? 'Collapse' : 'Expand'} ${node.data?.name ?? 'folder'}`)
           .html(renderToggleIcon(isExpanded))
           .on('click', event => {
@@ -840,10 +826,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           .attr('href', link)
           .attr('target', '_blank')
           .attr('rel', 'noreferrer')
-          .attr(
-            'class',
-            'inline-flex h-5 w-5 items-center justify-center rounded-md border border-transparent text-slate-500 transition hover:border-slate-300 hover:bg-white/70 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-800/80 dark:hover:text-slate-100 dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-slate-900',
-          )
+          .attr('class', controlButtonClasses)
           .attr('aria-label', `Open ${node.data?.name ?? 'folder'}`)
           .html(renderExternalLinkIcon())
           .on('click', event => {
@@ -852,21 +835,19 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           });
       }
 
-      if (node.depth !== 1) {
-        card
-          .append('xhtml:div')
-          .attr(
-            'class',
-            'pointer-events-none flex flex-1 items-center justify-center px-4 py-2 text-center text-[13px] font-medium leading-tight text-slate-700 dark:text-slate-100',
-          )
-          .append('xhtml:span')
-          .attr('class', 'radial-node-name inline-flex max-w-full flex-wrap justify-center text-center leading-tight')
-          .style('white-space', 'normal')
-          .style('word-break', 'break-word')
-          .style('color', labelColor)
-          .attr('title', labelText)
-          .text(labelText);
-      }
+      card
+        .append('xhtml:div')
+        .attr(
+          'class',
+          'pointer-events-none flex flex-1 items-center justify-center px-4 py-2 text-center text-[13px] font-medium leading-tight text-slate-700 dark:text-slate-100',
+        )
+        .append('xhtml:span')
+        .attr('class', 'radial-node-name inline-flex max-w-full flex-wrap justify-center text-center leading-tight')
+        .style('white-space', 'normal')
+        .style('word-break', 'break-word')
+        .style('color', labelColor)
+        .attr('title', labelText)
+        .text(labelText);
     });
 
     const nodeById = new Map<string, d3.HierarchyPointNode<any>>();
