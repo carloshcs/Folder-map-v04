@@ -448,6 +448,40 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
     [flowEdges, visibleNodeIds],
   );
 
+  const toggleNodeExpansionById = useCallback(
+    (nodeId: string, depth: number, childrenCount: number) => {
+      if (childrenCount <= 0) {
+        return;
+      }
+
+      setExpandedState(prev => {
+        const next = new Map(prev);
+        const current = next.has(nodeId)
+          ? next.get(nodeId)!
+          : depth < DEFAULT_MAX_DEPTH;
+        next.set(nodeId, !current);
+        return next;
+      });
+    },
+    [],
+  );
+
+  const getIsNodeExpanded = useCallback(
+    (nodeId: string, depth: number, childrenCount: number) => {
+      if (childrenCount <= 0) {
+        return false;
+      }
+
+      const value = expandedState.get(nodeId);
+      if (value !== undefined) {
+        return value;
+      }
+
+      return depth < DEFAULT_MAX_DEPTH;
+    },
+    [expandedState],
+  );
+
   const nodesWithControls = useMemo(
     () =>
       nodesToRender.map(node => {
@@ -502,40 +536,6 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
 
     return () => observer.disconnect();
   }, [nodesToRender]);
-
-  const toggleNodeExpansionById = useCallback(
-    (nodeId: string, depth: number, childrenCount: number) => {
-      if (childrenCount <= 0) {
-        return;
-      }
-
-      setExpandedState(prev => {
-        const next = new Map(prev);
-        const current = next.has(nodeId)
-          ? next.get(nodeId)!
-          : depth < DEFAULT_MAX_DEPTH;
-        next.set(nodeId, !current);
-        return next;
-      });
-    },
-    [],
-  );
-
-  const getIsNodeExpanded = useCallback(
-    (nodeId: string, depth: number, childrenCount: number) => {
-      if (childrenCount <= 0) {
-        return false;
-      }
-
-      const value = expandedState.get(nodeId);
-      if (value !== undefined) {
-        return value;
-      }
-
-      return depth < DEFAULT_MAX_DEPTH;
-    },
-    [expandedState],
-  );
 
   return (
     <div ref={containerRef} className="fox-three-map relative h-full w-full pt-28">
