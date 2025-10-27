@@ -41,11 +41,11 @@ const getRadiusForDepth = (depth: number) => {
 const ensureLabelFits = (
   text: d3.Selection<SVGTextElement, unknown, null, undefined>,
   content: string,
-  size: number,
+  dimensions: { width: number; height: number },
   textColor: string,
 ) => {
-  const maxWidth = size * 0.9;
-  let fontSize = Math.max(8, Math.min(16, size * 0.25));
+  const maxWidth = dimensions.width * 0.9;
+  let fontSize = Math.max(8, Math.min(16, dimensions.height * 0.4));
 
   text
     .attr('fill', textColor)
@@ -370,12 +370,20 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       node.y = getRadiusForDepth(node.depth);
     });
 
-    const getNodeHalfSize = (node: d3.HierarchyPointNode<any>) => {
+    const getNodeDimensions = (node: d3.HierarchyPointNode<any>) => {
       const baseRadius = getNodeRadius(Math.min(node.depth, 3));
-      return node.depth === 0 ? baseRadius * 1.12 : baseRadius;
+      const width = baseRadius * (node.depth === 0 ? 2.4 : 2.1);
+      const height = baseRadius * (node.depth === 0 ? 1.8 : 1.4);
+      return {
+        width,
+        height,
+      };
     };
 
-    const getNodeSize = (node: d3.HierarchyPointNode<any>) => getNodeHalfSize(node) * 2;
+    const getNodeWidth = (node: d3.HierarchyPointNode<any>) => getNodeDimensions(node).width;
+    const getNodeHeight = (node: d3.HierarchyPointNode<any>) => getNodeDimensions(node).height;
+    const getNodeHalfWidth = (node: d3.HierarchyPointNode<any>) => getNodeWidth(node) / 2;
+    const getNodeHalfHeight = (node: d3.HierarchyPointNode<any>) => getNodeHeight(node) / 2;
 
     const getNodeCartesianPosition = (node: d3.HierarchyPointNode<any>) => {
       const angle = node.x - Math.PI / 2;
@@ -474,12 +482,16 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
     nodeGroups
       .append('rect')
       .attr('class', 'radial-node-rect')
-      .attr('width', node => getNodeSize(node))
-      .attr('height', node => getNodeSize(node))
-      .attr('x', node => -getNodeHalfSize(node))
-      .attr('y', node => -getNodeHalfSize(node))
-      .attr('rx', node => Math.max(12, getNodeHalfSize(node) * 0.35))
-      .attr('ry', node => Math.max(12, getNodeHalfSize(node) * 0.35))
+      .attr('width', node => getNodeWidth(node))
+      .attr('height', node => getNodeHeight(node))
+      .attr('x', node => -getNodeHalfWidth(node))
+      .attr('y', node => -getNodeHalfHeight(node))
+      .attr('rx', node =>
+        Math.max(12, Math.min(getNodeHalfWidth(node), getNodeHalfHeight(node)) * 0.45),
+      )
+      .attr('ry', node =>
+        Math.max(12, Math.min(getNodeHalfWidth(node), getNodeHalfHeight(node)) * 0.45),
+      )
       .each(function (node) {
         const rect = d3.select(this);
         const folderItem: FolderItem | undefined = node.data?.item;
@@ -517,10 +529,10 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       .filter(node => node.depth === 0)
       .attr('class', 'radial-node-logo')
       .attr('href', () => rootServiceDetails?.logo ?? '')
-      .attr('width', node => getNodeHalfSize(node) * 1.4)
-      .attr('height', node => getNodeHalfSize(node) * 1.4)
-      .attr('x', node => -getNodeHalfSize(node) * 0.7)
-      .attr('y', node => -getNodeHalfSize(node) * 0.7)
+      .attr('width', node => getNodeHeight(node) * 0.55)
+      .attr('height', node => getNodeHeight(node) * 0.55)
+      .attr('x', node => -getNodeHeight(node) * 0.275)
+      .attr('y', node => -getNodeHeight(node) * 0.275)
       .style('pointer-events', 'none');
 
     nodeGroups
@@ -529,7 +541,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       .attr('class', 'radial-node-root-label')
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'hanging')
-      .attr('dy', node => getNodeHalfSize(node) + 20)
+      .attr('dy', node => getNodeHalfHeight(node) + 22)
       .attr('fill', rootServiceDetails?.stroke ?? '#0F172A')
       .attr('font-weight', '600')
       .attr('font-size', 14)
@@ -548,8 +560,8 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           : fallbackServiceId;
         const details = resolved ? SERVICE_DETAILS[resolved] : undefined;
         const textColor = style?.textColor ?? details?.stroke ?? '#0F172A';
-        const size = getNodeSize(node);
-        ensureLabelFits(selection, node.data?.name ?? 'Folder', size, textColor);
+        const dimensions = getNodeDimensions(node);
+        ensureLabelFits(selection, node.data?.name ?? 'Folder', dimensions, textColor);
 
         const identifier = getNodeIdentifier(node);
         if (identifier) {
@@ -585,10 +597,10 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       .filter(node => node.depth > 0)
       .append('foreignObject')
       .attr('class', 'radial-node-controls')
-      .attr('x', node => -getNodeHalfSize(node))
-      .attr('y', node => -getNodeHalfSize(node))
-      .attr('width', node => getNodeSize(node))
-      .attr('height', node => getNodeSize(node))
+      .attr('x', node => -getNodeHalfWidth(node))
+      .attr('y', node => -getNodeHalfHeight(node))
+      .attr('width', node => getNodeWidth(node))
+      .attr('height', node => getNodeHeight(node))
       .style('overflow', 'visible');
 
     controlContainers.each(function (node) {
@@ -627,12 +639,10 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         .append('xhtml:div')
         .attr(
           'class',
-          'absolute left-1/2 top-0 z-30 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-white/60 bg-white/90 px-1.5 py-[2px] text-[10px] font-medium text-slate-600 shadow-sm opacity-0 transition backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-950/90 dark:text-slate-200',
+          'absolute left-1/2 top-0 z-30 flex -translate-x-1/2 items-center gap-1 rounded-md border border-black/70 bg-white px-2 py-[3px] text-[11px] font-semibold text-slate-700 opacity-0 shadow-[0_16px_30px_-20px_rgba(17,24,39,0.4)] transition backdrop-blur-sm dark:border-0 dark:bg-slate-900/95 dark:text-slate-100 dark:shadow-[0_24px_36px_-22px_rgba(36,36,36,0.65)]',
         )
         .style('transform', 'translate(-50%, calc(-100% - 8px))')
-        .style('pointer-events', 'none')
-        .style('border-color', menuBorderColor)
-        .style('box-shadow', `0 16px 32px -22px ${menuShadowColor}`);
+        .style('pointer-events', 'none');
 
       const controlsRow = menu.append('xhtml:div').attr('class', 'flex items-center gap-1.5');
 
@@ -691,12 +701,52 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         }
       };
 
+      const shouldKeepMenuVisible = (target: EventTarget | null) => {
+        if (!target || !(target instanceof Node)) {
+          return false;
+        }
+        const containers = [interactive.node(), menu.node(), infoPanel.node()].filter(
+          (element): element is Node => Boolean(element),
+        );
+        return containers.some(element => element.contains(target));
+      };
+
+      const handleExit = (event: MouseEvent | FocusEvent) => {
+        const related = (event.relatedTarget as Node | null) ?? null;
+        if (shouldKeepMenuVisible(related)) {
+          return;
+        }
+        toggleMenuVisibility(false);
+      };
+
       interactive
         .on('mouseenter', () => {
           toggleMenuVisibility(true);
         })
-        .on('mouseleave', () => {
-          toggleMenuVisibility(false);
+        .on('mouseleave', event => {
+          handleExit(event as MouseEvent);
+        })
+        .on('focusin', () => {
+          toggleMenuVisibility(true);
+        })
+        .on('focusout', event => {
+          handleExit(event as FocusEvent);
+        });
+
+      menu
+        .on('mouseenter', () => {
+          toggleMenuVisibility(true);
+        })
+        .on('mouseleave', event => {
+          handleExit(event as MouseEvent);
+        });
+
+      infoPanel
+        .on('mouseenter', () => {
+          toggleMenuVisibility(true);
+        })
+        .on('mouseleave', event => {
+          handleExit(event as MouseEvent);
         });
 
       controlsRow
@@ -770,10 +820,12 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         .append('xhtml:div')
         .attr(
           'class',
-          'pointer-events-none flex flex-1 items-center justify-center px-3 py-3 text-center text-[13px] font-medium leading-snug text-slate-700 dark:text-slate-100',
+          'pointer-events-none flex flex-1 items-center justify-center px-4 py-2 text-center text-[13px] font-medium leading-tight text-slate-700 dark:text-slate-100',
         )
         .append('xhtml:span')
-        .attr('class', 'radial-node-name block truncate')
+        .attr('class', 'radial-node-name inline-flex max-w-full flex-wrap justify-center text-center leading-tight')
+        .style('white-space', 'normal')
+        .style('word-break', 'break-word')
         .style('color', labelColor)
         .attr('title', labelText)
         .text(labelText);
