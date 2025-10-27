@@ -40,6 +40,27 @@ const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data
   const Icon = determineNodeIcon(data);
   const isExpandable = data.childrenCount > 0;
 
+  const handleToggleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.nativeEvent.stopImmediatePropagation?.();
+    data.onToggle?.();
+  };
+
+  const handleOpenLink = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.nativeEvent.stopImmediatePropagation?.();
+
+    if (!data.link) {
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      window.open(data.link, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   return (
     <div
       className={`group flex h-full w-full items-center justify-between rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-[0_12px_24px_rgba(111,125,255,0.12)] transition-transform duration-300 ${
@@ -61,12 +82,9 @@ const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data
         {isExpandable ? (
           <button
             type="button"
-            onClick={event => {
-              event.preventDefault();
-              event.stopPropagation();
-              data.onToggle?.();
-            }}
-            className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-slate-500 transition ${
+            onPointerDown={event => event.stopPropagation()}
+            onClick={handleToggleClick}
+            className={`nodrag inline-flex h-7 w-7 items-center justify-center rounded-full border text-slate-500 transition ${
               data.isExpanded
                 ? 'border-indigo-200 bg-indigo-50 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-100'
                 : 'border-slate-200 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600'
@@ -81,16 +99,15 @@ const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data
           </button>
         ) : null}
         {data.link ? (
-          <a
-            href={data.link}
-            target="_blank"
-            rel="noreferrer"
-            onClick={event => event.stopPropagation()}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+          <button
+            type="button"
+            onPointerDown={event => event.stopPropagation()}
+            onClick={handleOpenLink}
+            className="nodrag inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
             aria-label={`Open ${data.label}`}
           >
             <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-          </a>
+          </button>
         ) : null}
       </div>
     </div>
