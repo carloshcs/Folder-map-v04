@@ -80,8 +80,8 @@ export const IntegrationFilter: React.FC<IntegrationFilterProps> = ({
               >
                 <span
                   className={cn(
-                    'relative flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-black/15 bg-white shadow-sm transition-all duration-150 dark:border-white/15 dark:bg-neutral-800/80',
-                    isActive && 'scale-105 border-black/25 shadow-md dark:border-white/25 dark:bg-neutral-700',
+                    'relative flex h-6 w-6 flex-shrink-0 items-center justify-center transition-all duration-150',
+                    isActive && 'scale-105',
                   )}
                 >
                   <Image
