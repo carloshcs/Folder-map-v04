@@ -4,6 +4,16 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as d3 from 'd3';
 
 import ReactFlow, { Edge, Node, XYPosition } from 'reactflow';
+import {
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  FileText,
+  Folder as FolderIcon,
+  Image as ImageIcon,
+  Video as VideoIcon,
+  type LucideIcon,
+} from 'lucide-react';
 
 import { FolderItem, ServiceId, isServiceId } from '../../right-sidebar/data';
 import { IntegrationFilter, IntegrationService } from '@/app/(interface)/components/IntegrationFilter';
@@ -34,6 +44,8 @@ interface FoxNodeData {
   serviceName?: string;
   childrenCount: number;
   serviceId?: ServiceId;
+  isExpanded?: boolean;
+  onToggle?: () => void;
 }
 
 const INTEGRATION_NAMES = new Set(['Google Drive', 'Dropbox', 'OneDrive', 'Notion']);
@@ -183,65 +195,100 @@ const createFlowLayout = (tree: FoxTreeNode) => {
 
 const snapPosition = (value: number) => Math.round(value / SNAP_SIZE) * SNAP_SIZE;
 
-const formatSize = (value?: number) => {
-  if (!value || Number.isNaN(value)) return '--';
-  const units = ['KB', 'MB', 'GB', 'TB'];
-  let size = value;
-  let unitIndex = 0;
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
+const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.tiff'];
+const VIDEO_EXTENSIONS = [
+  '.mp4',
+  '.mov',
+  '.avi',
+  '.mkv',
+  '.webm',
+  '.mpg',
+  '.mpeg',
+  '.wmv',
+  '.flv',
+  '.m4v',
+];
+
+const determineNodeIcon = (data: FoxNodeData): LucideIcon => {
+  if (data.childrenCount > 0) {
+    return FolderIcon;
   }
-  return `${size.toFixed(1)} ${units[unitIndex]}`;
+
+  const normalized = data.label.toLowerCase();
+
+  if (IMAGE_EXTENSIONS.some(extension => normalized.endsWith(extension))) {
+    return ImageIcon;
+  }
+
+  if (VIDEO_EXTENSIONS.some(extension => normalized.endsWith(extension))) {
+    return VideoIcon;
+  }
+
+  return FileText;
 };
 
 const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({
   data,
   dragging,
-}) => (
-  <div
-    className={`flex h-full w-full flex-col rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-[0_12px_30px_rgba(111,125,255,0.12)] transition-transform duration-300 ${
-      dragging ? 'scale-[1.02] shadow-[0_16px_40px_rgba(111,125,255,0.18)]' : 'group-hover:scale-[1.01]'
-    }`}
-    style={{
-      boxShadow:
-        '0 12px 24px rgba(111, 125, 255, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
-      backdropFilter: 'blur(12px)',
-    }}
-  >
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-300">
-          {data.depth === 0 ? 'Root Space' : data.serviceName ?? 'Folder'}
-        </p>
-        <p className="mt-1 text-lg font-semibold text-slate-800">{data.label}</p>
+}) => {
+  const Icon = determineNodeIcon(data);
+  const isExpandable = data.childrenCount > 0;
+
+  return (
+    <div
+      className={`flex h-full w-full flex-col justify-between rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-[0_12px_30px_rgba(111,125,255,0.12)] transition-transform duration-300 ${
+        dragging ? 'scale-[1.02] shadow-[0_16px_40px_rgba(111,125,255,0.18)]' : 'group-hover:scale-[1.01]'
+      }`}
+      style={{
+        boxShadow:
+          '0 12px 24px rgba(111, 125, 255, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
+        backdropFilter: 'blur(12px)',
+      }}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-500">
+            <Icon className="h-5 w-5" aria-hidden />
+          </div>
+          <p className="text-base font-semibold text-slate-800">{data.label}</p>
+        </div>
+        {data.link ? (
+          <a
+            href={data.link}
+            target="_blank"
+            rel="noreferrer"
+            onClick={event => event.stopPropagation()}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+            aria-label={`Open ${data.label}`}
+          >
+            <ExternalLink className="h-4 w-4" aria-hidden />
+          </a>
+        ) : null}
       </div>
-      <span className="rounded-full bg-indigo-100 px-3 py-1 text-[11px] font-semibold text-indigo-600">
-        {data.childrenCount} {data.childrenCount === 1 ? 'child' : 'items'}
-      </span>
+
+      <button
+        type="button"
+        onClick={event => {
+          event.stopPropagation();
+          data.onToggle?.();
+        }}
+        disabled={!isExpandable}
+        className={`mt-4 inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium transition ${
+          isExpandable
+            ? 'text-slate-600 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600'
+            : 'cursor-not-allowed text-slate-300'
+        }`}
+      >
+        {data.isExpanded ? (
+          <ChevronUp className="h-4 w-4" aria-hidden />
+        ) : (
+          <ChevronDown className="h-4 w-4" aria-hidden />
+        )}
+        {isExpandable ? (data.isExpanded ? 'Collapse' : 'Expand') : 'No items'}
+      </button>
     </div>
-    <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-slate-500">
-      <div>
-        <p className="font-semibold text-[11px] uppercase tracking-wide text-slate-400">Files</p>
-        <p className="mt-1 text-sm font-medium text-slate-700">
-          {data.metrics?.fileCount ?? '--'}
-        </p>
-      </div>
-      <div>
-        <p className="font-semibold text-[11px] uppercase tracking-wide text-slate-400">Folders</p>
-        <p className="mt-1 text-sm font-medium text-slate-700">
-          {data.metrics?.folderCount ?? '--'}
-        </p>
-      </div>
-      <div>
-        <p className="font-semibold text-[11px] uppercase tracking-wide text-slate-400">Size</p>
-        <p className="mt-1 text-sm font-medium text-slate-700">
-          {formatSize(data.metrics?.totalSize)}
-        </p>
-      </div>
-    </div>
-  </div>
-);
+  );
+};
 
 export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -401,6 +448,25 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
     [flowEdges, visibleNodeIds],
   );
 
+  const nodesWithControls = useMemo(
+    () =>
+      nodesToRender.map(node => {
+        const typedNode = node as Node<FoxNodeData>;
+        const { depth, childrenCount } = typedNode.data;
+        const isExpanded = getIsNodeExpanded(node.id, depth, childrenCount);
+
+        return {
+          ...typedNode,
+          data: {
+            ...typedNode.data,
+            isExpanded,
+            onToggle: () => toggleNodeExpansionById(node.id, depth, childrenCount),
+          },
+        };
+      }),
+    [nodesToRender, getIsNodeExpanded, toggleNodeExpansionById],
+  );
+
   useEffect(() => {
     const container = containerRef.current;
 
@@ -480,7 +546,7 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
         allowClear
       />
       <ReactFlow
-        nodes={nodesToRender}
+        nodes={nodesWithControls}
         edges={edgesToRender}
         nodeTypes={{
           'fox-folder': ({ data, dragging }) => (
@@ -502,11 +568,7 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
         }}
         onNodeDoubleClick={(_, node) => {
           const typedNode = node as Node<FoxNodeData>;
-          toggleNodeExpansionById(
-            typedNode.id,
-            typedNode.data.depth,
-            typedNode.data.childrenCount,
-          );
+          typedNode.data.onToggle?.();
         }}
       />
     </div>
