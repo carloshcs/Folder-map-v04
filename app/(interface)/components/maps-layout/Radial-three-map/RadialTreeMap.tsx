@@ -14,12 +14,13 @@ import { getNodeId } from '../orbital-map/nodeUtils';
 import { shiftColor } from '@/app/(interface)/lib/utils/colors';
 
 const LEVEL_RADII: Record<number, number> = {
-  1: 240,
-  2: 480,
-  3: 720,
+  1: 280,
+  2: 600,
+  3: 920,
+  4: 1240,
 };
 
-const RADIAL_SPACING = 220;
+const RADIAL_SPACING = 320;
 const INFINITE_CANVAS_PADDING = 4800;
 
 const PREDEFINED_LEVELS = Object.keys(LEVEL_RADII).map(level => Number(level));
@@ -376,6 +377,18 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
 
     const getNodeSize = (node: d3.HierarchyPointNode<any>) => getNodeHalfSize(node) * 2;
 
+    const getNodeCartesianPosition = (node: d3.HierarchyPointNode<any>) => {
+      const angle = node.x - Math.PI / 2;
+      const x = node.y * Math.cos(angle);
+      const y = node.y * Math.sin(angle);
+      return { x, y };
+    };
+
+    const getNodeTransform = (node: d3.HierarchyPointNode<any>) => {
+      const { x, y } = getNodeCartesianPosition(node);
+      return `translate(${x},${y})`;
+    };
+
     const radialLink = d3
       .linkRadial<d3.HierarchyPointLink<any>, d3.HierarchyPointNode<any>>()
       .angle(d => d.x)
@@ -387,6 +400,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
 
     const zoomBehavior = d3
       .zoom<SVGSVGElement, unknown>()
+      .filter(event => event.type === 'wheel')
       .scaleExtent([0.7, 2.4])
       .on('zoom', event => {
         zoomTransformRef.current = event.transform;
@@ -432,13 +446,28 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       .selectAll('g')
       .data(nodes)
       .join('g')
-      .attr('transform', node => {
-        const angle = node.x - Math.PI / 2;
-        const x = node.y * Math.cos(angle);
-        const y = node.y * Math.sin(angle);
-        return `translate(${x},${y})`;
+      .attr('transform', node => getNodeTransform(node))
+      .attr('data-initial-transform', node => getNodeTransform(node))
+      .style('cursor', 'grab');
+
+    const dragBehavior = d3
+      .drag<SVGGElement, d3.HierarchyPointNode<any>>()
+      .subject((_event, node) => getNodeCartesianPosition(node))
+      .on('start', event => {
+        event.sourceEvent?.stopPropagation?.();
       })
-      .style('cursor', 'pointer');
+      .on('drag', function (event) {
+        d3.select(this).attr('transform', `translate(${event.x},${event.y})`);
+      })
+      .on('end', function () {
+        const selection = d3.select(this);
+        const initialTransform = selection.attr('data-initial-transform');
+        if (initialTransform) {
+          selection.attr('transform', initialTransform);
+        }
+      });
+
+    nodeGroups.call(dragBehavior as any);
 
     nodeGroups.append('title').text(node => node.data?.name ?? 'Folder');
 
