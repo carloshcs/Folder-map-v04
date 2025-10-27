@@ -30,14 +30,32 @@ export interface FoxNodeData {
   onToggle?: () => void;
 }
 
+// Node size
 export const NODE_WIDTH = 240;
 export const NODE_HEIGHT = 60;
-export const HORIZONTAL_GAP = 280;
-export const VERTICAL_GAP = 210;
+
+// ⚙️ Uniform grid spacing (same for brothers, father→son, uncle→son)
+export const HORIZONTAL_GAP = 200; // horizontal distance between generations
+export const VERTICAL_GAP = 130;   // vertical distance between siblings / rows
+
+// Snap grid size (when dragging)
 export const SNAP_SIZE = 24;
+
+// Default expansion depth
 export const DEFAULT_MAX_DEPTH = 3;
 
-export const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.tiff'];
+// Supported file types for icons
+export const IMAGE_EXTENSIONS = [
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.svg',
+  '.webp',
+  '.bmp',
+  '.tiff',
+];
+
 export const VIDEO_EXTENSIONS = [
   '.mp4',
   '.mov',

@@ -61,16 +61,22 @@ const shouldExpandNode = (
   return depth < DEFAULT_MAX_DEPTH;
 };
 
+/**
+ * Vertical recursive layout:
+ * - Each child appears BELOW the parent (vertical stacking)
+ * - Each depth level moves horizontally (indentation)
+ * - Automatically reflows when expanding/collapsing
+ */
 const layoutBranch = (
   node: FoxTreeNode,
   depth: number,
-  columnX: number,
+  currentX: number,
   currentY: number,
   expandedState: Map<string, boolean>,
   nodes: Array<Node<FoxNodeData>>,
   edges: Edge[],
 ): number => {
-  nodes.push(createNode(node, depth, { x: columnX, y: currentY }));
+  nodes.push(createNode(node, depth, { x: currentX, y: currentY }));
 
   const children = node.children ?? [];
   if (!shouldExpandNode(node, depth, expandedState)) {
@@ -80,7 +86,9 @@ const layoutBranch = (
   let cursorY = currentY;
 
   children.forEach(child => {
-    const childY = cursorY + VERTICAL_GAP;
+    const childX = currentX + HORIZONTAL_GAP; // indent for depth
+    const childY = cursorY + VERTICAL_GAP; // stack vertically
+
     edges.push({
       id: `${node.id}__${child.id}`,
       source: node.id,
@@ -88,10 +96,11 @@ const layoutBranch = (
       animated: true,
     });
 
+    // layout each subtree recursively and update Y position
     cursorY = layoutBranch(
       child,
       depth + 1,
-      columnX,
+      childX,
       childY,
       expandedState,
       nodes,
@@ -102,6 +111,11 @@ const layoutBranch = (
   return cursorY;
 };
 
+/**
+ * Root layout:
+ * - The root is centered at the top
+ * - Children appear below in a vertical cascading structure
+ */
 export const createFlowLayout = (
   tree: FoxTreeNode,
   expandedState: Map<string, boolean>,
@@ -109,18 +123,16 @@ export const createFlowLayout = (
   const nodes: Array<Node<FoxNodeData>> = [];
   const edges: Edge[] = [];
 
-  const rootChildren = tree.children ?? [];
-  const firstLevelCount = rootChildren.length;
-  const totalWidth = firstLevelCount > 0 ? (firstLevelCount - 1) * HORIZONTAL_GAP : 0;
-  const rootX = totalWidth / 2;
+  const rootX = 0;
   const rootY = 0;
 
   nodes.push(createNode(tree, 0, { x: rootX, y: rootY }));
 
-  rootChildren.forEach((child, index) => {
-    const columnX = index * HORIZONTAL_GAP;
-    const childY = rootY + VERTICAL_GAP;
+  const rootChildren = tree.children ?? [];
 
+  let cursorY = rootY + VERTICAL_GAP;
+
+  rootChildren.forEach(child => {
     edges.push({
       id: `${tree.id}__${child.id}`,
       source: tree.id,
@@ -128,7 +140,19 @@ export const createFlowLayout = (
       animated: true,
     });
 
-    layoutBranch(child, 1, columnX, childY, expandedState, nodes, edges);
+    // Layout each branch vertically
+    cursorY = layoutBranch(
+      child,
+      1,
+      rootX + HORIZONTAL_GAP,
+      cursorY,
+      expandedState,
+      nodes,
+      edges,
+    );
+
+    // Add a little extra spacing between top-level branches
+    cursorY += VERTICAL_GAP / 2;
   });
 
   return { nodes, edges };
