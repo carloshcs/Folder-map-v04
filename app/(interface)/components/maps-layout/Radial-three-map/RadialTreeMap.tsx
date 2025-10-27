@@ -760,13 +760,14 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
   return (
     <div
       ref={containerRef}
-      className="relative pt-28"
+      className="relative h-full w-full"
       style={{ minWidth: `${MIN_WIDTH}px`, minHeight: `${MIN_HEIGHT}px` }}
     >
       <IntegrationFilter
         services={availableServices}
         activeServiceId={activeServiceId}
         onServiceSelect={serviceId => setActiveServiceId(serviceId)}
+        mountToBody={false}
       />
       <svg ref={svgRef} className="w-full h-full" />
       {showEmptyState && (
