@@ -37,8 +37,13 @@ const ZOOM_BUTTON_STEP = 25;
 const ZOOM_WHEEL_STEP = 10;
 
 const MapLayoutFallback = () => (
-  <div className="flex h-full items-center justify-center text-muted-foreground">
-    Loading layout...
+  <div className="flex h-full flex-col items-center justify-center gap-4 text-muted-foreground">
+    <div
+      className="h-12 w-12 animate-spin rounded-full border-4 border-muted-foreground border-t-transparent"
+      role="status"
+      aria-label="Loading layout"
+    />
+    <p className="text-sm">Preparing your map…</p>
   </div>
 );
 
