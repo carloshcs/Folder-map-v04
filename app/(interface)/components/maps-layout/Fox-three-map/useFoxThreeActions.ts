@@ -54,6 +54,7 @@ export const useFoxThreeActions = (folders: FolderItem[]): UseFoxThreeActionsRes
   const [flowNodes, setFlowNodes] = useState<Array<Node<FoxNodeData>>>([]);
   const [flowEdges, setFlowEdges] = useState<Edge[]>([]);
   const [expandedState, setExpandedState] = useState<Map<string, boolean>>(new Map());
+  const [customPositions, setCustomPositions] = useState<Map<string, XYPosition>>(new Map());
   const [activeServiceId, setActiveServiceId] = useState<ServiceId | null>(null);
 
   const tree = useMemo(() => buildFoxTree(folders), [folders]);
@@ -108,21 +109,41 @@ export const useFoxThreeActions = (folders: FolderItem[]): UseFoxThreeActionsRes
     };
   }, [tree, activeServiceId]);
 
-  const layout = useMemo(() => createFlowLayout(filteredTree), [filteredTree]);
+  const layout = useMemo(() => createFlowLayout(filteredTree, expandedState), [filteredTree, expandedState]);
 
   useEffect(() => {
     setFlowEdges(layout.edges);
-    setFlowNodes(prevNodes => {
-      if (prevNodes.length === 0) {
-        return layout.nodes;
+  }, [layout]);
+
+  useEffect(() => {
+    const layoutNodeIds = new Set(layout.nodes.map(node => node.id));
+    setCustomPositions(prev => {
+      if (prev.size === 0) {
+        return prev;
       }
-      const previousById = new Map(prevNodes.map(node => [node.id, node]));
-      return layout.nodes.map(node => {
-        const previous = previousById.get(node.id);
-        return previous ? { ...node, position: previous.position } : node;
+
+      let mutated = false;
+      const next = new Map(prev);
+
+      Array.from(prev.keys()).forEach(key => {
+        if (!layoutNodeIds.has(key)) {
+          next.delete(key);
+          mutated = true;
+        }
       });
+
+      return mutated ? next : prev;
     });
   }, [layout]);
+
+  useEffect(() => {
+    setFlowNodes(
+      layout.nodes.map(node => {
+        const custom = customPositions.get(node.id);
+        return custom ? { ...node, position: custom } : node;
+      }),
+    );
+  }, [layout, customPositions]);
 
   useEffect(() => {
     setExpandedState(prevState => {
@@ -167,6 +188,11 @@ export const useFoxThreeActions = (folders: FolderItem[]): UseFoxThreeActionsRes
 
     const snapped = { x: snapPosition(position.x), y: snapPosition(position.y) };
     setFlowNodes(nodes => nodes.map(node => (node.id === id ? { ...node, position: snapped } : node)));
+    setCustomPositions(prev => {
+      const next = new Map(prev);
+      next.set(id, snapped);
+      return next;
+    });
   }, []);
 
   const visibleNodeIds = useMemo(
