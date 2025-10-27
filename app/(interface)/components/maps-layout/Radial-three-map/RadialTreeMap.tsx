@@ -533,6 +533,13 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         selection.remove();
       });
 
+    const renderInfoIcon = () =>
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" x2="12" y1="16" y2="12" />
+        <line x1="12" x2="12.01" y1="8" y2="8" />
+      </svg>`;
+
     const renderToggleIcon = (isExpanded: boolean) =>
       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
         <path d="${isExpanded ? 'm18 15-6-6-6 6' : 'm6 9 6 6 6-6'}" />
@@ -573,23 +580,103 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
 
       const wrapper = container
         .append('xhtml:div')
-        .attr('class', 'pointer-events-none relative h-full w-full');
+        .attr('class', 'relative h-full w-full pointer-events-none');
 
-      const card = wrapper
+      const interactive = wrapper
+        .append('xhtml:div')
+        .attr('class', 'group/menu relative flex h-full w-full pointer-events-auto');
+
+      const menu = interactive
+        .append('xhtml:div')
+        .attr(
+          'class',
+          'absolute left-1/2 top-0 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-1.5 py-0.5 text-[11px] font-medium text-slate-600 shadow-sm opacity-0 transition dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-200',
+        )
+        .style('transform', 'translate(-50%, calc(-100% - 6px))')
+        .style('pointer-events', 'none');
+
+      const controlsRow = menu.append('xhtml:div').attr('class', 'flex items-center gap-1');
+
+      const infoPanel = interactive
+        .append('xhtml:div')
+        .attr(
+          'class',
+          'absolute left-1/2 top-0 z-10 hidden w-max -translate-x-1/2 space-y-1 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-left text-[11px] text-slate-600 shadow-lg dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-200',
+        )
+        .style('transform', 'translate(-50%, calc(-100% - 12px))')
+        .style('pointer-events', 'none');
+
+      const infoEntries: { label: string; value: string | null | undefined }[] = [
+        { label: 'Path', value: folderItem?.path ?? folderItem?.name ?? null },
+        { label: 'Last modified', value: folderItem?.modifiedDate ?? null },
+        { label: 'Created', value: folderItem?.createdDate ?? null },
+        { label: 'Link', value: folderItem?.link ?? folderItem?.path ?? null },
+      ];
+
+      infoEntries.forEach(entry => {
+        const row = infoPanel.append('xhtml:div').attr('class', 'flex flex-col');
+        row
+          .append('xhtml:span')
+          .attr('class', 'font-semibold uppercase tracking-wide text-[10px] text-slate-400 dark:text-slate-500')
+          .text(entry.label);
+        row
+          .append('xhtml:span')
+          .attr('class', 'truncate text-[11px] text-slate-700 dark:text-slate-200')
+          .attr('title', entry.value ?? '—')
+          .text(entry.value ?? '—');
+      });
+
+      const card = interactive
         .append('xhtml:div')
         .attr(
           'class',
           'pointer-events-none flex h-full w-full flex-col overflow-hidden rounded-2xl',
         );
 
-      const header = card
-        .append('xhtml:div')
+      let isInfoOpen = false;
+
+      const closeInfoPanel = () => {
+        isInfoOpen = false;
+        infoPanel.style('display', 'none').classed('hidden', true).style('pointer-events', 'none');
+      };
+
+      const toggleMenuVisibility = (isVisible: boolean) => {
+        menu
+          .style('opacity', isVisible ? '1' : '0')
+          .style('pointer-events', isVisible ? 'auto' : 'none');
+
+        if (!isVisible) {
+          closeInfoPanel();
+        }
+      };
+
+      interactive
+        .on('mouseenter', () => {
+          toggleMenuVisibility(true);
+        })
+        .on('mouseleave', () => {
+          toggleMenuVisibility(false);
+        });
+
+      controlsRow
+        .append('xhtml:button')
+        .attr('type', 'button')
+        .attr('data-control', 'info')
         .attr(
           'class',
-          'pointer-events-auto flex items-center justify-end gap-1 border-b border-slate-200/70 bg-slate-100/80 px-2 py-1.5 text-slate-500 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-800/70 dark:text-slate-300',
-        );
-
-      const controlsRow = header.append('xhtml:div').attr('class', 'flex items-center gap-1');
+          'inline-flex h-6 w-6 items-center justify-center rounded-full border border-transparent text-slate-500 transition hover:border-slate-300 hover:bg-slate-200/80 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700/70 dark:hover:text-slate-100 dark:focus-visible:ring-slate-500',
+        )
+        .attr('aria-label', `Show info for ${node.data?.name ?? 'folder'}`)
+        .html(renderInfoIcon())
+        .on('click', event => {
+          event.preventDefault();
+          event.stopPropagation();
+          isInfoOpen = !isInfoOpen;
+          infoPanel
+            .style('display', isInfoOpen ? 'block' : 'none')
+            .classed('hidden', !isInfoOpen)
+            .style('pointer-events', isInfoOpen ? 'auto' : 'none');
+        });
 
       if (hasChildren && nodeId) {
         const isExpanded = expandedNodes.has(nodeId);
@@ -599,13 +686,14 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           .attr('data-control', 'toggle')
           .attr(
             'class',
-            'inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-slate-500 transition hover:border-slate-300 hover:bg-slate-200/70 hover:text-slate-700 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700/70 dark:hover:text-slate-100',
+            'inline-flex h-6 w-6 items-center justify-center rounded-full border border-transparent text-slate-500 transition hover:border-slate-300 hover:bg-slate-200/80 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700/70 dark:hover:text-slate-100 dark:focus-visible:ring-slate-500',
           )
           .attr('aria-label', `${isExpanded ? 'Collapse' : 'Expand'} ${node.data?.name ?? 'folder'}`)
           .html(renderToggleIcon(isExpanded))
           .on('click', event => {
             event.preventDefault();
             event.stopPropagation();
+            closeInfoPanel();
             setExpandedNodes(prev => {
               const next = new Set(prev);
               if (next.has(nodeId)) {
@@ -627,11 +715,12 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           .attr('rel', 'noreferrer')
           .attr(
             'class',
-            'inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-slate-500 transition hover:border-slate-300 hover:bg-slate-200/70 hover:text-slate-700 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700/70 dark:hover:text-slate-100',
+            'inline-flex h-6 w-6 items-center justify-center rounded-full border border-transparent text-slate-500 transition hover:border-slate-300 hover:bg-slate-200/80 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700/70 dark:hover:text-slate-100 dark:focus-visible:ring-slate-500',
           )
           .attr('aria-label', `Open ${node.data?.name ?? 'folder'}`)
           .html(renderExternalLinkIcon())
           .on('click', event => {
+            closeInfoPanel();
             event.stopPropagation();
           });
       }
