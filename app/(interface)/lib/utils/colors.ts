@@ -1,19 +1,22 @@
 import { color as d3Color } from 'd3-color';
 
-export const DEFAULT_MAP_PALETTE = 'blue';
+export const DEFAULT_MAP_PALETTE = 'system-light';
 
 export const MAP_COLOR_PALETTES: Record<string, string[]> = {
+  'system-light': ['#1d4ed8', '#2563eb', '#0ea5e9', '#10b981', '#f97316', '#f59e0b', '#6366f1', '#0f172a'],
+  'system-dark': ['#93c5fd', '#60a5fa', '#38bdf8', '#34d399', '#fbbf24', '#f97316', '#c084fc', '#f4f4f5'],
+  rainbow: ['#ef4444', '#f97316', '#facc15', '#22c55e', '#10b981', '#3b82f6', '#6366f1', '#a855f7'],
+  heatmap: ['#b91c1c', '#dc2626', '#ef4444', '#f97316', '#fb923c', '#60a5fa', '#2563eb', '#1d4ed8'],
+  slate: ['#0f172a', '#1f2937', '#27364a', '#334155', '#475569', '#64748b', '#94a3b8', '#cbd5f5'],
+  stone: ['#1f2933', '#323f4b', '#3e4c59', '#52606d', '#7b8794', '#9aa5b1', '#bcccdc', '#d9e2ec'],
+  forest: ['#0b3d2e', '#14553c', '#1f6f4a', '#2f8552', '#3f9c61', '#55b776', '#74d39e', '#c4f1c5'],
+  mist: ['#312e81', '#3730a3', '#4338ca', '#4f46e5', '#6366f1', '#818cf8', '#a5b4fc', '#e0e7ff'],
+  blush: ['#5b2333', '#7a2f4b', '#9d4b73', '#b96a8d', '#d783a6', '#e8a6c3', '#f4c6d7', '#fde6ef'],
   blue: ['#1d4ed8', '#2563eb', '#60a5fa', '#0ea5e9', '#312e81', '#1e40af', '#38bdf8', '#6366f1'],
   magenta: ['#c026d3', '#db2777', '#f472b6', '#f43f5e', '#a21caf', '#f97316', '#ec4899', '#fb7185'],
   teal: ['#0f766e', '#115e59', '#14b8a6', '#0ea5e9', '#2dd4bf', '#5eead4', '#134e4a', '#0f172a'],
   bright: ['#ff6b6b', '#4ecdc4', '#ffd93d', '#6a4c93', '#1a535c', '#ff8c42', '#2d9bf0', '#ff3f81'],
   neon: ['#39ff14', '#ff3131', '#04d9ff', '#bc13fe', '#ffd700', '#ff007f', '#0aff99', '#ff8c00'],
-  minimal: ['#1c1c1e', '#2c2c2e', '#3a3a3c', '#48484a', '#636366', '#8e8e93', '#aeaeb2', '#d1d1d6'],
-  appleMidnight: ['#0a1f44', '#102a56', '#1b3a73', '#274c8f', '#345ea8', '#4f7ac1', '#6c95d8', '#8fb0ed'],
-  appleStarlight: ['#3f3a2f', '#5a5241', '#7a6e54', '#9a8d6a', '#b9ab81', '#d6c99b', '#ede0b8', '#f7f1d8'],
-  appleForest: ['#1f3b2c', '#2f573d', '#41744e', '#5a9361', '#74b377', '#8fd48d', '#afe4a6', '#d0f3c5'],
-  appleSky: ['#0d2f4f', '#16456c', '#205b89', '#2b72a6', '#3b8ec2', '#52a9dd', '#71c4f3', '#a5ddff'],
-  appleCoral: ['#462227', '#6a2f35', '#8d3d43', '#b34d52', '#d76062', '#ed7b75', '#f89b8f', '#ffc3b9'],
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);

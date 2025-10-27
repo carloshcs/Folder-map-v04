@@ -66,60 +66,80 @@ export function Sidebar({
 
   const colorOptions = [
     {
-      id: "blue",
-      label: "Blue",
-      gradient: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 45%, #60a5fa 100%)",
-      description: "Blue gradients for strong contrast",
+      id: "system",
+      label: "System",
+      description: "Adapts to light or dark theme automatically",
+      gradient: isDark
+        ? "linear-gradient(90deg, #1f2937 0%, #334155 35%, #60a5fa 100%)"
+        : "linear-gradient(90deg, #e0f2fe 0%, #bfdbfe 45%, #2563eb 100%)",
+      previewColors: isDark
+        ? ["#1f2937", "#334155", "#4c51bf", "#60a5fa", "#e0f2fe"]
+        : ["#eff6ff", "#bfdbfe", "#60a5fa", "#2563eb", "#1d4ed8"],
+      variant: "color" as const,
       row: 0,
     },
     {
-      id: "magenta",
-      label: "Magenta",
-      gradient: "linear-gradient(135deg, #7e22ce 0%, #db2777 50%, #f472b6 100%)",
-      description: "Magenta and fuchsia accents",
+      id: "rainbow",
+      label: "Rainbow",
+      description: "Vibrant spectrum for standout maps",
+      gradient: "linear-gradient(90deg, #ef4444 0%, #f97316 20%, #facc15 40%, #22c55e 60%, #3b82f6 80%, #a855f7 100%)",
+      previewColors: ["#ef4444", "#f97316", "#facc15", "#22c55e", "#3b82f6", "#a855f7"],
+      variant: "color" as const,
       row: 0,
     },
     {
-      id: "neon",
-      label: "Neon",
-      gradient: "linear-gradient(135deg, #ff007f 0%, #04d9ff 50%, #39ff14 100%)",
-      description: "Neon spectrum for maximum pop",
+      id: "heatmap",
+      label: "Heatmap",
+      description: "From hot reds to cool blues",
+      gradient: "linear-gradient(90deg, #b91c1c 0%, #f97316 45%, #60a5fa 80%, #1d4ed8 100%)",
+      previewColors: ["#b91c1c", "#ef4444", "#f97316", "#60a5fa", "#2563eb", "#1d4ed8"],
+      variant: "color" as const,
       row: 0,
     },
     {
-      id: "minimal",
-      label: "Minimal",
-      gradient: "linear-gradient(135deg, #1c1c1e 0%, #3a3a3c 55%, #d1d1d6 100%)",
-      description: "Apple-inspired graphite neutrals",
-      row: 1,
+      id: "slate",
+      label: "Slate",
+      description: "Minimal cool neutrals",
+      gradient: "linear-gradient(90deg, #0f172a 0%, #1f2937 40%, #64748b 100%)",
+      previewColors: ["#0f172a", "#1f2937", "#334155", "#475569", "#64748b"],
+      variant: "color" as const,
+      row: 0,
     },
     {
-      id: "appleMidnight",
-      label: "Midnight",
-      gradient: "linear-gradient(135deg, #0a1f44 0%, #274c8f 55%, #8fb0ed 100%)",
-      description: "Deep midnight blues",
-      row: 1,
+      id: "stone",
+      label: "Stone",
+      description: "Warm modern greys",
+      gradient: "linear-gradient(90deg, #1f2933 0%, #52606d 45%, #d9e2ec 100%)",
+      previewColors: ["#1f2933", "#323f4b", "#3e4c59", "#52606d", "#d9e2ec"],
+      variant: "color" as const,
+      row: 0,
     },
     {
-      id: "appleStarlight",
-      label: "Starlight",
-      gradient: "linear-gradient(135deg, #3f3a2f 0%, #7a6e54 50%, #f7f1d8 100%)",
-      description: "Soft starlight golds",
-      row: 1,
-    },
-    {
-      id: "appleForest",
+      id: "forest",
       label: "Forest",
-      gradient: "linear-gradient(135deg, #1f3b2c 0%, #41744e 55%, #afe4a6 100%)",
-      description: "Verdant Apple greens",
-      row: 1,
+      description: "Earthy, muted greens",
+      gradient: "linear-gradient(90deg, #0b3d2e 0%, #1f6f4a 50%, #95d5b2 100%)",
+      previewColors: ["#0b3d2e", "#14553c", "#1f6f4a", "#2f8552", "#95d5b2"],
+      variant: "color" as const,
+      row: 0,
     },
     {
-      id: "appleCoral",
-      label: "Coral",
-      gradient: "linear-gradient(135deg, #462227 0%, #b34d52 55%, #ffc3b9 100%)",
-      description: "Warm Apple coral",
-      row: 1,
+      id: "mist",
+      label: "Mist",
+      description: "Soft cool pastels",
+      gradient: "linear-gradient(90deg, #1f2937 0%, #4c1d95 50%, #c7d2fe 100%)",
+      previewColors: ["#312e81", "#4338ca", "#6366f1", "#a5b4fc", "#e0e7ff"],
+      variant: "color" as const,
+      row: 0,
+    },
+    {
+      id: "blush",
+      label: "Blush",
+      description: "Understated rosy tones",
+      gradient: "linear-gradient(90deg, #5b2333 0%, #9d4b73 50%, #f4c6d7 100%)",
+      previewColors: ["#5b2333", "#7a2f4b", "#9d4b73", "#d783a6", "#f4c6d7"],
+      variant: "color" as const,
+      row: 0,
     },
   ];
 
@@ -289,10 +309,8 @@ export function Sidebar({
             options={colorOptions}
             onSelect={handleOptionSelect}
             selectedOptionId={selectedPaletteId}
-            className="w-[420px]"
-            rowClassName={(row) =>
-              row === 0 ? "grid grid-cols-3 gap-2" : "grid grid-cols-5 gap-2"
-            }
+            className="w-[280px]"
+            rowClassName={() => "flex w-full flex-col gap-2"}
             itemClassName="w-full"
           />
         </div>

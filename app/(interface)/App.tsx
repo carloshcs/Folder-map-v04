@@ -123,7 +123,16 @@ export default function App() {
   const [currentMap, setCurrentMap] = useState('My Project Map');
   const [existingMaps, setExistingMaps] = useState(['My Project Map', 'Team Workspace', 'Design System', 'Marketing Campaign']);
   const [selectedLayout, setSelectedLayout] = useState<string | null>('orbital');
-  const [selectedPaletteId, setSelectedPaletteId] = useState<string>("blue");
+  const [selectedPaletteId, setSelectedPaletteId] = useState<string>("system");
+  const effectivePaletteId = useMemo(
+    () =>
+      selectedPaletteId === "system"
+        ? isDark
+          ? "system-dark"
+          : "system-light"
+        : selectedPaletteId,
+    [isDark, selectedPaletteId],
+  );
   const mapRef = useRef<HTMLDivElement>(null);
   const folderSelectionHandlerRef = useRef<FolderSelectionActions['setFolderSelection'] | null>(null);
   const isCanvasLayout = selectedLayout !== "activity-map";
@@ -749,7 +758,7 @@ export default function App() {
                 {selectedLayout === 'orbital' && (
                   <OrbitalMap
                     folders={folderData}
-                    colorPaletteId={selectedPaletteId}
+                    colorPaletteId={effectivePaletteId}
                     onFolderSelectionChange={handleFolderSelectionChange}
                   />
                 )}
@@ -757,7 +766,7 @@ export default function App() {
                   <FoxThreeMap folders={folderData} />
                 )}
                 {selectedLayout === 'radial-tree' && (
-                  <RadialTreeMap folders={folderData} colorPaletteId={selectedPaletteId} />
+                  <RadialTreeMap folders={folderData} colorPaletteId={effectivePaletteId} />
                 )}
 
                 {/* Text Elements */}
