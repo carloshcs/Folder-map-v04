@@ -9,16 +9,17 @@ import { FolderItem } from '../orbital-map/types';
 import { isServiceId, ServiceId } from '@/app/(interface)/components/right-sidebar/data';
 import { IntegrationFilter, IntegrationService } from '@/app/(interface)/components/IntegrationFilter';
 import { getNodeRadius } from '../orbital-map/geometry';
-import { computeNodeStyles } from '../utils/styles';
+import { computeNodeStyles, DIMMED_FILL_LIGHTEN } from '../utils/styles';
 import { getNodeId } from '../orbital-map/nodeUtils';
+import { shiftColor } from '@/app/(interface)/lib/utils/colors';
 
 const LEVEL_RADII: Record<number, number> = {
-  1: 220,
-  2: 420,
-  3: 640,
+  1: 240,
+  2: 480,
+  3: 720,
 };
 
-const RADIAL_SPACING = 180;
+const RADIAL_SPACING = 220;
 const VIEWBOX_PADDING = 260;
 
 const PREDEFINED_LEVELS = Object.keys(LEVEL_RADII).map(level => Number(level));
@@ -177,6 +178,8 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
 }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
+  const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
   const [size, setSize] = useState({ width: MIN_WIDTH, height: MIN_HEIGHT });
   const [activeServiceId, setActiveServiceId] = useState<ServiceId | null>(() => {
@@ -306,8 +309,6 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
     const fallbackServiceId = resolvedRootService ?? activeServiceId ?? undefined;
     const rootServiceDetails = resolvedRootService ? SERVICE_DETAILS[resolvedRootService] : undefined;
 
-    const fullRoot = d3.hierarchy(rootData);
-
     const layoutRoot = d3.hierarchy(rootData);
     layoutRoot.eachBefore(node => {
       const nodeId = getNodeIdentifier(node);
@@ -337,14 +338,20 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       }
     });
 
-    const nodeStyles = computeNodeStyles(fullRoot as any, colorPaletteId);
+    const styledRoot = d3.hierarchy({ name: '__radial-root__', children: [rootData] });
+    const nodeStyles = computeNodeStyles(styledRoot as any, colorPaletteId);
 
     const descendants = layoutRoot.descendants();
     const maxDepth = d3.max(descendants, node => node.depth) ?? 1;
 
     const treeLayout = d3.tree<any>();
-    treeLayout.size([Math.PI * 2, Math.max(1, maxDepth)]);
-    treeLayout.separation((a, b) => (a.parent === b.parent ? 1 : 2) / Math.max(1, a.depth));
+    treeLayout
+      .size([Math.PI * 2, Math.max(1, maxDepth)])
+      .separation((a, b) => {
+        const depth = Math.max(1, Math.min(a.depth, b.depth));
+        const sameParent = a.parent === b.parent;
+        return (sameParent ? 1.6 : 2.8) / depth;
+      });
 
     const positionedRoot = treeLayout(layoutRoot) as d3.HierarchyPointNode<any>;
 
@@ -352,20 +359,54 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       node.y = getRadiusForDepth(node.depth);
     });
 
+    const getCircleRadius = (node: d3.HierarchyPointNode<any>) => {
+      const baseRadius = getNodeRadius(Math.min(node.depth, 3));
+      return node.depth === 0 ? baseRadius * 1.12 : baseRadius;
+    };
+
     const radialLink = d3
       .linkRadial<d3.HierarchyPointLink<any>, d3.HierarchyPointNode<any>>()
       .angle(d => d.x)
       .radius(d => d.y);
 
+    svg.on('.zoom', null);
+
     const g = svg.append('g');
 
-    g.append('g')
+    const zoomBehavior = d3
+      .zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.7, 2.4])
+      .on('zoom', event => {
+        zoomTransformRef.current = event.transform;
+        g.attr('transform', event.transform.toString());
+      });
+
+    zoomBehaviorRef.current = zoomBehavior;
+
+    svg.call(zoomBehavior as any);
+    svg.on('dblclick.zoom', null);
+    svg.call(zoomBehavior.transform, zoomTransformRef.current);
+
+    const centerOnRoot = () => {
+      if (!zoomBehaviorRef.current || !svgRef.current) {
+        return;
+      }
+      const currentScale = zoomTransformRef.current?.k ?? 1;
+      const targetTransform = d3.zoomIdentity.scale(currentScale);
+      d3.select(svgRef.current)
+        .transition()
+        .duration(450)
+        .call(zoomBehaviorRef.current.transform, targetTransform);
+    };
+
+    const linkSelection = g
+      .append('g')
       .attr('class', 'radial-links')
       .attr('fill', 'none')
       .attr('stroke', '#CBD5E1')
       .attr('stroke-width', 1.2)
       .attr('stroke-opacity', 0.6)
-      .selectAll('path')
+      .selectAll<SVGPathElement, d3.HierarchyPointLink<any>>('path')
       .data(positionedRoot.links())
       .join('path')
       .attr('d', d => radialLink(d as any) ?? '')
@@ -392,42 +433,48 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
     nodeGroups
       .append('circle')
       .attr('class', 'radial-node-circle')
-      .attr('r', node => getNodeRadius(Math.min(node.depth, 3)))
-      .attr('fill', node => {
-        if (node.depth === 0) {
-          return '#FFFFFF';
-        }
+      .attr('r', node => getCircleRadius(node))
+      .each(function (node) {
+        const circle = d3.select(this);
+        const folderItem: FolderItem | undefined = node.data?.item;
+        const resolved = folderItem
+          ? resolveServiceId(folderItem, fallbackServiceId)
+          : fallbackServiceId;
+        const details = resolved ? SERVICE_DETAILS[resolved] : undefined;
         const style = nodeStyles.get(getNodeId(node as any));
-        const folderItem: FolderItem | undefined = node.data?.item;
-        const resolved = folderItem
-          ? resolveServiceId(folderItem, fallbackServiceId)
-          : fallbackServiceId;
-        const details = resolved ? SERVICE_DETAILS[resolved] : undefined;
-        return style?.fill ?? details?.fill ?? '#E2E8F0';
-      })
-      .attr('stroke', node => {
-        const folderItem: FolderItem | undefined = node.data?.item;
-        const resolved = folderItem
-          ? resolveServiceId(folderItem, fallbackServiceId)
-          : fallbackServiceId;
-        const details = resolved ? SERVICE_DETAILS[resolved] : undefined;
+
+        let fill = '#E2E8F0';
         if (node.depth === 0) {
-          return details?.stroke ?? rootServiceDetails?.stroke ?? '#0F172A';
+          fill = details?.fill ?? rootServiceDetails?.fill ?? '#ffffff';
+        } else if (style?.fill) {
+          fill = style.fill;
+        } else if (details?.fill) {
+          fill = details.fill;
         }
-        return details?.stroke ?? '#1F2937';
-      })
-      .attr('stroke-width', node => (node.depth === 0 ? 3 : 1.6))
-      .attr('opacity', node => (node.data?.item?.isSelected === false ? 0.3 : 1));
+
+        const stroke =
+          node.depth === 0
+            ? details?.stroke ?? rootServiceDetails?.stroke ?? '#0F172A'
+            : details?.stroke ?? '#1F2937';
+
+        circle
+          .attr('fill', fill)
+          .attr('stroke', stroke)
+          .attr('stroke-width', node.depth === 0 ? 3.5 : 1.8)
+          .attr('opacity', node.data?.item?.isSelected === false ? 0.3 : 1)
+          .attr('data-base-fill', fill)
+          .attr('data-dimmed-fill', null);
+      });
 
     nodeGroups
       .append('image')
       .filter(node => node.depth === 0)
       .attr('class', 'radial-node-logo')
       .attr('href', () => rootServiceDetails?.logo ?? '')
-      .attr('width', node => getNodeRadius(Math.min(node.depth, 3)) * 1.3)
-      .attr('height', node => getNodeRadius(Math.min(node.depth, 3)) * 1.3)
-      .attr('x', node => -getNodeRadius(Math.min(node.depth, 3)) * 0.65)
-      .attr('y', node => -getNodeRadius(Math.min(node.depth, 3)) * 0.65)
+      .attr('width', node => getCircleRadius(node) * 1.25)
+      .attr('height', node => getCircleRadius(node) * 1.25)
+      .attr('x', node => -getCircleRadius(node) * 0.625)
+      .attr('y', node => -getCircleRadius(node) * 0.625)
       .style('pointer-events', 'none');
 
     nodeGroups
@@ -436,7 +483,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       .attr('class', 'radial-node-root-label')
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'hanging')
-      .attr('dy', getNodeRadius(0) + 12)
+      .attr('dy', node => getCircleRadius(node) + 16)
       .attr('fill', rootServiceDetails?.stroke ?? '#0F172A')
       .attr('font-weight', '600')
       .attr('font-size', 14)
@@ -455,13 +502,109 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           : fallbackServiceId;
         const details = resolved ? SERVICE_DETAILS[resolved] : undefined;
         const textColor = style?.textColor ?? details?.stroke ?? '#0F172A';
-        const radius = getNodeRadius(Math.min(node.depth, 3));
+        const radius = getCircleRadius(node);
         ensureLabelFits(selection, node.data?.name ?? 'Folder', radius, textColor);
       });
+
+    const nodeById = new Map<string, d3.HierarchyPointNode<any>>();
+    nodes.forEach(node => {
+      const identifier = getNodeIdentifier(node);
+      if (identifier) {
+        nodeById.set(identifier, node);
+      }
+    });
+
+    const highlightNodes = (hoveredId: string | null) => {
+      const relatedIds = new Set<string>();
+
+      if (hoveredId) {
+        const hoveredNode = nodeById.get(hoveredId);
+        if (hoveredNode) {
+          const hoveredIdentifier = getNodeIdentifier(hoveredNode);
+          if (hoveredIdentifier) {
+            relatedIds.add(hoveredIdentifier);
+          }
+          const parentIdentifier = hoveredNode.parent
+            ? getNodeIdentifier(hoveredNode.parent)
+            : null;
+          if (parentIdentifier) {
+            relatedIds.add(parentIdentifier);
+          }
+          hoveredNode.children?.forEach(child => {
+            const childIdentifier = getNodeIdentifier(child as any);
+            if (childIdentifier) {
+              relatedIds.add(childIdentifier);
+            }
+          });
+        }
+      }
+
+      nodeGroups.each(function (node) {
+        const selection = d3.select(this);
+        const circle = selection.select<SVGCircleElement>('circle.radial-node-circle');
+        if (circle.empty()) {
+          return;
+        }
+        const baseFill = circle.attr('data-base-fill');
+        if (!baseFill) {
+          return;
+        }
+        const nodeIdentifier = getNodeIdentifier(node);
+        const label = selection.select<SVGTextElement>('text');
+
+        if (!hoveredId || (nodeIdentifier && relatedIds.has(nodeIdentifier))) {
+          circle.attr('fill', baseFill);
+          if (!label.empty()) {
+            label.style('opacity', 1);
+          }
+          return;
+        }
+
+        const dimmedFill = circle.attr('data-dimmed-fill') || shiftColor(baseFill, DIMMED_FILL_LIGHTEN);
+        circle.attr('fill', dimmedFill).attr('data-dimmed-fill', dimmedFill);
+        if (!label.empty()) {
+          label.style('opacity', 0.75);
+        }
+      });
+
+      linkSelection
+        .attr('stroke', d => {
+          if (!hoveredId) {
+            return '#CBD5E1';
+          }
+          const sourceId = getNodeIdentifier(d.source as any);
+          const targetId = getNodeIdentifier(d.target as any);
+          return sourceId === hoveredId || targetId === hoveredId ? '#6366F1' : '#CBD5E1';
+        })
+        .attr('stroke-width', d => {
+          if (!hoveredId) {
+            return 1.2;
+          }
+          const sourceId = getNodeIdentifier(d.source as any);
+          const targetId = getNodeIdentifier(d.target as any);
+          return sourceId === hoveredId || targetId === hoveredId ? 2.3 : 1.05;
+        })
+        .attr('opacity', d => {
+          if (!hoveredId) {
+            return 0.75;
+          }
+          const sourceId = getNodeIdentifier(d.source as any);
+          const targetId = getNodeIdentifier(d.target as any);
+          return sourceId === hoveredId || targetId === hoveredId ? 0.95 : 0.45;
+        });
+    };
+
+    highlightNodes(null);
 
     nodeGroups
       .on('click', (event, node) => {
         if (event.detail > 1) {
+          return;
+        }
+        if (node.depth === 0) {
+          event.preventDefault();
+          event.stopPropagation();
+          centerOnRoot();
           return;
         }
         if (!node?.data?.id || !node.data?.item) {
@@ -469,6 +612,13 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         }
         const isSelected = node.data.item.isSelected !== false;
         onFolderSelectionChange?.(node.data.id, !isSelected);
+      })
+      .on('mouseenter', (_, node) => {
+        const identifier = getNodeIdentifier(node);
+        highlightNodes(identifier);
+      })
+      .on('mouseleave', () => {
+        highlightNodes(null);
       })
       .on('dblclick', (event, node) => {
         event.preventDefault();
@@ -488,6 +638,10 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           return next;
         });
       });
+
+    svg.on('mouseleave', () => {
+      highlightNodes(null);
+    });
   }, [
     filteredFolders,
     size,
