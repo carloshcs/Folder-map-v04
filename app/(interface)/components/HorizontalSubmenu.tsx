@@ -10,6 +10,8 @@ interface SubmenuOption {
   icon?: React.ReactNode;
   textClassName?: string;
   row?: number;
+  variant?: "color" | "default";
+  previewColors?: string[];
 }
 
 interface HorizontalSubmenuProps {
@@ -68,6 +70,52 @@ export function HorizontalSubmenu({
           {sortedRows.map(({ row, options: rowOptions }) => (
             <div key={row} className={getRowClassName(row)}>
               {rowOptions.map(option => {
+                const variant = option.variant ?? "default";
+                const isSelected = selectedOptionId === option.id;
+
+                if (variant === "color") {
+                  const previewColors = option.previewColors ?? [];
+                  return (
+                    <button
+                      key={option.id}
+                      onClick={() => onSelect(option.id)}
+                      className={`
+                        group flex w-full items-center gap-3 rounded-md border border-transparent
+                        bg-card/80 px-3 py-2 text-left text-foreground transition-colors duration-200
+                        hover:bg-accent/70 hover:text-accent-foreground
+                        ${isSelected ? 'border-primary/60 ring-1 ring-primary/40 bg-accent/80 text-accent-foreground' : ''}
+                        ${itemClassName}
+                      `}
+                      title={option.description}
+                    >
+                      <div className="flex shrink-0 items-center gap-1">
+                        {previewColors.length > 0 ? (
+                          previewColors.slice(0, 5).map((color, index) => (
+                            <span
+                              key={`${option.id}-swatch-${index}`}
+                              className="h-8 w-4 rounded-sm border border-border/60"
+                              style={{ backgroundColor: color }}
+                            />
+                          ))
+                        ) : (
+                          <span
+                            className="h-8 w-8 rounded-md border border-border/60"
+                            style={option.gradient ? { background: option.gradient } : {}}
+                          />
+                        )}
+                      </div>
+                      <div className="flex min-w-0 flex-col">
+                        <span className="truncate text-sm font-medium">{option.label}</span>
+                        {option.description && (
+                          <span className="text-xs text-muted-foreground group-hover:text-accent-foreground/80">
+                            {option.description}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                }
+
                 const hasGradient = Boolean(option.gradient);
                 const textColorClass = option.textClassName ?? (hasGradient ? 'text-white' : 'text-muted-foreground');
                 const hoverClasses = hasGradient
@@ -79,17 +127,17 @@ export function HorizontalSubmenu({
                     key={option.id}
                     onClick={() => onSelect(option.id)}
                     className={`
-                      flex flex-col items-center justify-center rounded-lg transition-all duration-200
-                      min-w-[80px] h-[70px] px-3
+                      flex flex-col items-center justify-center rounded-lg border border-transparent
+                      transition-all duration-200 min-w-[72px] h-[62px] px-3 text-center text-xs
                       ${hoverClasses} ${textColorClass}
-                      ${selectedOptionId === option.id ? 'ring-2 ring-primary' : ''}
+                      ${isSelected ? 'ring-2 ring-primary' : ''}
                       ${itemClassName}
                     `}
                     style={option.gradient ? { background: option.gradient } : {}}
                     title={option.description}
                   >
                     {option.icon && <div className="mb-1">{option.icon}</div>}
-                    <span className="text-xs">{option.label}</span>
+                    <span className="text-xs font-medium">{option.label}</span>
                   </button>
                 );
               })}
