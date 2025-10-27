@@ -79,6 +79,19 @@ export function Sidebar({
       row: 0,
     },
     {
+      id: "minimal",
+      label: "Minimal",
+      description: "Single-tone palette that follows your theme",
+      gradient: isDark
+        ? "linear-gradient(90deg, #0f172a 0%, #111827 100%)"
+        : "linear-gradient(90deg, #ffffff 0%, #f8fafc 100%)",
+      previewColors: isDark
+        ? ["#111827", "#1f2937", "#111827", "#1f2937", "#111827"]
+        : ["#ffffff", "#f8fafc", "#ffffff", "#f8fafc", "#ffffff"],
+      variant: "color" as const,
+      row: 0,
+    },
+    {
       id: "rainbow",
       label: "Rainbow",
       description: "Vibrant spectrum for standout maps",

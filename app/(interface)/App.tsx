@@ -124,15 +124,17 @@ export default function App() {
   const [existingMaps, setExistingMaps] = useState(['My Project Map', 'Team Workspace', 'Design System', 'Marketing Campaign']);
   const [selectedLayout, setSelectedLayout] = useState<string | null>('orbital');
   const [selectedPaletteId, setSelectedPaletteId] = useState<string>("system");
-  const effectivePaletteId = useMemo(
-    () =>
-      selectedPaletteId === "system"
-        ? isDark
-          ? "system-dark"
-          : "system-light"
-        : selectedPaletteId,
-    [isDark, selectedPaletteId],
-  );
+  const effectivePaletteId = useMemo(() => {
+    if (selectedPaletteId === "system") {
+      return isDark ? "system-dark" : "system-light";
+    }
+
+    if (selectedPaletteId === "minimal") {
+      return isDark ? "minimal-dark" : "minimal-light";
+    }
+
+    return selectedPaletteId;
+  }, [isDark, selectedPaletteId]);
   const mapRef = useRef<HTMLDivElement>(null);
   const folderSelectionHandlerRef = useRef<FolderSelectionActions['setFolderSelection'] | null>(null);
   const isCanvasLayout = selectedLayout !== "activity-map";
