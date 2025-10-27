@@ -31,7 +31,7 @@ export interface FoxNodeData {
 }
 
 export const NODE_WIDTH = 260;
-export const NODE_HEIGHT = 136;
+export const NODE_HEIGHT = 112;
 export const HORIZONTAL_GAP = 280;
 export const VERTICAL_GAP = 210;
 export const SNAP_SIZE = 24;
