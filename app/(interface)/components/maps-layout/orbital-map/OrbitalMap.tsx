@@ -20,6 +20,8 @@ import {
 import { getNodeRadius } from './geometry';
 import { computeNodeStyles, DIMMED_FILL_LIGHTEN } from '../utils/styles';
 import { OrbitalTooltip } from './OrbitalTooltip';
+import { getTooltipAnchorForNode } from './tooltipPositioning';
+import type { TooltipAnchor } from './tooltipPositioning';
 
 export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   folders,
@@ -49,12 +51,6 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   const closeTooltip = useCallback(() => {
     setHoveredNode(null);
   }, []);
-
-  type TooltipAnchor = {
-    position: { x: number; y: number }; // Screen coordinates relative to the viewport
-    screenRadius: number;
-    baseRadius: number;
-  };
 
   const canvasToScreen = useCallback(
     (point: { x: number; y: number }) => {
@@ -106,46 +102,19 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     [],
   );
 
-  const getNodePerimeterTopPosition = useCallback(
-    (nodeId: string, depth: number) => {
-      const transform = zoomTransformRef.current ?? d3.zoomIdentity;
-      const nodePosition = nodePositionsRef.current.get(nodeId);
-
-      if (!nodePosition) {
-        return null;
-      }
-
-      const screenCenter = canvasToScreen(nodePosition);
-      const baseRadius = getNodeRadius(depth);
-      const screenRadius = baseRadius * transform.k;
-
-      return {
-        anchor: {
-          x: screenCenter.x,
-          y: screenCenter.y - screenRadius,
-        },
-        screenRadius,
-        baseRadius,
-      };
-    },
-    [canvasToScreen],
-  );
-
   const computeTooltipAnchor = useCallback(
     (nodeId: string, depth: number): TooltipAnchor | null => {
-      const perimeterTop = getNodePerimeterTopPosition(nodeId, depth);
+      const transform = zoomTransformRef.current ?? d3.zoomIdentity;
 
-      if (!perimeterTop) {
-        return null;
-      }
-
-      return {
-        position: perimeterTop.anchor,
-        screenRadius: perimeterTop.screenRadius,
-        baseRadius: perimeterTop.baseRadius,
-      };
+      return getTooltipAnchorForNode({
+        nodeId,
+        depth,
+        nodePositions: nodePositionsRef.current,
+        zoomScale: transform.k,
+        canvasToScreen,
+      });
     },
-    [getNodePerimeterTopPosition],
+    [canvasToScreen],
   );
 
   const getEventBasedAnchor = (event: PointerEvent): TooltipAnchor | null => {
