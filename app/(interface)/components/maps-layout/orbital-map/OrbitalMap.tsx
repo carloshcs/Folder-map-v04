@@ -435,6 +435,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       colorAssignments: nodeStyles,
       onNodeEnter: handleNodeEnter,
       onNodeLeave: handleNodeLeave,
+      paletteId: colorPaletteId ?? null,
     }).style('pointer-events', 'all');
 
     node.call(
