@@ -58,17 +58,6 @@ const ActivityMap = dynamic(
   },
 );
 
-const BubbleSizeMap = dynamic(
-  () =>
-    import("./components/maps-layout/BubbleSize-map/BubbleSizeMap").then(
-      mod => mod.BubbleSizeMap,
-    ),
-  {
-    loading: MapLayoutFallback,
-    ssr: false,
-  },
-);
-
 const FoxThreeMap = dynamic(
   () =>
     import("./components/maps-layout/Fox-three-map/FoxThreeMap").then(
@@ -95,17 +84,6 @@ const RadialTreeMap = dynamic(
   () =>
     import("./components/maps-layout/Radial-three-map/RadialTreeMap").then(
       mod => mod.RadialTreeMap,
-    ),
-  {
-    loading: MapLayoutFallback,
-    ssr: false,
-  },
-);
-
-const SunBurstMap = dynamic(
-  () =>
-    import("./components/maps-layout/SunBurst-map/SunBurstMap").then(
-      mod => mod.SunBurstMap,
     ),
   {
     loading: MapLayoutFallback,
@@ -657,7 +635,6 @@ export default function App() {
 
   const textToolbar = useMemo(() => {
     if (
-      selectedLayout === 'bubble-size' ||
       selectedLayout === 'activity-map' ||
       !selectedTextId ||
       isTextDragging ||
@@ -769,9 +746,6 @@ export default function App() {
               <div className="relative w-full h-full">
                 {gridOverlay}
 
-                {selectedLayout === 'bubble-size' && (
-                  <BubbleSizeMap folders={folderData} colorPaletteId={selectedPaletteId} />
-                )}
                 {selectedLayout === 'orbital' && (
                   <OrbitalMap
                     folders={folderData}
@@ -784,9 +758,6 @@ export default function App() {
                 )}
                 {selectedLayout === 'radial-tree' && (
                   <RadialTreeMap folders={folderData} colorPaletteId={selectedPaletteId} />
-                )}
-                {selectedLayout === 'sun-burst' && (
-                  <SunBurstMap folders={folderData} />
                 )}
 
                 {/* Text Elements */}

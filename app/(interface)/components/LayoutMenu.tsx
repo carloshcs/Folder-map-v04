@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, GitBranch, Orbit, Radar, Sun, Zap } from 'lucide-react';
+import { Activity, GitBranch, Orbit, Radar } from 'lucide-react';
 
 interface LayoutMenuProps {
   isOpen: boolean;
@@ -46,24 +46,11 @@ export function LayoutMenu({ isOpen, onSelect, selectedLayout }: LayoutMenuProps
     {
       title: "More Layouts",
       options: [
-
         {
           id: 'activity-map',
           label: 'Activity Map',
           description: 'Highlights the most active folders',
           icon: <Activity size={16} />
-        },
-        {
-          id: 'bubble-size',
-          label: 'Bubble Size',
-          description: 'Size-based bubble visualization',
-          icon: <Zap size={16} />
-        },
-        {
-          id: 'sun-burst',
-          label: 'Sun Burst',
-          description: 'Sunburst radial segmentation',
-          icon: <Sun size={16} />
         }
       ]
     }
