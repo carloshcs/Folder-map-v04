@@ -765,7 +765,10 @@ export default function App() {
                   />
                 )}
                 {selectedLayout === 'fox-three' && (
-                  <FoxThreeMap folders={folderData} />
+                  <FoxThreeMap
+                    folders={folderData}
+                    colorPaletteId={effectivePaletteId}
+                  />
                 )}
                 {selectedLayout === 'radial-tree' && (
                   <RadialTreeMap folders={folderData} colorPaletteId={effectivePaletteId} />

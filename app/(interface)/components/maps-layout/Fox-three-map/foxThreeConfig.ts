@@ -2,6 +2,7 @@ import { type FolderItem, type ServiceId } from '../../right-sidebar/data';
 
 export interface FoxThreeMapProps {
   folders: FolderItem[];
+  colorPaletteId?: string | null;
 }
 
 export interface FoxTreeNode {
@@ -28,6 +29,10 @@ export interface FoxNodeData {
   serviceId?: ServiceId;
   isExpanded?: boolean;
   onToggle?: () => void;
+  backgroundColor?: string;
+  textColor?: string;
+  borderColor?: string;
+  accentColor?: string;
 }
 
 // Node size

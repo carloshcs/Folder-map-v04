@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { type Edge, type Node, type XYPosition } from 'reactflow';
 
 import { type IntegrationService } from '@/app/(interface)/components/IntegrationFilter';
+import { getPaletteColors, getReadableTextColor, shiftColor } from '@/app/(interface)/lib/utils/colors';
 
 import { type FolderItem, type ServiceId } from '../../right-sidebar/data';
 import {
@@ -50,7 +51,73 @@ const collectVisibleNodeIds = (
   return visible;
 };
 
-export const useFoxThreeActions = (folders: FolderItem[]): UseFoxThreeActionsResult => {
+type NodeColorAssignment = {
+  backgroundColor: string;
+  textColor: string;
+  borderColor: string;
+  accentColor: string;
+};
+
+const MAX_LIGHTENING = 0.75;
+const LIGHTEN_STEP = 0.18;
+const FIRST_CHILD_LIGHTEN = 0.18;
+const BORDER_DARKEN = -0.35;
+
+const computeColorAssignments = (
+  root: FoxTreeNode,
+  paletteId?: string | null,
+): Map<string, NodeColorAssignment> => {
+  const palette = getPaletteColors(paletteId);
+  if (!palette.length) {
+    return new Map();
+  }
+
+  const assignments = new Map<string, NodeColorAssignment>();
+  const setAssignment = (node: FoxTreeNode, baseColor: string, lightAmount: number) => {
+    const backgroundColor = shiftColor(baseColor, lightAmount);
+    const textColor = getReadableTextColor(backgroundColor);
+    const borderColor = shiftColor(backgroundColor, BORDER_DARKEN);
+    assignments.set(node.id, {
+      backgroundColor,
+      textColor,
+      borderColor,
+      accentColor: baseColor,
+    });
+  };
+
+  const assignDescendants = (node: FoxTreeNode, depth: number, branchColor: string) => {
+    const relativeDepth = Math.max(depth - 1, 1);
+    const lightenAmount = Math.min(
+      MAX_LIGHTENING,
+      FIRST_CHILD_LIGHTEN + Math.max(relativeDepth - 1, 0) * LIGHTEN_STEP,
+    );
+    setAssignment(node, branchColor, lightenAmount);
+
+    node.children?.forEach(child => assignDescendants(child, depth + 1, branchColor));
+  };
+
+  if (root) {
+    const rootBase = palette[0];
+    const rootLighten = Math.min(MAX_LIGHTENING, FIRST_CHILD_LIGHTEN + LIGHTEN_STEP * 2);
+    setAssignment(root, rootBase, rootLighten);
+  }
+
+  let paletteIndex = 0;
+  root.children?.forEach(child => {
+    const baseColor = palette[paletteIndex % palette.length];
+    paletteIndex += 1;
+
+    setAssignment(child, baseColor, 0);
+    child.children?.forEach(grandchild => assignDescendants(grandchild, 2, baseColor));
+  });
+
+  return assignments;
+};
+
+export const useFoxThreeActions = (
+  folders: FolderItem[],
+  colorPaletteId?: string | null,
+): UseFoxThreeActionsResult => {
   const [flowNodes, setFlowNodes] = useState<Array<Node<FoxNodeData>>>([]);
   const [flowEdges, setFlowEdges] = useState<Edge[]>([]);
   const [expandedState, setExpandedState] = useState<Map<string, boolean>>(new Map());
@@ -108,6 +175,11 @@ export const useFoxThreeActions = (folders: FolderItem[]): UseFoxThreeActionsRes
       children: tree.children?.filter(child => child.serviceId === activeServiceId) ?? [],
     };
   }, [tree, activeServiceId]);
+
+  const colorAssignments = useMemo(
+    () => computeColorAssignments(filteredTree, colorPaletteId),
+    [filteredTree, colorPaletteId],
+  );
 
   const layout = useMemo(() => createFlowLayout(filteredTree, expandedState), [filteredTree, expandedState]);
 
@@ -250,6 +322,7 @@ export const useFoxThreeActions = (folders: FolderItem[]): UseFoxThreeActionsRes
         const typedNode = node as Node<FoxNodeData>;
         const { depth, childrenCount } = typedNode.data;
         const isExpanded = getIsNodeExpanded(node.id, depth, childrenCount);
+        const colorStyle = colorAssignments.get(node.id);
 
         return {
           ...typedNode,
@@ -257,10 +330,23 @@ export const useFoxThreeActions = (folders: FolderItem[]): UseFoxThreeActionsRes
             ...typedNode.data,
             isExpanded,
             onToggle: () => toggleNodeExpansionById(node.id, depth, childrenCount),
+            ...(colorStyle
+              ? {
+                  backgroundColor: colorStyle.backgroundColor,
+                  textColor: colorStyle.textColor,
+                  borderColor: colorStyle.borderColor,
+                  accentColor: colorStyle.accentColor,
+                }
+              : {}),
           },
         };
       }),
-    [nodesToRender, getIsNodeExpanded, toggleNodeExpansionById],
+    [
+      nodesToRender,
+      getIsNodeExpanded,
+      toggleNodeExpansionById,
+      colorAssignments,
+    ],
   );
 
   return {

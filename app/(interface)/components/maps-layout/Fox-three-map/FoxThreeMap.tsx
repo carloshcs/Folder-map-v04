@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 
 import { IntegrationFilter } from '@/app/(interface)/components/IntegrationFilter';
+import { getReadableTextColor, shiftColor } from '@/app/(interface)/lib/utils/colors';
 
 import { IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, type FoxNodeData, type FoxThreeMapProps } from './foxThreeConfig';
 import { useFoxThreeActions } from './useFoxThreeActions';
@@ -36,9 +37,70 @@ const determineNodeIcon = (data: FoxNodeData): LucideIcon => {
   return FileText;
 };
 
+const toRGBA = (color: string, alpha: number): string => {
+  if (!color) {
+    return `rgba(15, 23, 42, ${alpha})`;
+  }
+
+  if (color.startsWith('rgb(')) {
+    return color.replace('rgb(', 'rgba(').replace(')', `, ${alpha})`);
+  }
+
+  if (color.startsWith('#')) {
+    let hex = color.slice(1);
+    if (hex.length === 3) {
+      hex = hex.split('').map(char => `${char}${char}`).join('');
+    }
+
+    if (hex.length === 6) {
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+  }
+
+  return color;
+};
+
 const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data, dragging }) => {
   const Icon = determineNodeIcon(data);
   const isExpandable = data.childrenCount > 0;
+
+  const backgroundColor = data.backgroundColor ?? 'rgba(255, 255, 255, 0.95)';
+  const textColor = data.textColor ?? '#1e293b';
+  const borderColor = data.borderColor ?? 'rgba(148, 163, 184, 0.35)';
+  const accentColor = data.accentColor ?? '#6366f1';
+
+  const iconBackgroundColor = shiftColor(accentColor, 0.7);
+  const iconColor = getReadableTextColor(iconBackgroundColor);
+  const buttonSurface = shiftColor(accentColor, 0.82);
+  const buttonBorder = shiftColor(accentColor, 0.55);
+  const expandedButtonSurface = shiftColor(accentColor, 0.55);
+  const expandedButtonBorder = shiftColor(accentColor, 0.3);
+  const expandedButtonText = getReadableTextColor(expandedButtonSurface);
+  const cardShadowColor = dragging
+    ? toRGBA(shiftColor(accentColor, 0.3), 0.26)
+    : toRGBA(shiftColor(accentColor, 0.45), 0.2);
+  const iconShadowColor = toRGBA(accentColor, 0.2);
+
+  const toggleButtonStyle: React.CSSProperties = data.isExpanded
+    ? {
+        backgroundColor: expandedButtonSurface,
+        borderColor: expandedButtonBorder,
+        color: expandedButtonText,
+      }
+    : {
+        backgroundColor: buttonSurface,
+        borderColor: buttonBorder,
+        color: accentColor,
+      };
+
+  const linkButtonStyle: React.CSSProperties = {
+    backgroundColor: buttonSurface,
+    borderColor: buttonBorder,
+    color: accentColor,
+  };
 
   const handleToggleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -63,20 +125,31 @@ const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data
 
   return (
     <div
-      className={`group flex h-full w-full items-center justify-between rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-[0_12px_24px_rgba(111,125,255,0.12)] transition-transform duration-300 ${
-        dragging ? 'scale-[1.02] shadow-[0_16px_32px_rgba(111,125,255,0.16)]' : 'group-hover:scale-[1.01]'
+      className={`group flex h-full w-full items-center justify-between rounded-2xl border px-3 py-2 transition-transform duration-300 ${
+        dragging ? 'scale-[1.02]' : 'group-hover:scale-[1.01]'
       }`}
       style={{
-        boxShadow:
-          '0 8px 18px rgba(111, 125, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
+        backgroundColor,
+        color: textColor,
+        borderColor,
+        boxShadow: `${dragging ? '0 18px 36px' : '0 12px 24px'} ${cardShadowColor}, inset 0 1px 0 rgba(255, 255, 255, 0.35)`,
         backdropFilter: 'blur(12px)',
       }}
     >
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-500">
+        <div
+          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg shadow-sm"
+          style={{
+            backgroundColor: iconBackgroundColor,
+            color: iconColor,
+            boxShadow: `0 4px 12px ${iconShadowColor}`,
+          }}
+        >
           <Icon className="h-4 w-4" aria-hidden />
         </div>
-        <p className="truncate text-sm font-medium leading-5 text-slate-800">{data.label}</p>
+        <p className="truncate text-sm font-medium leading-5" style={{ color: textColor }}>
+          {data.label}
+        </p>
       </div>
       <div className="flex flex-shrink-0 items-center gap-1.5">
         {isExpandable ? (
@@ -84,11 +157,8 @@ const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data
             type="button"
             onPointerDown={event => event.stopPropagation()}
             onClick={handleToggleClick}
-            className={`nodrag inline-flex h-7 w-7 items-center justify-center rounded-full border text-slate-500 transition ${
-              data.isExpanded
-                ? 'border-indigo-200 bg-indigo-50 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-100'
-                : 'border-slate-200 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600'
-            }`}
+            className="nodrag inline-flex h-7 w-7 items-center justify-center rounded-full border transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+            style={toggleButtonStyle}
             aria-label={`${data.isExpanded ? 'Collapse' : 'Expand'} ${data.label}`}
           >
             {data.isExpanded ? (
@@ -103,7 +173,8 @@ const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data
             type="button"
             onPointerDown={event => event.stopPropagation()}
             onClick={handleOpenLink}
-            className="nodrag inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+            className="nodrag inline-flex h-7 w-7 items-center justify-center rounded-full border transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-background"
+            style={linkButtonStyle}
             aria-label={`Open ${data.label}`}
           >
             <ExternalLink className="h-3.5 w-3.5" aria-hidden />
@@ -114,7 +185,7 @@ const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data
   );
 };
 
-export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
+export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders, colorPaletteId }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const {
     availableServices,
@@ -124,7 +195,7 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
     edgesToRender,
     handleNodeDrag,
     handleNodeDragStop,
-  } = useFoxThreeActions(folders);
+  } = useFoxThreeActions(folders, colorPaletteId);
 
   useEffect(() => {
     const container = containerRef.current;
