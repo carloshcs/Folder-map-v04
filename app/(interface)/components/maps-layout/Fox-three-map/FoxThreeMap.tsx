@@ -36,7 +36,11 @@ const determineNodeIcon = (data: FoxNodeData): LucideIcon => {
   return FileText;
 };
 
-const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data, dragging }) => {
+const FoxThreeNode: React.FC<{
+  data: FoxNodeData;
+  dragging: boolean;
+  isMinimalPalette: boolean;
+}> = ({ data, dragging, isMinimalPalette }) => {
   const Icon = determineNodeIcon(data);
   const isExpandable = data.childrenCount > 0;
 
@@ -61,14 +65,26 @@ const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data
     }
   };
 
+  const expandButtonClasses = data.isExpanded
+    ? isMinimalPalette
+      ? 'border-black bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+      : 'border-indigo-200 bg-indigo-50 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-100'
+    : isMinimalPalette
+      ? 'border-black text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+      : 'border-slate-200 text-slate-500 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600';
+
+  const externalButtonClasses = isMinimalPalette
+    ? 'border-black text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+    : 'border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700';
+
   return (
     <div
-      className={`group flex h-full w-full items-center justify-between rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-[0_12px_24px_rgba(111,125,255,0.12)] transition-transform duration-300 ${
-        dragging ? 'scale-[1.02] shadow-[0_16px_32px_rgba(111,125,255,0.16)]' : 'group-hover:scale-[1.01]'
+      className={`group flex h-full w-full items-center justify-between rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-[0_6px_12px_rgba(111,125,255,0.12)] transition-transform duration-300 ${
+        dragging ? 'scale-[1.02] shadow-[0_8px_16px_rgba(111,125,255,0.16)]' : 'group-hover:scale-[1.01]'
       }`}
       style={{
         boxShadow:
-          '0 8px 18px rgba(111, 125, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
+          '0 4px 9px rgba(111, 125, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
         backdropFilter: 'blur(12px)',
       }}
     >
@@ -84,11 +100,7 @@ const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data
             type="button"
             onPointerDown={event => event.stopPropagation()}
             onClick={handleToggleClick}
-            className={`nodrag inline-flex h-7 w-7 items-center justify-center rounded-full border text-slate-500 transition ${
-              data.isExpanded
-                ? 'border-indigo-200 bg-indigo-50 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-100'
-                : 'border-slate-200 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600'
-            }`}
+            className={`nodrag inline-flex h-7 w-7 items-center justify-center rounded-full border transition ${expandButtonClasses}`}
             aria-label={`${data.isExpanded ? 'Collapse' : 'Expand'} ${data.label}`}
           >
             {data.isExpanded ? (
@@ -103,7 +115,7 @@ const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data
             type="button"
             onPointerDown={event => event.stopPropagation()}
             onClick={handleOpenLink}
-            className="nodrag inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+            className={`nodrag inline-flex h-7 w-7 items-center justify-center rounded-full border transition ${externalButtonClasses}`}
             aria-label={`Open ${data.label}`}
           >
             <ExternalLink className="h-3.5 w-3.5" aria-hidden />
@@ -114,7 +126,7 @@ const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data
   );
 };
 
-export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
+export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders, colorPaletteId }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const {
     availableServices,
@@ -125,6 +137,8 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
     handleNodeDrag,
     handleNodeDragStop,
   } = useFoxThreeActions(folders);
+
+  const isMinimalPalette = colorPaletteId?.startsWith('minimal') ?? false;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -175,7 +189,11 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders }) => {
         edges={edgesToRender}
         nodeTypes={{
           'fox-folder': ({ data, dragging }) => (
-            <FoxThreeNode data={data as FoxNodeData} dragging={dragging} />
+            <FoxThreeNode
+              data={data as FoxNodeData}
+              dragging={dragging}
+              isMinimalPalette={isMinimalPalette}
+            />
           ),
         }}
         className="bg-transparent"
