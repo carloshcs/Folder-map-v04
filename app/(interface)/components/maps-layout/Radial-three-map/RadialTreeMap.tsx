@@ -516,32 +516,27 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         const details = resolved ? SERVICE_DETAILS[resolved] : undefined;
         const style = nodeStyles.get(getNodeId(node as any));
 
+        let fill = '#E2E8F0';
         if (node.depth === 0) {
-          const fill = details?.fill ?? rootServiceDetails?.fill ?? '#ffffff';
-          const stroke = details?.stroke ?? rootServiceDetails?.stroke ?? '#0F172A';
-          rect
-            .attr('fill', fill)
-            .attr('stroke', stroke)
-            .attr('stroke-width', 3.5)
-            .attr('opacity', node.data?.item?.isSelected === false ? 0.3 : 1)
-            .attr('data-base-fill', fill)
-            .attr('data-dimmed-fill', null)
-            .attr('data-is-card', null);
-          return;
+          fill = details?.fill ?? rootServiceDetails?.fill ?? '#ffffff';
+        } else if (style?.fill) {
+          fill = style.fill;
+        } else if (details?.fill) {
+          fill = details.fill;
         }
 
-        const baseFillColor =
-          style?.fill ??
-          (node.depth === 1 ? rootServiceDetails?.fill : undefined) ??
-          details?.fill ??
-          '#E2E8F0';
+        const stroke =
+          node.depth === 0
+            ? details?.stroke ?? rootServiceDetails?.stroke ?? '#0F172A'
+            : details?.stroke ?? '#1F2937';
 
         rect
-          .attr('fill', 'transparent')
-          .attr('stroke', 'none')
-          .attr('data-base-fill', baseFillColor)
-          .attr('data-dimmed-fill', null)
-          .attr('data-is-card', 'true');
+          .attr('fill', fill)
+          .attr('stroke', stroke)
+          .attr('stroke-width', node.depth === 0 ? 3.5 : 1.8)
+          .attr('opacity', node.data?.item?.isSelected === false ? 0.3 : 1)
+          .attr('data-base-fill', fill)
+          .attr('data-dimmed-fill', null);
       });
 
     nodeGroups
@@ -687,40 +682,12 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           .text(entry.value ?? '—');
       });
 
-      const cardAccentColor = baseFillColor;
-      const cardBorderColor = shiftColor(cardAccentColor, -0.28);
-      const cardHoverBorderColor = shiftColor(cardAccentColor, -0.4);
-      const cardDimmedBorderColor = shiftColor(cardAccentColor, 0.25);
-      const cardShadowColor = shiftColor(cardAccentColor, -0.45);
-      const cardHoverShadowColor = shiftColor(cardAccentColor, -0.58);
-      const cardDimmedShadowColor = shiftColor(cardAccentColor, 0.35);
-      const cardBackground = 'rgba(255, 255, 255, 0.94)';
-      const cardDimmedBackground = 'rgba(255, 255, 255, 0.82)';
-      const baseShadow = `0 14px 34px -22px ${cardShadowColor}, inset 0 1px 0 rgba(255, 255, 255, 0.78)`;
-      const hoverShadow = `0 18px 42px -20px ${cardHoverShadowColor}, inset 0 1px 0 rgba(255, 255, 255, 0.86)`;
-      const dimmedShadow = `0 12px 30px -24px ${cardDimmedShadowColor}, inset 0 1px 0 rgba(255, 255, 255, 0.7)`;
-
       const card = interactive
         .append('xhtml:div')
         .attr(
           'class',
-          'radial-node-card pointer-events-none flex h-full w-full items-center justify-center overflow-hidden rounded-2xl border px-4 py-2 text-center text-[13px] font-medium leading-tight text-slate-700 transition-all duration-300 ease-out dark:text-slate-100',
-        )
-        .attr('data-base-shadow', baseShadow)
-        .attr('data-hover-shadow', hoverShadow)
-        .attr('data-dimmed-shadow', dimmedShadow)
-        .attr('data-base-border', cardBorderColor)
-        .attr('data-hover-border', cardHoverBorderColor)
-        .attr('data-dimmed-border', cardDimmedBorderColor)
-        .attr('data-base-bg', cardBackground)
-        .attr('data-dimmed-bg', cardDimmedBackground)
-        .attr('data-is-unselected', node.data?.item?.isSelected === false ? 'true' : 'false')
-        .style('border-color', cardBorderColor)
-        .style('background', cardBackground)
-        .style('box-shadow', baseShadow)
-        .style('backdrop-filter', 'blur(14px)')
-        .style('transform', 'scale(1)')
-        .style('opacity', node.data?.item?.isSelected === false ? '0.5' : '1');
+          'pointer-events-none flex h-full w-full flex-col overflow-hidden rounded-2xl',
+        );
 
       let isInfoOpen = false;
       let hideTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -869,6 +836,11 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       }
 
       card
+        .append('xhtml:div')
+        .attr(
+          'class',
+          'pointer-events-none flex flex-1 items-center justify-center px-4 py-2 text-center text-[13px] font-medium leading-tight text-slate-700 dark:text-slate-100',
+        )
         .append('xhtml:span')
         .attr('class', 'radial-node-name inline-flex max-w-full flex-wrap justify-center text-center leading-tight')
         .style('white-space', 'normal')
@@ -917,65 +889,17 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         if (rect.empty()) {
           return;
         }
+        const baseFill = rect.attr('data-base-fill');
+        if (!baseFill) {
+          return;
+        }
         const nodeIdentifier = getNodeIdentifier(node);
         const label = selection.select<SVGTextElement>('text');
         const htmlLabel = selection
           .select<SVGForeignObjectElement>('foreignObject.radial-node-controls')
           .select<HTMLElement>('.radial-node-name');
-        const isCard = rect.attr('data-is-card') === 'true';
-        const isRelated = nodeIdentifier ? relatedIds.has(nodeIdentifier) : false;
-        const shouldElevate = Boolean(hoveredId && isRelated);
-        const targetOpacity = !hoveredId || isRelated ? 1 : 0.75;
 
-        if (isCard) {
-          const card = selection.select<HTMLElement>('.radial-node-card');
-          if (card.empty()) {
-            return;
-          }
-
-          const baseShadow = card.attr('data-base-shadow') ?? '';
-          const hoverShadow = card.attr('data-hover-shadow') ?? baseShadow;
-          const dimmedShadow = card.attr('data-dimmed-shadow') ?? baseShadow;
-          const baseBorder = card.attr('data-base-border') ?? '';
-          const hoverBorder = card.attr('data-hover-border') ?? baseBorder;
-          const dimmedBorder = card.attr('data-dimmed-border') ?? baseBorder;
-          const baseBackground = card.attr('data-base-bg') ?? '';
-          const dimmedBackground = card.attr('data-dimmed-bg') ?? baseBackground;
-          const isUnselected = card.attr('data-is-unselected') === 'true';
-
-          if (!hoveredId || isRelated) {
-            card
-              .style('opacity', !hoveredId && isUnselected ? '0.5' : isUnselected ? '0.65' : '1')
-              .style('box-shadow', shouldElevate ? hoverShadow : baseShadow)
-              .style('border-color', shouldElevate ? hoverBorder : baseBorder)
-              .style('background', baseBackground)
-              .style('transform', shouldElevate ? 'scale(1.02)' : 'scale(1)');
-          } else {
-            card
-              .style('opacity', '0.55')
-              .style('box-shadow', dimmedShadow)
-              .style('border-color', dimmedBorder)
-              .style('background', dimmedBackground)
-              .style('transform', 'scale(0.98)');
-          }
-
-          if (!label.empty()) {
-            label.style('opacity', targetOpacity);
-          }
-          if (!htmlLabel.empty()) {
-            htmlLabel.style('opacity', targetOpacity);
-          }
-
-          rect.attr('fill', 'transparent');
-          return;
-        }
-
-        const baseFill = rect.attr('data-base-fill');
-        if (!baseFill) {
-          return;
-        }
-
-        if (!hoveredId || isRelated) {
+        if (!hoveredId || (nodeIdentifier && relatedIds.has(nodeIdentifier))) {
           rect.attr('fill', baseFill);
           if (!label.empty()) {
             label.style('opacity', 1);
