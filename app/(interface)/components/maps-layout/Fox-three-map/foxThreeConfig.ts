@@ -36,7 +36,7 @@ export const NODE_HEIGHT = 60;
 
 // ⚙️ Uniform grid spacing (same for brothers, father→son, uncle→son)
 export const HORIZONTAL_GAP = 200; // horizontal distance between generations
-export const VERTICAL_GAP = 130;   // vertical distance between siblings / rows
+export const VERTICAL_GAP = 70;   // vertical distance between siblings / rows
 
 // Snap grid size (when dragging)
 export const SNAP_SIZE = 24;

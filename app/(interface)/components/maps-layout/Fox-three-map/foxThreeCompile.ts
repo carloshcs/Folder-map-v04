@@ -1,5 +1,4 @@
 import { type Edge, type Node } from 'reactflow';
-
 import {
   DEFAULT_MAX_DEPTH,
   HORIZONTAL_GAP,
@@ -11,6 +10,7 @@ import {
   type FoxTreeNode,
 } from './foxThreeConfig';
 
+// Create a node for rendering
 const createNode = (
   treeNode: FoxTreeNode,
   depth: number,
@@ -40,33 +40,25 @@ const createNode = (
   };
 };
 
+// Should a node be expanded?
 const shouldExpandNode = (
   node: FoxTreeNode,
   depth: number,
   expandedState: Map<string, boolean>,
 ): boolean => {
-  if (!node.children || node.children.length === 0) {
-    return false;
-  }
+  if (!node.children || node.children.length === 0) return false;
 
-  if (depth === 0) {
-    return true;
-  }
+  // Always show root level
+  if (depth === 0) return true;
 
   const explicit = expandedState.get(node.id);
-  if (explicit !== undefined) {
-    return explicit;
-  }
+  if (explicit !== undefined) return explicit;
 
+  // Otherwise, only expand up to default depth
   return depth < DEFAULT_MAX_DEPTH;
 };
 
-/**
- * Vertical recursive layout:
- * - Each child appears BELOW the parent (vertical stacking)
- * - Each depth level moves horizontally (indentation)
- * - Automatically reflows when expanding/collapsing
- */
+// Layout each branch vertically with consistent spacing
 const layoutBranch = (
   node: FoxTreeNode,
   depth: number,
@@ -79,15 +71,18 @@ const layoutBranch = (
   nodes.push(createNode(node, depth, { x: currentX, y: currentY }));
 
   const children = node.children ?? [];
-  if (!shouldExpandNode(node, depth, expandedState)) {
-    return currentY;
-  }
+  if (!shouldExpandNode(node, depth, expandedState)) return currentY;
+
+  // Only expand direct children, not grandchildren
+  const expandChildren = expandedState.get(node.id);
+  if (!expandChildren) return currentY;
 
   let cursorY = currentY;
 
-  children.forEach(child => {
-    const childX = currentX + HORIZONTAL_GAP; // indent for depth
-    const childY = cursorY + VERTICAL_GAP; // stack vertically
+  children.forEach((child) => {
+    // Fixed vertical gap for all siblings and parent-child pairs
+    const childY = cursorY + VERTICAL_GAP;
+    const childX = currentX + HORIZONTAL_GAP;
 
     edges.push({
       id: `${node.id}__${child.id}`,
@@ -96,26 +91,20 @@ const layoutBranch = (
       animated: true,
     });
 
-    // layout each subtree recursively and update Y position
-    cursorY = layoutBranch(
-      child,
-      depth + 1,
-      childX,
-      childY,
-      expandedState,
-      nodes,
-      edges,
-    );
+    // Add only direct children first (not recursive grandchildren unless previously opened)
+    const isChildExpanded = expandedState.get(child.id);
+    if (isChildExpanded) {
+      cursorY = layoutBranch(child, depth + 1, childX, childY, expandedState, nodes, edges);
+    } else {
+      nodes.push(createNode(child, depth + 1, { x: childX, y: childY }));
+      cursorY = childY;
+    }
   });
 
   return cursorY;
 };
 
-/**
- * Root layout:
- * - The root is centered at the top
- * - Children appear below in a vertical cascading structure
- */
+// Main function that creates the flow layout
 export const createFlowLayout = (
   tree: FoxTreeNode,
   expandedState: Map<string, boolean>,
@@ -129,10 +118,12 @@ export const createFlowLayout = (
   nodes.push(createNode(tree, 0, { x: rootX, y: rootY }));
 
   const rootChildren = tree.children ?? [];
+  let cursorY = rootY;
 
-  let cursorY = rootY + VERTICAL_GAP;
+  rootChildren.forEach((child) => {
+    const childY = cursorY + VERTICAL_GAP;
+    const childX = rootX + HORIZONTAL_GAP;
 
-  rootChildren.forEach(child => {
     edges.push({
       id: `${tree.id}__${child.id}`,
       source: tree.id,
@@ -140,19 +131,13 @@ export const createFlowLayout = (
       animated: true,
     });
 
-    // Layout each branch vertically
-    cursorY = layoutBranch(
-      child,
-      1,
-      rootX + HORIZONTAL_GAP,
-      cursorY,
-      expandedState,
-      nodes,
-      edges,
-    );
-
-    // Add a little extra spacing between top-level branches
-    cursorY += VERTICAL_GAP / 2;
+    const isChildExpanded = expandedState.get(child.id);
+    if (isChildExpanded) {
+      cursorY = layoutBranch(child, 1, childX, childY, expandedState, nodes, edges);
+    } else {
+      nodes.push(createNode(child, 1, { x: childX, y: childY }));
+      cursorY = childY;
+    }
   });
 
   return { nodes, edges };
