@@ -296,7 +296,9 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     const { width, height } = size;
 
     const root = buildHierarchy(folders);
-    const nodeStyles = computeNodeStyles(root, colorPaletteId);
+    const nodeStyles = computeNodeStyles(root, colorPaletteId, {
+      resetIndexAtDepth: 1,
+    });
     const { visibleNodes, visibleLinks } = getVisibleNodesAndLinks(root, expanded);
 
     const maxDimension = Math.max(width, height);
