@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import ReactFlow, { Handle, Position, type Node } from 'reactflow';
+import ReactFlow, { type Node } from 'reactflow';
 import {
   ChevronDown,
   ChevronUp,
@@ -62,50 +62,21 @@ const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data
   };
 
   return (
-    <div className="relative h-full w-full">
-      <Handle
-        type="target"
-        id="left"
-        position={Position.Left}
-        style={{
-          top: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 12,
-          height: 12,
-          borderRadius: '50%',
-          border: '2px solid rgba(99, 102, 241, 0.35)',
-          background: 'white',
-        }}
-      />
-      <Handle
-        type="source"
-        id="top"
-        position={Position.Top}
-        style={{
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 12,
-          height: 12,
-          borderRadius: '50%',
-          border: '2px solid rgba(99, 102, 241, 0.35)',
-          background: 'white',
-        }}
-      />
-      <div
-        className={`group flex h-full w-full items-center justify-between rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-[0_12px_24px_rgba(111,125,255,0.12)] transition-transform duration-300 ${
-          dragging ? 'scale-[1.02] shadow-[0_16px_32px_rgba(111,125,255,0.16)]' : 'group-hover:scale-[1.01]'
-        }`}
-        style={{
-          boxShadow:
-            '0 8px 18px rgba(111, 125, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
-          backdropFilter: 'blur(12px)',
-        }}
-      >
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-500">
-            <Icon className="h-4 w-4" aria-hidden />
-          </div>
-          <p className="truncate text-sm font-medium leading-5 text-slate-800">{data.label}</p>
+    <div
+      className={`group flex h-full w-full items-center justify-between rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-[0_12px_24px_rgba(111,125,255,0.12)] transition-transform duration-300 ${
+        dragging ? 'scale-[1.02] shadow-[0_16px_32px_rgba(111,125,255,0.16)]' : 'group-hover:scale-[1.01]'
+      }`}
+      style={{
+        boxShadow:
+          '0 8px 18px rgba(111, 125, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
+        backdropFilter: 'blur(12px)',
+      }}
+    >
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-500">
+          <Icon className="h-4 w-4" aria-hidden />
+        </div>
+        <p className="truncate text-sm font-medium leading-5 text-slate-800">{data.label}</p>
       </div>
       <div className="flex flex-shrink-0 items-center gap-1.5">
         {isExpandable ? (
