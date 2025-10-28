@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import ReactFlow, { type Node } from 'reactflow';
+import ReactFlow, { Handle, Position, type Node } from 'reactflow';
 import {
   ChevronDown,
   ChevronUp,
@@ -63,7 +63,7 @@ const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data
 
   return (
     <div
-      className={`group flex h-full w-full items-center justify-between rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-[0_12px_24px_rgba(111,125,255,0.12)] transition-transform duration-300 ${
+      className={`group relative flex h-full w-full items-center justify-between rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-[0_12px_24px_rgba(111,125,255,0.12)] transition-transform duration-300 ${
         dragging ? 'scale-[1.02] shadow-[0_16px_32px_rgba(111,125,255,0.16)]' : 'group-hover:scale-[1.01]'
       }`}
       style={{
@@ -72,6 +72,18 @@ const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data
         backdropFilter: 'blur(12px)',
       }}
     >
+      <Handle
+        type="target"
+        position={Position.Left}
+        style={{ opacity: 0, border: 'none', background: 'transparent' }}
+        isConnectable={false}
+      />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        style={{ opacity: 0, border: 'none', background: 'transparent' }}
+        isConnectable={false}
+      />
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-500">
           <Icon className="h-4 w-4" aria-hidden />
