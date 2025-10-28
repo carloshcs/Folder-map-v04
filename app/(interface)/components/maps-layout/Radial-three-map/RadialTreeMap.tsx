@@ -576,13 +576,6 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         selection.remove();
       });
 
-    const renderInfoIcon = () =>
-      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
-        <circle cx="12" cy="12" r="10" />
-        <line x1="12" x2="12" y1="16" y2="12" />
-        <line x1="12" x2="12.01" y1="8" y2="8" />
-      </svg>`;
-
     const renderToggleIcon = (isExpanded: boolean) =>
       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
         <path d="${isExpanded ? 'm18 15-6-6-6 6' : 'm6 9 6 6 6-6'}" />
@@ -593,6 +586,12 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         <path d="M15 3h6v6" />
         <path d="M10 14 21 3" />
         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      </svg>`;
+
+    const renderFolderIcon = () =>
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
+        <path d="M3 7a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+        <path d="M3 7V5a2 2 0 0 1 2-2h5l2 2" />
       </svg>`;
 
     const controlContainers = nodeGroups
@@ -611,11 +610,6 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       const hasChildren = Array.isArray(node.data?.children) && node.data.children.length > 0;
       const folderItem: FolderItem | undefined = node.data?.item;
       const link = folderItem?.link ?? folderItem?.path ?? null;
-
-      if (!hasChildren && !link) {
-        container.remove();
-        return;
-      }
 
       const labelDetails = nodeId ? nodeLabelCache.get(nodeId) : undefined;
       const labelText = labelDetails?.text ?? node.data?.name ?? 'Folder';
@@ -637,176 +631,62 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         .append('xhtml:div')
         .attr('class', 'group/menu relative flex h-full w-full pointer-events-auto');
 
-      const controlButtonClasses =
-        'inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
-
-      const menu = interactive
-        .append('xhtml:div')
-        .attr(
-          'class',
-          'absolute left-1/2 top-0 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-lg border border-border bg-popover/95 px-2.5 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-lg transition-opacity duration-300 ease-out backdrop-blur-sm dark:bg-popover/95',
-        )
-        .style('transform', 'translate(-50%, calc(-100% - 8px))')
-        .style('pointer-events', 'none');
-
-      const controlsRow = menu.append('xhtml:div').attr('class', 'flex items-center gap-2');
-
-      const infoPanel = interactive
-        .append('xhtml:div')
-        .attr(
-          'class',
-          'absolute left-1/2 top-0 z-20 hidden max-w-[260px] -translate-x-1/2 space-y-1 rounded-xl border border-white/70 bg-white/95 px-3 py-2 text-left text-[11px] leading-relaxed text-slate-600 shadow-lg backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-950/95 dark:text-slate-200',
-        )
-        .style('transform', 'translate(-50%, calc(-100% - 14px))')
-        .style('pointer-events', 'none')
-        .style('border-color', menuBorderColor)
-        .style('box-shadow', `0 24px 40px -26px ${menuShadowColor}`);
-
-      const infoEntries: { label: string; value: string | null | undefined }[] = [
-        { label: 'Path', value: folderItem?.path ?? folderItem?.name ?? null },
-        { label: 'Last modified', value: folderItem?.modifiedDate ?? null },
-        { label: 'Created', value: folderItem?.createdDate ?? null },
-        { label: 'Link', value: folderItem?.link ?? folderItem?.path ?? null },
-      ];
-
-      infoEntries.forEach(entry => {
-        const row = infoPanel.append('xhtml:div').attr('class', 'flex flex-col');
-        row
-          .append('xhtml:span')
-          .attr('class', 'font-semibold uppercase tracking-wide text-[10px] text-slate-400 dark:text-slate-500')
-          .text(entry.label);
-        row
-          .append('xhtml:span')
-          .attr('class', 'max-w-[240px] break-words text-[11px] text-slate-700 dark:text-slate-200')
-          .attr('title', entry.value ?? '—')
-          .text(entry.value ?? '—');
-      });
-
       const card = interactive
         .append('xhtml:div')
-        .attr(
-          'class',
-          'pointer-events-none flex h-full w-full flex-col overflow-hidden rounded-2xl',
-        );
+        .attr('class', 'group pointer-events-auto flex h-full w-full items-center justify-between rounded-2xl border px-3 py-2 transition duration-300 ease-out')
+        .style('background-color', baseFillColor)
+        .style('border-color', menuBorderColor)
+        .style('box-shadow', `0 12px 24px -12px ${menuShadowColor}`)
+        .style('backdrop-filter', 'blur(12px)');
 
-      let isInfoOpen = false;
-      let hideTimeout: ReturnType<typeof setTimeout> | null = null;
+      const content = card
+        .append('xhtml:div')
+        .attr('class', 'flex min-w-0 flex-1 items-center gap-2');
 
-      const closeInfoPanel = () => {
-        isInfoOpen = false;
-        infoPanel.style('display', 'none').classed('hidden', true).style('pointer-events', 'none');
-      };
+      const iconWrapper = content
+        .append('xhtml:div')
+        .attr('class', 'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white/70 text-slate-600 shadow-sm')
+        .style('color', menuBorderColor)
+        .html(renderFolderIcon());
 
-      const clearHideTimeout = () => {
-        if (hideTimeout !== null) {
-          clearTimeout(hideTimeout);
-          hideTimeout = null;
-        }
-      };
+      iconWrapper
+        .style('background-color', shiftColor(baseFillColor, 0.18))
+        .style('border', `1px solid ${shiftColor(baseFillColor, -0.08)}`);
 
-      const toggleMenuVisibility = (isVisible: boolean) => {
-        if (isVisible) {
-          clearHideTimeout();
-        }
+      content
+        .append('xhtml:span')
+        .attr('class', 'radial-node-name truncate text-sm font-medium leading-5 text-slate-800')
+        .style('color', labelColor)
+        .attr('title', labelText)
+        .text(labelText);
 
-        menu
-          .interrupt()
-          .style('opacity', isVisible ? '1' : '0')
-          .style('pointer-events', isVisible ? 'auto' : 'none');
-
-        if (!isVisible) {
-          closeInfoPanel();
-        }
-      };
-
-      const scheduleHide = () => {
-        clearHideTimeout();
-        hideTimeout = setTimeout(() => {
-          toggleMenuVisibility(false);
-          hideTimeout = null;
-        }, 360);
-      };
-
-      const shouldKeepMenuVisible = (target: EventTarget | null) => {
-        if (!target || !(target instanceof Node)) {
-          return false;
-        }
-        const containers = [interactive.node(), menu.node(), infoPanel.node()].filter(
-          (element): element is Node => Boolean(element),
-        );
-        return containers.some(element => element.contains(target));
-      };
-
-      const handleExit = (event: MouseEvent | FocusEvent) => {
-        const relatedTarget =
-          (event as MouseEvent).relatedTarget ?? (event as FocusEvent).relatedTarget ?? null;
-        const related = (relatedTarget as Node | null) ?? null;
-        if (shouldKeepMenuVisible(related)) {
-          return;
-        }
-        scheduleHide();
-      };
-
-      interactive
-        .on('mouseenter', () => {
-          toggleMenuVisibility(true);
-        })
-        .on('mouseleave', event => {
-          handleExit(event as MouseEvent);
-        })
-        .on('focusin', () => {
-          toggleMenuVisibility(true);
-        })
-        .on('focusout', event => {
-          handleExit(event as FocusEvent);
-        });
-
-      menu
-        .on('mouseenter', () => {
-          toggleMenuVisibility(true);
-        })
-        .on('mouseleave', event => {
-          handleExit(event as MouseEvent);
-        });
-
-      infoPanel
-        .on('mouseenter', () => {
-          toggleMenuVisibility(true);
-        })
-        .on('mouseleave', event => {
-          handleExit(event as MouseEvent);
-        });
-
-      controlsRow
-        .append('xhtml:button')
-        .attr('type', 'button')
-        .attr('data-control', 'info')
-        .attr('class', controlButtonClasses)
-        .attr('aria-label', `Show info for ${node.data?.name ?? 'folder'}`)
-        .html(renderInfoIcon())
-        .on('click', event => {
-          event.preventDefault();
-          event.stopPropagation();
-          isInfoOpen = !isInfoOpen;
-          infoPanel
-            .style('display', isInfoOpen ? 'block' : 'none')
-            .classed('hidden', !isInfoOpen)
-            .style('pointer-events', isInfoOpen ? 'auto' : 'none');
-        });
+      const controlsRow = card
+        .append('xhtml:div')
+        .attr('class', 'flex flex-shrink-0 items-center gap-1.5');
 
       if (hasChildren && nodeId) {
         const isExpanded = expandedNodes.has(nodeId);
-        controlsRow
+        const toggleClasses =
+          'nodrag inline-flex h-7 w-7 items-center justify-center rounded-full border text-slate-500 transition ' +
+          (isExpanded
+            ? 'border-indigo-200 bg-indigo-50 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-100'
+            : 'border-slate-200 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600');
+
+        const toggleButton = controlsRow
           .append('xhtml:button')
           .attr('type', 'button')
           .attr('data-control', 'toggle')
-          .attr('class', controlButtonClasses)
+          .attr('class', toggleClasses)
           .attr('aria-label', `${isExpanded ? 'Collapse' : 'Expand'} ${node.data?.name ?? 'folder'}`)
-          .html(renderToggleIcon(isExpanded))
+          .html(renderToggleIcon(isExpanded));
+
+        toggleButton
+          .on('pointerdown', event => {
+            event.stopPropagation();
+          })
           .on('click', event => {
             event.preventDefault();
             event.stopPropagation();
-            closeInfoPanel();
             setExpandedNodes(prev => {
               const next = new Set(prev);
               if (next.has(nodeId)) {
@@ -820,34 +700,29 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       }
 
       if (link) {
-        controlsRow
-          .append('xhtml:a')
+        const linkButton = controlsRow
+          .append('xhtml:button')
+          .attr('type', 'button')
           .attr('data-control', 'link')
-          .attr('href', link)
-          .attr('target', '_blank')
-          .attr('rel', 'noreferrer')
-          .attr('class', controlButtonClasses)
+          .attr(
+            'class',
+            'nodrag inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700',
+          )
           .attr('aria-label', `Open ${node.data?.name ?? 'folder'}`)
-          .html(renderExternalLinkIcon())
-          .on('click', event => {
-            closeInfoPanel();
+          .html(renderExternalLinkIcon());
+
+        linkButton
+          .on('pointerdown', event => {
             event.stopPropagation();
+          })
+          .on('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (typeof window !== 'undefined') {
+              window.open(link, '_blank', 'noopener,noreferrer');
+            }
           });
       }
-
-      card
-        .append('xhtml:div')
-        .attr(
-          'class',
-          'pointer-events-none flex flex-1 items-center justify-center px-4 py-2 text-center text-[13px] font-medium leading-tight text-slate-700 dark:text-slate-100',
-        )
-        .append('xhtml:span')
-        .attr('class', 'radial-node-name inline-flex max-w-full flex-wrap justify-center text-center leading-tight')
-        .style('white-space', 'normal')
-        .style('word-break', 'break-word')
-        .style('color', labelColor)
-        .attr('title', labelText)
-        .text(labelText);
     });
 
     const nodeById = new Map<string, d3.HierarchyPointNode<any>>();
