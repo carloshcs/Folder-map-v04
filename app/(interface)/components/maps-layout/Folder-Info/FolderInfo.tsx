@@ -6,11 +6,11 @@ import React, { useMemo, useState } from 'react';
 import type { FolderItem, ServiceId } from '../../right-sidebar/data';
 import { SERVICE_ORDER, isServiceId } from '../../right-sidebar/data';
 
-interface ActivityMapProps {
+interface FolderInfoProps {
   folders: FolderItem[];
 }
 
-interface ActivityEntry {
+interface FolderInfoEntry {
   id: string;
   name: string;
   path: string;
@@ -29,7 +29,7 @@ type SortKey = 'activityScore' | 'totalSize' | 'fileCount' | 'createdDate' | 'mo
 type SortDirection = 'asc' | 'desc';
 
 const SORT_LABELS: Record<SortKey, string> = {
-  activityScore: 'Activity score',
+  activityScore: 'Folder activity score',
   totalSize: 'Storage size',
   fileCount: 'File count',
   createdDate: 'Created date',
@@ -76,7 +76,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', {
   year: 'numeric',
 });
 
-const createEmptyEntryRecord = (): Record<ServiceId, ActivityEntry[]> => ({
+const createEmptyEntryRecord = (): Record<ServiceId, FolderInfoEntry[]> => ({
   notion: [],
   onedrive: [],
   dropbox: [],
@@ -137,7 +137,7 @@ const getServiceIdFromFolder = (folder: FolderItem): ServiceId | null => {
   return null;
 };
 
-export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
+export const FolderInfo: React.FC<FolderInfoProps> = ({ folders }) => {
   const [sortKey, setSortKey] = useState<SortKey>('activityScore');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [activeService, setActiveService] = useState<ServiceId | null>(null);
@@ -151,7 +151,7 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
     window.open(link, '_blank', 'noopener,noreferrer');
   };
 
-  const entriesByService = useMemo<Record<ServiceId, ActivityEntry[]>>(() => {
+  const entriesByService = useMemo<Record<ServiceId, FolderInfoEntry[]>>(() => {
     const serviceEntries = createEmptyEntryRecord();
 
     const traverse = (
@@ -213,12 +213,12 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
     return serviceEntries;
   }, [folders]);
 
-  const sortedEntriesByService = useMemo<Record<ServiceId, ActivityEntry[]>>(() => {
+  const sortedEntriesByService = useMemo<Record<ServiceId, FolderInfoEntry[]>>(() => {
     const sorted = createEmptyEntryRecord();
     const fallbackValue =
       sortDirection === 'asc' ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
 
-    const getSortValue = (entry: ActivityEntry): number => {
+    const getSortValue = (entry: FolderInfoEntry): number => {
       switch (sortKey) {
         case 'totalSize':
           return entry.totalSize;
@@ -308,9 +308,9 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
       <div className="max-w-7xl mx-auto px-8 py-10 space-y-8">
         <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Activity Dashboard</h2>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Folder Info Dashboard</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              Monitor your workspace activity with real-time insights and metrics
+              Review detailed workspace insights and metrics across your connected folders
             </p>
           </div>
         </header>
@@ -501,7 +501,7 @@ export const ActivityMap: React.FC<ActivityMapProps> = ({ folders }) => {
                             Modified
                           </div>
                           <div className="w-32 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-center">
-                            Activity
+                            Folder Activity
                           </div>
                           <div className="w-24">
                             {/* Spacer for button */}

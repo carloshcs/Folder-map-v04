@@ -47,10 +47,10 @@ const MapLayoutFallback = () => (
   </div>
 );
 
-const ActivityMap = dynamic(
+const FolderInfo = dynamic(
   () =>
-    import("./components/maps-layout/Activity-Map/ActivityMap").then(
-      mod => mod.ActivityMap,
+    import("./components/maps-layout/Folder-Info/FolderInfo").then(
+      mod => mod.FolderInfo,
     ),
   {
     loading: MapLayoutFallback,
@@ -122,7 +122,7 @@ export default function App() {
   const [isCommentDragging, setIsCommentDragging] = useState(false);
   const [currentMap, setCurrentMap] = useState('My Project Map');
   const [existingMaps, setExistingMaps] = useState(['My Project Map', 'Team Workspace', 'Design System', 'Marketing Campaign']);
-  const [selectedLayout, setSelectedLayout] = useState<string | null>('orbital');
+  const [selectedLayout, setSelectedLayout] = useState<string | null>('fox-three');
   const [selectedPaletteId, setSelectedPaletteId] = useState<string>("system");
   const effectivePaletteId = useMemo(() => {
     if (selectedPaletteId === "system") {
@@ -137,7 +137,7 @@ export default function App() {
   }, [isDark, selectedPaletteId]);
   const mapRef = useRef<HTMLDivElement>(null);
   const folderSelectionHandlerRef = useRef<FolderSelectionActions['setFolderSelection'] | null>(null);
-  const isCanvasLayout = selectedLayout !== "activity-map";
+  const isCanvasLayout = selectedLayout !== "folder-info";
 
   // Check for saved theme preference or default to light mode
   useEffect(() => {
@@ -646,7 +646,7 @@ export default function App() {
 
   const textToolbar = useMemo(() => {
     if (
-      selectedLayout === 'activity-map' ||
+      selectedLayout === 'folder-info' ||
       !selectedTextId ||
       isTextDragging ||
       isCommentDragging
@@ -816,7 +816,7 @@ export default function App() {
           </div>
         ) : (
           <div className="relative w-full">
-            <ActivityMap folders={folderData} />
+            <FolderInfo folders={folderData} />
           </div>
         )}
       </div>
