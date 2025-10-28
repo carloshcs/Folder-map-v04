@@ -1,4 +1,4 @@
-import { type Edge, type Node } from 'reactflow';
+import type { Edge, Node, Position } from 'reactflow';
 import {
   DEFAULT_MAX_DEPTH,
   HORIZONTAL_GAP,
@@ -10,6 +10,9 @@ import {
   type FoxTreeNode,
 } from './foxThreeConfig';
 
+const BOTTOM_HANDLE: Position = 'bottom';
+const LEFT_HANDLE: Position = 'left';
+
 // Create a node for rendering
 const createNode = (
   treeNode: FoxTreeNode,
@@ -17,6 +20,7 @@ const createNode = (
   position: { x: number; y: number },
 ): Node<FoxNodeData> => {
   const item = treeNode.item;
+  const hasChildren = (treeNode.children?.length ?? 0) > 0;
 
   return {
     id: treeNode.id,
@@ -24,6 +28,8 @@ const createNode = (
     position,
     width: NODE_WIDTH,
     height: NODE_HEIGHT,
+    sourcePosition: hasChildren ? BOTTOM_HANDLE : undefined,
+    targetPosition: depth > 0 ? LEFT_HANDLE : undefined,
     data: {
       label: treeNode.name,
       depth,
