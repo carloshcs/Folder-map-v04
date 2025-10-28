@@ -71,13 +71,31 @@ const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data
   const textColor = data.textColor ?? '#1e293b';
   const borderColor = data.borderColor ?? 'rgba(148, 163, 184, 0.35)';
   const accentColor = data.accentColor ?? '#6366f1';
+  const normalizedAccent = accentColor.trim().toLowerCase();
+  const isMinimalAccent = (() => {
+    if (normalizedAccent === '#ffffff' || normalizedAccent === '#fff') {
+      return true;
+    }
+
+    const rgbMatch = normalizedAccent.match(/rgba?\(([^)]+)\)/);
+    if (rgbMatch) {
+      const channels = rgbMatch[1]
+        .split(',')
+        .map(value => Number(value.trim()))
+        .slice(0, 3);
+      return channels.length === 3 && channels.every(channel => channel === 255);
+    }
+
+    return false;
+  })();
 
   const iconBackgroundColor = shiftColor(accentColor, 0.7);
   const iconColor = getReadableTextColor(iconBackgroundColor);
-  const buttonSurface = shiftColor(accentColor, 0.82);
-  const buttonBorder = shiftColor(accentColor, 0.55);
-  const expandedButtonSurface = shiftColor(accentColor, 0.55);
-  const expandedButtonBorder = shiftColor(accentColor, 0.3);
+  const buttonSurface = isMinimalAccent ? '#ffffff' : shiftColor(accentColor, 0.82);
+  const buttonBorder = isMinimalAccent ? '#0f172a' : shiftColor(accentColor, 0.55);
+  const buttonTextColor = isMinimalAccent ? '#0f172a' : accentColor;
+  const expandedButtonSurface = isMinimalAccent ? '#f8fafc' : shiftColor(accentColor, 0.55);
+  const expandedButtonBorder = isMinimalAccent ? '#0f172a' : shiftColor(accentColor, 0.3);
   const expandedButtonText = getReadableTextColor(expandedButtonSurface);
   const cardShadowColor = dragging
     ? toRGBA(shiftColor(accentColor, 0.3), 0.26)
@@ -93,13 +111,13 @@ const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data
     : {
         backgroundColor: buttonSurface,
         borderColor: buttonBorder,
-        color: accentColor,
+        color: buttonTextColor,
       };
 
   const linkButtonStyle: React.CSSProperties = {
     backgroundColor: buttonSurface,
     borderColor: buttonBorder,
-    color: accentColor,
+    color: buttonTextColor,
   };
 
   const handleToggleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -132,7 +150,7 @@ const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data
         backgroundColor,
         color: textColor,
         borderColor,
-        boxShadow: `${dragging ? '0 18px 36px' : '0 12px 24px'} ${cardShadowColor}, inset 0 1px 0 rgba(255, 255, 255, 0.35)`,
+        boxShadow: `${dragging ? '0 9px 18px' : '0 6px 12px'} ${cardShadowColor}, inset 0 1px 0 rgba(255, 255, 255, 0.35)`,
         backdropFilter: 'blur(12px)',
       }}
     >
@@ -142,7 +160,7 @@ const FoxThreeNode: React.FC<{ data: FoxNodeData; dragging: boolean }> = ({ data
           style={{
             backgroundColor: iconBackgroundColor,
             color: iconColor,
-            boxShadow: `0 4px 12px ${iconShadowColor}`,
+            boxShadow: `0 2px 6px ${iconShadowColor}`,
           }}
         >
           <Icon className="h-4 w-4" aria-hidden />

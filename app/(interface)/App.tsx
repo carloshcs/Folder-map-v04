@@ -123,14 +123,14 @@ export default function App() {
   const [currentMap, setCurrentMap] = useState('My Project Map');
   const [existingMaps, setExistingMaps] = useState(['My Project Map', 'Team Workspace', 'Design System', 'Marketing Campaign']);
   const [selectedLayout, setSelectedLayout] = useState<string | null>('fox-three');
-  const [selectedPaletteId, setSelectedPaletteId] = useState<string>("system");
+  const [selectedPaletteId, setSelectedPaletteId] = useState<string>("stone");
   const effectivePaletteId = useMemo(() => {
     if (selectedPaletteId === "system") {
       return isDark ? "system-dark" : "system-light";
     }
 
     if (selectedPaletteId === "minimal") {
-      return isDark ? "minimal-dark" : "minimal-light";
+      return "minimal-light";
     }
 
     return selectedPaletteId;

@@ -66,6 +66,15 @@ export function Sidebar({
 
   const colorOptions = [
     {
+      id: "stone",
+      label: "Stone",
+      description: "Warm modern greys",
+      gradient: "linear-gradient(90deg, #1f2933 0%, #52606d 45%, #d9e2ec 100%)",
+      previewColors: ["#1f2933", "#323f4b", "#3e4c59", "#52606d", "#d9e2ec"],
+      variant: "color" as const,
+      row: 0,
+    },
+    {
       id: "system",
       label: "System",
       description: "Adapts to light or dark theme automatically",
@@ -81,13 +90,9 @@ export function Sidebar({
     {
       id: "minimal",
       label: "Minimal",
-      description: "Single-tone palette that follows your theme",
-      gradient: isDark
-        ? "linear-gradient(90deg, #0f172a 0%, #111827 100%)"
-        : "linear-gradient(90deg, #ffffff 0%, #f8fafc 100%)",
-      previewColors: isDark
-        ? ["#111827", "#1f2937", "#111827", "#1f2937", "#111827"]
-        : ["#ffffff", "#f8fafc", "#ffffff", "#f8fafc", "#ffffff"],
+      description: "Single-tone palette with crisp whites",
+      gradient: "linear-gradient(90deg, #ffffff 0%, #f8fafc 100%)",
+      previewColors: ["#ffffff", "#f8fafc", "#ffffff", "#f8fafc", "#ffffff"],
       variant: "color" as const,
       row: 0,
     },
@@ -115,15 +120,6 @@ export function Sidebar({
       description: "Minimal cool neutrals",
       gradient: "linear-gradient(90deg, #0f172a 0%, #1f2937 40%, #64748b 100%)",
       previewColors: ["#0f172a", "#1f2937", "#334155", "#475569", "#64748b"],
-      variant: "color" as const,
-      row: 0,
-    },
-    {
-      id: "stone",
-      label: "Stone",
-      description: "Warm modern greys",
-      gradient: "linear-gradient(90deg, #1f2933 0%, #52606d 45%, #d9e2ec 100%)",
-      previewColors: ["#1f2933", "#323f4b", "#3e4c59", "#52606d", "#d9e2ec"],
       variant: "color" as const,
       row: 0,
     },
