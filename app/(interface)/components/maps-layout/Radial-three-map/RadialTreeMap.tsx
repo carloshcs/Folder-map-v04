@@ -370,29 +370,34 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       node.y = getRadiusForDepth(node.depth);
     });
 
+    const adjustNodeDimensions = (dimensions: { width: number; height: number }) => ({
+      width: dimensions.width * 2,
+      height: dimensions.height * 0.7,
+    });
+
     const getNodeDimensions = (node: d3.HierarchyPointNode<any>) => {
       const baseRadius = getNodeRadius(Math.min(node.depth, 3));
 
       if (node.depth === 0) {
         const size = baseRadius * 2.1;
-        return {
+        return adjustNodeDimensions({
           width: size,
           height: size,
-        };
+        });
       }
 
       if (node.depth === 1) {
         const height = baseRadius * 1.75;
-        return {
+        return adjustNodeDimensions({
           width: height * 2,
           height,
-        };
+        });
       }
 
-      return {
+      return adjustNodeDimensions({
         width: baseRadius * 2.1,
         height: baseRadius * 1.4,
-      };
+      });
     };
 
     const getNodeWidth = (node: d3.HierarchyPointNode<any>) => getNodeDimensions(node).width;
