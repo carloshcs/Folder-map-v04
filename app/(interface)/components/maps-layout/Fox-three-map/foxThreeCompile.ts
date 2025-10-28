@@ -1,4 +1,4 @@
-import type { Edge, Node, Position } from 'reactflow';
+import { type Edge, type Node, Position } from 'reactflow';
 import {
   DEFAULT_MAX_DEPTH,
   HORIZONTAL_GAP,
@@ -28,8 +28,8 @@ const createNode = (
     position,
     width: NODE_WIDTH,
     height: NODE_HEIGHT,
-    sourcePosition: hasChildren ? BOTTOM_HANDLE : undefined,
-    targetPosition: depth > 0 ? LEFT_HANDLE : undefined,
+    sourcePosition: hasChildren ? Position.Bottom : undefined,
+    targetPosition: depth > 0 ? Position.Left : undefined,
     data: {
       label: treeNode.name,
       depth,
