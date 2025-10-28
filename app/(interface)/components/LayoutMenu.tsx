@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, GitBranch, Orbit, Radar } from 'lucide-react';
+import { GitBranch, Orbit, Radar, Info } from 'lucide-react';
 
 interface LayoutMenuProps {
   isOpen: boolean;
@@ -24,16 +24,16 @@ export function LayoutMenu({ isOpen, onSelect, selectedLayout }: LayoutMenuProps
       title: "Folder Exploration",
       options: [
         {
-          id: 'orbital',
-          label: 'Orbital',
-          description: 'Circular orbit layout around central node',
-          icon: <Orbit size={16} />
-        },
-        {
           id: 'fox-three',
           label: 'Fox Three',
           description: 'Agent-style folder map with magnetic snapping',
           icon: <GitBranch size={16} />
+        },
+        {
+          id: 'orbital',
+          label: 'Orbital',
+          description: 'Circular orbit layout around central node',
+          icon: <Orbit size={16} />
         },
         {
           id: 'radial-tree',
@@ -47,10 +47,10 @@ export function LayoutMenu({ isOpen, onSelect, selectedLayout }: LayoutMenuProps
       title: "More Layouts",
       options: [
         {
-          id: 'activity-map',
-          label: 'Activity Map',
-          description: 'Highlights the most active folders',
-          icon: <Activity size={16} />
+          id: 'folder-info',
+          label: 'Folder Info',
+          description: 'Highlights important details for your folders',
+          icon: <Info size={16} />
         }
       ]
     }
