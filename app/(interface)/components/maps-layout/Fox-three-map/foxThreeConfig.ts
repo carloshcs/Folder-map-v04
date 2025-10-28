@@ -42,7 +42,8 @@ export const VERTICAL_GAP = 70;   // vertical distance between siblings / rows
 export const SNAP_SIZE = 24;
 
 // Default expansion depth
-export const DEFAULT_MAX_DEPTH = 3;
+// Only show the root (Fox) expanded initially so cloud services start collapsed
+export const DEFAULT_MAX_DEPTH = 1;
 
 // Supported file types for icons
 export const IMAGE_EXTENSIONS = [
