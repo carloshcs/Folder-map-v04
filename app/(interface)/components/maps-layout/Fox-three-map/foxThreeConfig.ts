@@ -2,7 +2,6 @@ import { type FolderItem, type ServiceId } from '../../right-sidebar/data';
 
 export interface FoxThreeMapProps {
   folders: FolderItem[];
-  colorPaletteId?: string | null;
 }
 
 export interface FoxTreeNode {
