@@ -87,9 +87,7 @@ const layoutBranch = (
     edges.push({
       id: `${node.id}__${child.id}`,
       source: node.id,
-      sourceHandle: 'top',
       target: child.id,
-      targetHandle: 'left',
       animated: true,
     });
 
@@ -129,9 +127,7 @@ export const createFlowLayout = (
     edges.push({
       id: `${tree.id}__${child.id}`,
       source: tree.id,
-      sourceHandle: 'top',
       target: child.id,
-      targetHandle: 'left',
       animated: true,
     });
 
