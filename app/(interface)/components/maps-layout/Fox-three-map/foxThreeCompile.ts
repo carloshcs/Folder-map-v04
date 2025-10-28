@@ -10,6 +10,9 @@ import {
   type FoxTreeNode,
 } from './foxThreeConfig';
 
+const BOTTOM_HANDLE: Position = 'bottom';
+const LEFT_HANDLE: Position = 'left';
+
 // Create a node for rendering
 const createNode = (
   treeNode: FoxTreeNode,
