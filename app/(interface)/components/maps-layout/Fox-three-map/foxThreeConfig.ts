@@ -41,8 +41,8 @@ export const VERTICAL_GAP = 130;   // vertical distance between siblings / rows
 // Snap grid size (when dragging)
 export const SNAP_SIZE = 24;
 
-// Default expansion depth
-export const DEFAULT_MAX_DEPTH = 3;
+// Default expansion depth (only the root is expanded automatically)
+export const DEFAULT_MAX_DEPTH = 1;
 
 // Supported file types for icons
 export const IMAGE_EXTENSIONS = [

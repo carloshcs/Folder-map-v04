@@ -130,9 +130,9 @@ export const createFlowLayout = (
 
   const rootChildren = tree.children ?? [];
 
-  let cursorY = rootY + VERTICAL_GAP;
+  rootChildren.forEach((child, index) => {
+    const childY = rootY + VERTICAL_GAP + index * VERTICAL_GAP;
 
-  rootChildren.forEach(child => {
     edges.push({
       id: `${tree.id}__${child.id}`,
       source: tree.id,
@@ -141,18 +141,15 @@ export const createFlowLayout = (
     });
 
     // Layout each branch vertically
-    cursorY = layoutBranch(
+    layoutBranch(
       child,
       1,
       rootX + HORIZONTAL_GAP,
-      cursorY,
+      childY,
       expandedState,
       nodes,
       edges,
     );
-
-    // Add a little extra spacing between top-level branches
-    cursorY += VERTICAL_GAP / 2;
   });
 
   return { nodes, edges };
