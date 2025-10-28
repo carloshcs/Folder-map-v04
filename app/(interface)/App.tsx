@@ -130,7 +130,7 @@ export default function App() {
     }
 
     if (selectedPaletteId === "minimal") {
-      return isDark ? "minimal-dark" : "minimal-light";
+      return "minimal-light";
     }
 
     return selectedPaletteId;
@@ -765,7 +765,10 @@ export default function App() {
                   />
                 )}
                 {selectedLayout === 'fox-three' && (
-                  <FoxThreeMap folders={folderData} />
+                  <FoxThreeMap
+                    folders={folderData}
+                    colorPaletteId={effectivePaletteId}
+                  />
                 )}
                 {selectedLayout === 'radial-tree' && (
                   <RadialTreeMap folders={folderData} colorPaletteId={effectivePaletteId} />
