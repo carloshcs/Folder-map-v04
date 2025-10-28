@@ -154,6 +154,16 @@ export function Sidebar({
       variant: "color" as const,
       row: 0,
     },
+    {
+      id: "random",
+      label: "Random colors",
+      description: "Assigns unique hues to each branch",
+      gradient:
+        "linear-gradient(90deg, #ff6b6b 0%, #facc15 20%, #22c55e 40%, #3b82f6 60%, #a855f7 80%, #ec4899 100%)",
+      previewColors: ["#ff6b6b", "#facc15", "#22c55e", "#3b82f6", "#a855f7", "#ec4899"],
+      variant: "color" as const,
+      row: 0,
+    },
   ];
 
   const shapeOptions = [

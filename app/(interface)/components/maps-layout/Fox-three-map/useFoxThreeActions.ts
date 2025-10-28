@@ -59,8 +59,10 @@ type NodeColorAssignment = {
 };
 
 const MAX_LIGHTENING = 0.75;
-const LIGHTEN_STEP = 0.18;
-const FIRST_CHILD_LIGHTEN = 0.18;
+const DESCENDANT_LIGHTEN_STEP = 0.18;
+const FIRST_DESCENDANT_LIGHTEN = 0.24;
+const TOP_LEVEL_LIGHTEN = 0.08;
+const ROOT_DARKEN = -0.12;
 const BORDER_DARKEN = -0.35;
 
 const computeColorAssignments = (
@@ -85,30 +87,37 @@ const computeColorAssignments = (
     });
   };
 
-  const assignDescendants = (node: FoxTreeNode, depth: number, branchColor: string) => {
-    const relativeDepth = Math.max(depth - 1, 1);
-    const lightenAmount = Math.min(
-      MAX_LIGHTENING,
-      FIRST_CHILD_LIGHTEN + Math.max(relativeDepth - 1, 0) * LIGHTEN_STEP,
-    );
-    setAssignment(node, branchColor, lightenAmount);
+  const getLightenAmount = (depth: number): number => {
+    if (depth <= 0) {
+      return ROOT_DARKEN;
+    }
 
-    node.children?.forEach(child => assignDescendants(child, depth + 1, branchColor));
+    if (depth === 1) {
+      return TOP_LEVEL_LIGHTEN;
+    }
+
+    const relativeDepth = depth - 1;
+    return Math.min(
+      MAX_LIGHTENING,
+      FIRST_DESCENDANT_LIGHTEN + Math.max(relativeDepth - 1, 0) * DESCENDANT_LIGHTEN_STEP,
+    );
+  };
+
+  const assignBranch = (node: FoxTreeNode, depth: number, branchColor: string) => {
+    setAssignment(node, branchColor, getLightenAmount(depth));
+    node.children?.forEach(child => assignBranch(child, depth + 1, branchColor));
   };
 
   if (root) {
     const rootBase = palette[0];
-    const rootLighten = Math.min(MAX_LIGHTENING, FIRST_CHILD_LIGHTEN + LIGHTEN_STEP * 2);
-    setAssignment(root, rootBase, rootLighten);
+    setAssignment(root, rootBase, getLightenAmount(0));
   }
 
-  let paletteIndex = 0;
+  let paletteIndex = palette.length > 1 ? 1 : 0;
   root.children?.forEach(child => {
     const baseColor = palette[paletteIndex % palette.length];
     paletteIndex += 1;
-
-    setAssignment(child, baseColor, 0);
-    child.children?.forEach(grandchild => assignDescendants(grandchild, 2, baseColor));
+    assignBranch(child, 1, baseColor);
   });
 
   return assignments;

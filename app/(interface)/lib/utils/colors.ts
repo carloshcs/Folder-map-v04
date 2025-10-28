@@ -21,6 +21,66 @@ export const MAP_COLOR_PALETTES: Record<string, string[]> = {
   neon: ['#39ff14', '#ff3131', '#04d9ff', '#bc13fe', '#ffd700', '#ff007f', '#0aff99', '#ff8c00'],
 };
 
+const RANDOM_PALETTE_ID = 'random';
+const RANDOM_PALETTE_SIZE = 24;
+const paletteCache = new Map<string, string[]>();
+
+const hslToHex = (h: number, s: number, l: number): string => {
+  const hue = h % 360;
+  const saturation = Math.max(0, Math.min(1, s));
+  const lightness = Math.max(0, Math.min(1, l));
+
+  const c = (1 - Math.abs(2 * lightness - 1)) * saturation;
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = lightness - c / 2;
+
+  let r = 0;
+  let g = 0;
+  let b = 0;
+
+  if (hue < 60) {
+    r = c;
+    g = x;
+  } else if (hue < 120) {
+    r = x;
+    g = c;
+  } else if (hue < 180) {
+    g = c;
+    b = x;
+  } else if (hue < 240) {
+    g = x;
+    b = c;
+  } else if (hue < 300) {
+    r = x;
+    b = c;
+  } else {
+    r = c;
+    b = x;
+  }
+
+  const toHex = (value: number) => {
+    const channel = Math.round((value + m) * 255);
+    return channel.toString(16).padStart(2, '0');
+  };
+
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+};
+
+const generateRandomPalette = (count: number): string[] => {
+  const colors: string[] = [];
+  let hue = Math.random() * 360;
+  const goldenRatioConjugate = 0.61803398875;
+
+  for (let index = 0; index < count; index += 1) {
+    hue = (hue + goldenRatioConjugate * 360) % 360;
+    const saturation = 0.55 + Math.random() * 0.25;
+    const lightness = 0.38 + Math.random() * 0.22;
+    colors.push(hslToHex(hue, saturation, lightness));
+  }
+
+  return colors;
+};
+
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 const mixChannel = (channel: number, target: number, ratio: number) =>
@@ -54,6 +114,17 @@ export const shiftColor = (hex: string, amount: number): string => {
 export const getPaletteColors = (paletteId?: string | null): string[] => {
   if (!paletteId) {
     return MAP_COLOR_PALETTES[DEFAULT_MAP_PALETTE];
+  }
+
+  if (paletteId === RANDOM_PALETTE_ID) {
+    const cached = paletteCache.get(paletteId);
+    if (cached) {
+      return cached;
+    }
+
+    const generated = generateRandomPalette(RANDOM_PALETTE_SIZE);
+    paletteCache.set(paletteId, generated);
+    return generated;
   }
 
   return MAP_COLOR_PALETTES[paletteId] ?? MAP_COLOR_PALETTES[DEFAULT_MAP_PALETTE];
