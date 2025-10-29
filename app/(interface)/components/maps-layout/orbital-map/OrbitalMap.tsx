@@ -7,7 +7,7 @@ import * as d3 from 'd3';
 import { MIN_HEIGHT, MIN_WIDTH } from './constants';
 import { buildHierarchy, getVisibleNodesAndLinks } from './hierarchy';
 import { renderNodes } from './rendering';
-import { createManualPhysics } from './physics';
+import { createManualPhysics, PhysicsTickPayload } from './physics';
 import { getNodeId } from './nodeUtils';
 import {
   D3GroupSelection,
@@ -50,6 +50,8 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   const tooltipFadeTimeoutRef = useRef<number | null>(null);
   const isDraggingRef = useRef(false);
   const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
+  const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+  const hasAppliedInitialFitRef = useRef(false);
 
   const closeTooltip = useCallback(() => {
     if (tooltipFadeTimeoutRef.current !== null) {
@@ -128,6 +130,67 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       });
     },
     [canvasToScreen],
+  );
+
+  const fitViewToNodes = useCallback(
+    (positions: Map<string, NodePosition>) => {
+      if (!svgRef.current || !zoomBehaviorRef.current || positions.size === 0) {
+        return;
+      }
+
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+
+      positions.forEach(position => {
+        minX = Math.min(minX, position.x);
+        maxX = Math.max(maxX, position.x);
+        minY = Math.min(minY, position.y);
+        maxY = Math.max(maxY, position.y);
+      });
+
+      if (!Number.isFinite(minX) || !Number.isFinite(maxX) || !Number.isFinite(minY) || !Number.isFinite(maxY)) {
+        return;
+      }
+
+      const availableWidth = size.width;
+      const availableHeight = size.height;
+
+      if (availableWidth <= 0 || availableHeight <= 0) {
+        return;
+      }
+
+      const boundsWidth = Math.max(maxX - minX, 1);
+      const boundsHeight = Math.max(maxY - minY, 1);
+      const margin = 200;
+      const paddedWidth = boundsWidth + margin;
+      const paddedHeight = boundsHeight + margin;
+
+      const [minScale, maxScale] = zoomBehaviorRef.current.scaleExtent();
+      let scale = Math.min(availableWidth / paddedWidth, availableHeight / paddedHeight);
+      if (!Number.isFinite(scale) || scale <= 0) {
+        scale = 1;
+      }
+      scale = Math.min(maxScale, Math.max(minScale, scale));
+
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+
+      const transform = d3.zoomIdentity
+        .translate(availableWidth / 2, availableHeight / 2)
+        .scale(scale)
+        .translate(-centerX, -centerY);
+
+      zoomTransformRef.current = transform;
+
+      const svg = d3.select(svgRef.current);
+      svg
+        .transition()
+        .duration(450)
+        .call(zoomBehaviorRef.current.transform as any, transform);
+    },
+    [size.height, size.width],
   );
 
   const getEventBasedAnchor = (event: PointerEvent): TooltipAnchor | null => {
@@ -301,6 +364,9 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         recalculateTooltipPosition();
       });
 
+    zoomBehaviorRef.current = zoom;
+    g.attr('transform', zoomTransformRef.current);
+
     svg.call(zoom as any);
     svg.on('dblclick.zoom', null);
   }, [recalculateTooltipPosition]);
@@ -311,19 +377,26 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     const svg = d3.select(svgRef.current);
     const { width, height } = size;
 
+    hasAppliedInitialFitRef.current = false;
+
     const root = buildHierarchy(folders);
     const nodeStyles = computeNodeStyles(root, colorPaletteId, {
       resetIndexAtDepth: 1,
     });
     const { visibleNodes, visibleLinks } = getVisibleNodesAndLinks(root, expanded);
 
-    const maxDimension = Math.max(width, height);
-    const viewPadding = maxDimension * 0.35;
-    const viewWidth = width + viewPadding * 2;
-    const viewHeight = height + viewPadding * 2;
+    const seededPositions = new Map<string, NodePosition>();
+    visibleNodes.forEach(node => {
+      const nodeId = getNodeId(node);
+      const existing = nodePositionsRef.current.get(nodeId);
+      if (existing) {
+        seededPositions.set(nodeId, existing);
+      }
+    });
+    nodePositionsRef.current = seededPositions;
 
     svg
-      .attr('viewBox', [-viewWidth / 2, -viewHeight / 2, viewWidth, viewHeight])
+      .attr('viewBox', [-width / 2, -height / 2, width, height])
       .attr('width', width)
       .attr('height', height)
       .style('background', 'none')
@@ -357,15 +430,32 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
 
     let node: any;
 
-    const physics = createManualPhysics(visibleNodes, () => {
-      link
-        .attr('x1', (d: any) => d.source.x)
-        .attr('y1', (d: any) => d.source.y)
-        .attr('x2', (d: any) => d.target.x)
-        .attr('y2', (d: any) => d.target.y);
+    const physics = createManualPhysics(
+      visibleNodes,
+      ({ positions, isStabilized }: PhysicsTickPayload) => {
+        link
+          .attr('x1', (d: any) => d.source.x)
+          .attr('y1', (d: any) => d.source.y)
+          .attr('x2', (d: any) => d.target.x)
+          .attr('y2', (d: any) => d.target.y);
 
-      if (node) node.attr('transform', (d: any) => `translate(${d.x},${d.y})`);
-    }, nodePositionsRef.current);
+        if (node) {
+          node.attr('transform', (d: any) => `translate(${d.x},${d.y})`);
+        }
+
+        nodePositionsRef.current = new Map(positions);
+
+        if (hoveredNodeIdRef.current) {
+          recalculateTooltipPosition();
+        }
+
+        if (isStabilized && !hasAppliedInitialFitRef.current) {
+          hasAppliedInitialFitRef.current = true;
+          fitViewToNodes(nodePositionsRef.current);
+        }
+      },
+      nodePositionsRef.current,
+    );
 
     physicsRef.current = physics;
 
@@ -491,20 +581,16 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       });
     });
 
-    visibleNodes.forEach(node => {
-      const nodeId = getNodeId(node);
-      nodePositionsRef.current.set(nodeId, {
-        x: node.x!,
-        y: node.y!,
-        baseOrbitRadius: node.baseOrbitRadius!,
-        calculatedRadius: node.calculatedRadius!,
-        offsetAngle: node.offsetAngle!,
-        orbitAngle: node.orbitAngle!,
-      });
-    });
-
     return () => physics.stop();
-  }, [closeTooltip, folders, size, expanded, colorPaletteId]);
+  }, [
+    closeTooltip,
+    folders,
+    size,
+    expanded,
+    colorPaletteId,
+    fitViewToNodes,
+    recalculateTooltipPosition,
+  ]);
 
   useEffect(() => {
     if (hoveredNode?.id) {
