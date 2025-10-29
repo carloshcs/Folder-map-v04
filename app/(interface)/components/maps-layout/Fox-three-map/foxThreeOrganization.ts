@@ -78,13 +78,15 @@ export const buildFoxTree = (folders: FolderItem[]): FoxTreeNode => {
 
   const integrationNodes = folders
     .filter(folder => INTEGRATION_NAMES.has(folder.name))
-    .map(folder => mapChildren(folder, ['Fox'], resolveServiceId(folder)))
+    .map(folder =>
+      mapChildren(folder, ['Folder Fox (0,0)'], resolveServiceId(folder)),
+    )
     .filter(node => (node.children?.length ?? 0) > 0);
 
   return {
     id: 'fox-root',
-    name: 'Fox',
-    pathSegments: ['Fox'],
+    name: 'Folder Fox (0,0)',
+    pathSegments: ['Folder Fox (0,0)'],
     children: integrationNodes,
   };
 };
