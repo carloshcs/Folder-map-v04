@@ -33,7 +33,6 @@ export interface FoxNodeData {
   textColor?: string;
   borderColor?: string;
   accentColor?: string;
-  parentId?: string | null;
 }
 
 // Node size
