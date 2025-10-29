@@ -7,10 +7,10 @@ export function getOrbitalRadius(depth: number): number {
 }
 
 export function getNodeRadius(depth: number): number {
-  if (depth === 0) return 95;
-  if (depth === 1) return 77.5;
-  if (depth === 2) return 87.5;
-  return 75;
+  if (depth === 0) return 47.5;
+  if (depth === 1) return 38.75;
+  if (depth === 2) return 43.75;
+  return 37.5;
 }
 
 export function calculateExpansionOffset(node: D3HierarchyNode, childCount: number): number {

@@ -104,7 +104,7 @@ export function renderNodes(
               .attr('r', radius)
               .attr('fill', '#fff')
               .attr('stroke', '#ccc')
-              .attr('stroke-width', 4);
+              .attr('stroke-width', 2);
 
             selection
               .append('image')
@@ -126,7 +126,7 @@ export function renderNodes(
               .attr('r', radius)
               .attr('fill', fillColor)
               .attr('stroke', '#333')
-              .attr('stroke-width', 2)
+              .attr('stroke-width', 1)
               .attr('data-base-fill', fillColor)
               .attr('data-dimmed-fill', null);
 
@@ -174,7 +174,7 @@ export function renderNodes(
           .attr('r', radius)
           .attr('fill', '#fff')
           .attr('stroke', '#ccc')
-          .attr('stroke-width', 4);
+          .attr('stroke-width', 2);
 
         const image = selection.select<SVGImageElement>('image.node-logo');
         const imageSize = radius * 1.3;
@@ -198,7 +198,7 @@ export function renderNodes(
           .attr('r', radius)
           .attr('fill', fillColor)
           .attr('stroke', '#333')
-          .attr('stroke-width', 2)
+          .attr('stroke-width', 1)
           .attr('data-base-fill', fillColor)
           .attr('data-dimmed-fill', null);
 
