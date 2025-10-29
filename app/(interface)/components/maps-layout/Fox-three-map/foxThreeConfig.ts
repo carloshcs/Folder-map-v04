@@ -18,6 +18,7 @@ export interface FoxTreeNode {
 export interface FoxNodeData {
   label: string;
   depth: number;
+  parentId?: string;
   metrics?: FolderItem['metrics'];
   link?: string;
   createdDate?: string;

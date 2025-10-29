@@ -15,6 +15,7 @@ const createNode = (
   treeNode: FoxTreeNode,
   depth: number,
   position: { x: number; y: number },
+  parentId?: string,
 ): Node<FoxNodeData> => {
   const item = treeNode.item;
 
@@ -27,6 +28,7 @@ const createNode = (
     data: {
       label: treeNode.name,
       depth,
+      parentId,
       metrics: item?.metrics,
       link: item?.link,
       createdDate: item?.createdDate,
@@ -58,6 +60,39 @@ const shouldExpandNode = (
   return depth < DEFAULT_MAX_DEPTH;
 };
 
+const orderChildren = (
+  children: FoxTreeNode[],
+  parentId: string,
+  ordering: Map<string, string[]>,
+): FoxTreeNode[] => {
+  const desiredOrder = ordering.get(parentId);
+  if (!desiredOrder) {
+    return children;
+  }
+
+  const orderIndex = new Map<string, number>();
+  desiredOrder.forEach((id, index) => orderIndex.set(id, index));
+
+  return [...children].sort((a, b) => {
+    const aIndex = orderIndex.get(a.id);
+    const bIndex = orderIndex.get(b.id);
+
+    if (aIndex === undefined && bIndex === undefined) {
+      return 0;
+    }
+
+    if (aIndex === undefined) {
+      return 1;
+    }
+
+    if (bIndex === undefined) {
+      return -1;
+    }
+
+    return aIndex - bIndex;
+  });
+};
+
 // Layout each branch vertically with consistent spacing
 const layoutBranch = (
   node: FoxTreeNode,
@@ -65,12 +100,14 @@ const layoutBranch = (
   currentX: number,
   currentY: number,
   expandedState: Map<string, boolean>,
+  ordering: Map<string, string[]>,
   nodes: Array<Node<FoxNodeData>>,
   edges: Edge[],
+  parentId?: string,
 ): number => {
-  nodes.push(createNode(node, depth, { x: currentX, y: currentY }));
+  nodes.push(createNode(node, depth, { x: currentX, y: currentY }, parentId));
 
-  const children = node.children ?? [];
+  const children = node.children ? orderChildren(node.children, node.id, ordering) : [];
   if (!shouldExpandNode(node, depth, expandedState)) return currentY;
 
   // Only expand direct children, not grandchildren
@@ -94,9 +131,19 @@ const layoutBranch = (
     // Add only direct children first (not recursive grandchildren unless previously opened)
     const isChildExpanded = expandedState.get(child.id);
     if (isChildExpanded) {
-      cursorY = layoutBranch(child, depth + 1, childX, childY, expandedState, nodes, edges);
+      cursorY = layoutBranch(
+        child,
+        depth + 1,
+        childX,
+        childY,
+        expandedState,
+        ordering,
+        nodes,
+        edges,
+        node.id,
+      );
     } else {
-      nodes.push(createNode(child, depth + 1, { x: childX, y: childY }));
+      nodes.push(createNode(child, depth + 1, { x: childX, y: childY }, node.id));
       cursorY = childY;
     }
   });
@@ -108,6 +155,7 @@ const layoutBranch = (
 export const createFlowLayout = (
   tree: FoxTreeNode,
   expandedState: Map<string, boolean>,
+  ordering: Map<string, string[]>,
 ): { nodes: Array<Node<FoxNodeData>>; edges: Edge[] } => {
   const nodes: Array<Node<FoxNodeData>> = [];
   const edges: Edge[] = [];
@@ -117,7 +165,7 @@ export const createFlowLayout = (
 
   nodes.push(createNode(tree, 0, { x: rootX, y: rootY }));
 
-  const rootChildren = tree.children ?? [];
+  const rootChildren = tree.children ? orderChildren(tree.children, tree.id, ordering) : [];
   let cursorY = rootY;
 
   rootChildren.forEach((child) => {
@@ -133,9 +181,19 @@ export const createFlowLayout = (
 
     const isChildExpanded = expandedState.get(child.id);
     if (isChildExpanded) {
-      cursorY = layoutBranch(child, 1, childX, childY, expandedState, nodes, edges);
+      cursorY = layoutBranch(
+        child,
+        1,
+        childX,
+        childY,
+        expandedState,
+        ordering,
+        nodes,
+        edges,
+        tree.id,
+      );
     } else {
-      nodes.push(createNode(child, 1, { x: childX, y: childY }));
+      nodes.push(createNode(child, 1, { x: childX, y: childY }, tree.id));
       cursorY = childY;
     }
   });

@@ -7,6 +7,8 @@ import { getPaletteColors, getReadableTextColor, shiftColor } from '@/app/(inter
 import { type FolderItem, type ServiceId } from '../../right-sidebar/data';
 import {
   DEFAULT_MAX_DEPTH,
+  HORIZONTAL_GAP,
+  VERTICAL_GAP,
   type FoxNodeData,
   type FoxTreeNode,
 } from './foxThreeConfig';
@@ -131,9 +133,58 @@ export const useFoxThreeActions = (
   const [flowEdges, setFlowEdges] = useState<Edge[]>([]);
   const [expandedState, setExpandedState] = useState<Map<string, boolean>>(new Map());
   const [customPositions, setCustomPositions] = useState<Map<string, XYPosition>>(new Map());
+  const [customOrder, setCustomOrder] = useState<Map<string, string[]>>(new Map());
   const [activeServiceId, setActiveServiceId] = useState<ServiceId | null>(null);
 
   const tree = useMemo(() => buildFoxTree(folders), [folders]);
+
+  useEffect(() => {
+    setCustomOrder(prev => {
+      const next = new Map(prev);
+      let mutated = false;
+      const encountered = new Set<string>();
+
+      const traverse = (node: FoxTreeNode) => {
+        if (!node.children || node.children.length === 0) {
+          return;
+        }
+
+        encountered.add(node.id);
+        const childIds = node.children.map(child => child.id);
+        const existingOrder = next.get(node.id);
+
+        if (existingOrder) {
+          const preserved = existingOrder.filter(id => childIds.includes(id));
+          const additions = childIds.filter(id => !preserved.includes(id));
+          const combined = [...preserved, ...additions];
+          const isSame =
+            existingOrder.length === combined.length &&
+            existingOrder.every((value, index) => value === combined[index]);
+
+          if (!isSame) {
+            next.set(node.id, combined);
+            mutated = true;
+          }
+        } else {
+          next.set(node.id, childIds);
+          mutated = true;
+        }
+
+        node.children.forEach(traverse);
+      };
+
+      traverse(tree);
+
+      Array.from(next.keys()).forEach(key => {
+        if (!encountered.has(key)) {
+          next.delete(key);
+          mutated = true;
+        }
+      });
+
+      return mutated ? next : prev;
+    });
+  }, [tree]);
 
   const availableServices = useMemo<IntegrationService[]>(() => {
     const services: IntegrationService[] = [];
@@ -190,7 +241,10 @@ export const useFoxThreeActions = (
     [filteredTree, colorPaletteId],
   );
 
-  const layout = useMemo(() => createFlowLayout(filteredTree, expandedState), [filteredTree, expandedState]);
+  const layout = useMemo(
+    () => createFlowLayout(filteredTree, expandedState, customOrder),
+    [filteredTree, expandedState, customOrder],
+  );
 
   useEffect(() => {
     setFlowEdges(layout.edges);
@@ -267,13 +321,107 @@ export const useFoxThreeActions = (
       return;
     }
 
-    const snapped = { x: snapPosition(position.x), y: snapPosition(position.y) };
-    setFlowNodes(nodes => nodes.map(node => (node.id === id ? { ...node, position: snapped } : node)));
-    setCustomPositions(prev => {
-      const next = new Map(prev);
-      next.set(id, snapped);
-      return next;
+    const snappedPosition: XYPosition = { x: snapPosition(position.x), y: position.y };
+    const positionUpdates = new Map<string, XYPosition>();
+    let orderUpdate: { parentId: string; order: string[] } | null = null;
+
+    setFlowNodes(prevNodes => {
+      if (prevNodes.length === 0) {
+        return prevNodes;
+      }
+
+      const nextNodes = prevNodes.map(node => ({ ...node }));
+      let mutated = false;
+
+      const updatePosition = (nodeId: string, nextPosition: XYPosition) => {
+        const index = nextNodes.findIndex(node => node.id === nodeId);
+        if (index === -1) {
+          return;
+        }
+
+        const current = nextNodes[index].position;
+        if (current.x === nextPosition.x && current.y === nextPosition.y) {
+          return;
+        }
+
+        nextNodes[index] = { ...nextNodes[index], position: nextPosition };
+        positionUpdates.set(nodeId, nextPosition);
+        mutated = true;
+      };
+
+      updatePosition(id, snappedPosition);
+
+      const draggedNode = nextNodes.find(node => node.id === id) as Node<FoxNodeData> | undefined;
+      const parentId = draggedNode?.data.parentId;
+
+      if (draggedNode && parentId) {
+        const siblings = nextNodes.filter(
+          node => (node as Node<FoxNodeData>).data.parentId === parentId,
+        );
+
+        if (siblings.length > 1) {
+          const parentNode = nextNodes.find(node => node.id === parentId);
+          const baseX =
+            parentNode !== undefined
+              ? parentNode.position.x + HORIZONTAL_GAP
+              : draggedNode.position.x;
+          const baseY =
+            parentNode !== undefined
+              ? parentNode.position.y + VERTICAL_GAP
+              : Math.min(...siblings.map(sibling => sibling.position.y));
+
+          const sorted = [...siblings].sort((a, b) => a.position.y - b.position.y);
+          orderUpdate = { parentId, order: sorted.map(node => node.id) };
+
+          sorted.forEach((sibling, index) => {
+            const nextPosition: XYPosition = {
+              x: baseX,
+              y: baseY + index * VERTICAL_GAP,
+            };
+            updatePosition(sibling.id, nextPosition);
+          });
+        }
+      }
+
+      return mutated ? nextNodes : prevNodes;
     });
+
+    if (positionUpdates.size > 0) {
+      setCustomPositions(prev => {
+        const next = new Map(prev);
+        let mutated = false;
+
+        positionUpdates.forEach((pos, nodeId) => {
+          const existing = next.get(nodeId);
+          if (!existing || existing.x !== pos.x || existing.y !== pos.y) {
+            next.set(nodeId, pos);
+            mutated = true;
+          }
+        });
+
+        return mutated ? next : prev;
+      });
+    }
+
+    if (orderUpdate) {
+      const { parentId, order } = orderUpdate;
+      setCustomOrder(prev => {
+        const existing = prev.get(parentId);
+        const desired = order;
+
+        if (
+          existing &&
+          existing.length === desired.length &&
+          existing.every((value, index) => value === desired[index])
+        ) {
+          return prev;
+        }
+
+        const next = new Map(prev);
+        next.set(parentId, desired);
+        return next;
+      });
+    }
   }, []);
 
   const visibleNodeIds = useMemo(
