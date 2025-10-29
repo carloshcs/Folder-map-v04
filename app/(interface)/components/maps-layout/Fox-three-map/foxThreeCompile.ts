@@ -15,6 +15,7 @@ const createNode = (
   treeNode: FoxTreeNode,
   depth: number,
   position: { x: number; y: number },
+  parentId: string | null,
 ): Node<FoxNodeData> => {
   const item = treeNode.item;
 
@@ -36,6 +37,7 @@ const createNode = (
       serviceName: treeNode.serviceName ?? (depth === 1 ? treeNode.name : undefined),
       childrenCount: treeNode.children?.length ?? 0,
       serviceId: treeNode.serviceId,
+      parentId,
     },
   };
 };
@@ -67,8 +69,9 @@ const layoutBranch = (
   expandedState: Map<string, boolean>,
   nodes: Array<Node<FoxNodeData>>,
   edges: Edge[],
+  parentId: string,
 ): number => {
-  nodes.push(createNode(node, depth, { x: currentX, y: currentY }));
+  nodes.push(createNode(node, depth, { x: currentX, y: currentY }, parentId));
 
   const children = node.children ?? [];
   if (!shouldExpandNode(node, depth, expandedState)) return currentY;
@@ -94,9 +97,18 @@ const layoutBranch = (
     // Add only direct children first (not recursive grandchildren unless previously opened)
     const isChildExpanded = expandedState.get(child.id);
     if (isChildExpanded) {
-      cursorY = layoutBranch(child, depth + 1, childX, childY, expandedState, nodes, edges);
+      cursorY = layoutBranch(
+        child,
+        depth + 1,
+        childX,
+        childY,
+        expandedState,
+        nodes,
+        edges,
+        node.id,
+      );
     } else {
-      nodes.push(createNode(child, depth + 1, { x: childX, y: childY }));
+      nodes.push(createNode(child, depth + 1, { x: childX, y: childY }, node.id));
       cursorY = childY;
     }
   });
@@ -115,7 +127,7 @@ export const createFlowLayout = (
   const rootX = 0;
   const rootY = 0;
 
-  nodes.push(createNode(tree, 0, { x: rootX, y: rootY }));
+  nodes.push(createNode(tree, 0, { x: rootX, y: rootY }, null));
 
   const rootChildren = tree.children ?? [];
   let cursorY = rootY;
@@ -133,9 +145,18 @@ export const createFlowLayout = (
 
     const isChildExpanded = expandedState.get(child.id);
     if (isChildExpanded) {
-      cursorY = layoutBranch(child, 1, childX, childY, expandedState, nodes, edges);
+      cursorY = layoutBranch(
+        child,
+        1,
+        childX,
+        childY,
+        expandedState,
+        nodes,
+        edges,
+        tree.id,
+      );
     } else {
-      nodes.push(createNode(child, 1, { x: childX, y: childY }));
+      nodes.push(createNode(child, 1, { x: childX, y: childY }, tree.id));
       cursorY = childY;
     }
   });
