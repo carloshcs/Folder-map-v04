@@ -64,7 +64,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     tooltipFadeTimeoutRef.current = window.setTimeout(() => {
       setHoveredNode(null);
       tooltipFadeTimeoutRef.current = null;
-    }, 240);
+    }, 520);
   }, []);
 
   const canvasToScreen = useCallback(
@@ -317,7 +317,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     clearTooltipTimeout();
     closeTooltipTimeoutRef.current = window.setTimeout(() => {
       closeTooltip();
-    }, 160);
+    }, 320);
   };
 
   const toggleHoveredExpansion = () => {
@@ -372,8 +372,8 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     (filter as any)
       .append('feDropShadow')
       .attr('dx', 0)
-      .attr('dy', 3)
-      .attr('stdDeviation', 4)
+      .attr('dy', 6)
+      .attr('stdDeviation', 8)
       .attr('flood-color', '#101828')
       .attr('flood-opacity', 0.28);
 
@@ -452,13 +452,13 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
           enter
             .append('line')
             .attr('stroke', '#b8bec9')
-            .attr('stroke-width', 1.4)
+            .attr('stroke-width', 2.8)
             .attr('opacity', 0.85),
         update => update,
         exit => exit.remove(),
       )
       .attr('stroke', '#b8bec9')
-      .attr('stroke-width', 1.4)
+      .attr('stroke-width', 2.8)
       .attr('opacity', 0.85);
 
     if (physicsRef.current) physicsRef.current.stop();
@@ -725,10 +725,10 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
         return relatedIds.has(sourceId) && relatedIds.has(targetId) ? '#6b7bff' : '#c5cad3';
       })
       .attr('stroke-width', (d: any) => {
-        if (!hoveredId) return 1.4;
+        if (!hoveredId) return 2.8;
         const sourceId = getNodeId(d.source);
         const targetId = getNodeId(d.target);
-        return relatedIds.has(sourceId) && relatedIds.has(targetId) ? 2.4 : 1;
+        return relatedIds.has(sourceId) && relatedIds.has(targetId) ? 4.8 : 2;
       })
       .attr('opacity', (d: any) => {
         if (!hoveredId) return 0.95;
@@ -753,7 +753,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
             label.style('opacity', 1);
           }
         });
-      linkSelection.attr('stroke', '#b8bec9').attr('stroke-width', 1.4).attr('opacity', 0.95);
+      linkSelection.attr('stroke', '#b8bec9').attr('stroke-width', 2.8).attr('opacity', 0.95);
     };
   }, [hoveredNode?.id]);
 
