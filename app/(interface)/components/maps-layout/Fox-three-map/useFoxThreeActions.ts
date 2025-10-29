@@ -468,22 +468,8 @@ export const useFoxThreeActions = (
         }
 
         const targetNode = nodes[targetIndex];
-        const targetData = targetNode.data as FoxNodeData;
-
-        let constrainedPosition = { ...position };
-
-        if (targetData.parentId) {
-          const parentNode = nodes.find(node => node.id === targetData.parentId);
-          if (parentNode) {
-            const minimumY = parentNode.position.y + VERTICAL_GAP;
-            if (constrainedPosition.y < minimumY) {
-              constrainedPosition = { ...constrainedPosition, y: minimumY };
-            }
-          }
-        }
-
-        const deltaX = constrainedPosition.x - targetNode.position.x;
-        const deltaY = constrainedPosition.y - targetNode.position.y;
+        const deltaX = position.x - targetNode.position.x;
+        const deltaY = position.y - targetNode.position.y;
 
         if (deltaX === 0 && deltaY === 0) {
           return nodes;
@@ -492,7 +478,7 @@ export const useFoxThreeActions = (
         const descendantIds = getDescendantIds(id);
         if (descendantIds.length === 0) {
           return nodes.map(node =>
-            node.id === id ? { ...node, position: { ...constrainedPosition } } : node,
+            node.id === id ? { ...node, position: { ...position } } : node,
           );
         }
 
@@ -504,7 +490,7 @@ export const useFoxThreeActions = (
           }
 
           if (node.id === id) {
-            return { ...node, position: { ...constrainedPosition } };
+            return { ...node, position: { ...position } };
           }
 
           return {
