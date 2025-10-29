@@ -100,6 +100,14 @@ const enforceGridAndReflow = (
   });
 };
 
+const getAxisSign = (value: number): number => {
+  if (value === 0) {
+    return 0;
+  }
+
+  return value > 0 ? 1 : -1;
+};
+
 type ActiveDragState = {
   id: string;
   parentId: string | null;
@@ -552,6 +560,7 @@ export const useFoxThreeActions = (
         deltaY: number;
         finalPosition: XYPosition;
       }> = [];
+      let mirroredPositionsSnapshot: Map<string, XYPosition> | null = null;
 
       setFlowNodes(nodes => {
         const existingIndex = nodes.findIndex(node => node.id === id);
@@ -583,6 +592,7 @@ export const useFoxThreeActions = (
         activeDragRef.current = null;
 
         const parentPosition = parentNode.position;
+        const nodeLookup = new Map(nodes.map(nodeItem => [nodeItem.id, nodeItem]));
         const branchAdjustments: Array<{
           id: string;
           branchIds: Set<string>;
@@ -608,7 +618,28 @@ export const useFoxThreeActions = (
 
         const initialOffset = dragState?.initialParentOffset ?? null;
 
-        const branchIds = new Set([id, ...getDescendantIds(id)]);
+        const descendantIds = getDescendantIds(id);
+        const branchIds = new Set([id, ...descendantIds]);
+        const previousPositions = new Map<string, XYPosition>();
+        branchIds.forEach(nodeId => {
+          const existingNode = nodeLookup.get(nodeId);
+          if (existingNode) {
+            previousPositions.set(nodeId, {
+              x: snapPosition(existingNode.position.x),
+              y: snapPosition(existingNode.position.y),
+            });
+            return;
+          }
+
+          const stored = manualPositionsRef.current.get(nodeId);
+          if (stored) {
+            previousPositions.set(nodeId, {
+              x: snapPosition(stored.x),
+              y: snapPosition(stored.y),
+            });
+          }
+        });
+
         const targetX = snapWithMinimum(
           targetNode.position.x,
           parentPosition.x,
@@ -704,7 +735,7 @@ export const useFoxThreeActions = (
           });
         });
 
-        const updatedNodes = nodes.map(nodeItem => {
+        let updatedNodes = nodes.map(nodeItem => {
           const branch = branchMembership.get(nodeItem.id);
           if (!branch) {
             return {
@@ -735,6 +766,86 @@ export const useFoxThreeActions = (
           };
         });
 
+        const rootAdjustment = branchAdjustments.find(branch => branch.id === id);
+        const previousRootPosition = previousPositions.get(id);
+
+        if (rootAdjustment && previousRootPosition) {
+          const rootFinalPosition = {
+            x: snapPosition(rootAdjustment.finalX ?? rootAdjustment.targetX),
+            y: snapPosition(rootAdjustment.finalY ?? rootAdjustment.targetY),
+          };
+
+          const flipX =
+            getAxisSign(previousRootPosition.x) !== 0 &&
+            getAxisSign(rootFinalPosition.x) !== 0 &&
+            getAxisSign(previousRootPosition.x) !== getAxisSign(rootFinalPosition.x);
+
+          const flipY =
+            getAxisSign(previousRootPosition.y) !== 0 &&
+            getAxisSign(rootFinalPosition.y) !== 0 &&
+            getAxisSign(previousRootPosition.y) !== getAxisSign(rootFinalPosition.y);
+
+          if (flipX || flipY) {
+            const mirroredPositions = new Map<string, XYPosition>();
+            const queue: string[] = [id];
+            mirroredPositions.set(id, { ...rootFinalPosition });
+
+            while (queue.length > 0) {
+              const parentNodeId = queue.shift()!;
+              const parentPrevious = previousPositions.get(parentNodeId);
+              const parentCurrent = mirroredPositions.get(parentNodeId);
+
+              if (!parentPrevious || !parentCurrent) {
+                continue;
+              }
+
+              const children = childrenLookup.get(parentNodeId) ?? [];
+              children.forEach(childNode => {
+                const childId = childNode.id;
+                if (!branchIds.has(childId)) {
+                  return;
+                }
+
+                const childPrevious = previousPositions.get(childId);
+                if (!childPrevious) {
+                  return;
+                }
+
+                const offsetX = childPrevious.x - parentPrevious.x;
+                const offsetY = childPrevious.y - parentPrevious.y;
+
+                const nextX = flipX ? parentCurrent.x - offsetX : parentCurrent.x + offsetX;
+                const nextY = flipY ? parentCurrent.y - offsetY : parentCurrent.y + offsetY;
+
+                const snappedNext = {
+                  x: snapPosition(nextX),
+                  y: snapPosition(nextY),
+                };
+
+                mirroredPositions.set(childId, snappedNext);
+                queue.push(childId);
+              });
+            }
+
+            updatedNodes = updatedNodes.map(nodeItem => {
+              const mirroredPosition = mirroredPositions.get(nodeItem.id);
+              if (!mirroredPosition) {
+                return nodeItem;
+              }
+
+              return {
+                ...nodeItem,
+                position: {
+                  x: mirroredPosition.x,
+                  y: mirroredPosition.y,
+                },
+              };
+            });
+
+            mirroredPositionsSnapshot = mirroredPositions;
+          }
+        }
+
         const finalNodes = enforceGridAndReflow(updatedNodes);
 
         updatedNodesSnapshot = finalNodes;
@@ -759,6 +870,7 @@ export const useFoxThreeActions = (
 
       if (branchMutationsSnapshot.length > 0) {
         const updatedMap = new Map(updatedNodesSnapshot.map(node => [node.id, node]));
+        const mirroredPositions = mirroredPositionsSnapshot;
         setManualPositions(prev => {
           const next = new Map(prev);
 
@@ -767,7 +879,16 @@ export const useFoxThreeActions = (
               const updatedNode = updatedMap.get(nodeId);
               if (updatedNode) {
                 next.set(nodeId, { ...updatedNode.position });
-              } else if (next.has(nodeId)) {
+                return;
+              }
+
+              const mirrored = mirroredPositions?.get(nodeId);
+              if (mirrored) {
+                next.set(nodeId, { ...mirrored });
+                return;
+              }
+
+              if (next.has(nodeId)) {
                 const stored = next.get(nodeId)!;
                 next.set(nodeId, {
                   x: snapPosition(stored.x + branch.deltaX),
