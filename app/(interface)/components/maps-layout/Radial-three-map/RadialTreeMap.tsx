@@ -13,28 +13,15 @@ import { computeNodeStyles, DIMMED_FILL_LIGHTEN } from '../utils/styles';
 import { getNodeId } from '../orbital-map/nodeUtils';
 import { shiftColor } from '@/app/(interface)/lib/utils/colors';
 
-const RADIAL_SCALE = 2;
-const NODE_SIZE_SCALE = RADIAL_SCALE;
-const INFO_RESULT_RADIUS_FACTOR = 0.7;
-
-const BASE_LEVEL_RADII: Record<number, number> = {
+const LEVEL_RADII: Record<number, number> = {
   1: 280,
   2: 600,
   3: 920,
   4: 1240,
 };
 
-const LEVEL_RADII: Record<number, number> = Object.keys(BASE_LEVEL_RADII).reduce(
-  (accumulator, key) => {
-    const depth = Number(key);
-    accumulator[depth] = BASE_LEVEL_RADII[depth] * RADIAL_SCALE;
-    return accumulator;
-  },
-  {} as Record<number, number>,
-);
-
-const RADIAL_SPACING = 320 * RADIAL_SCALE;
-const INFINITE_CANVAS_PADDING = 4800 * RADIAL_SCALE;
+const RADIAL_SPACING = 320;
+const INFINITE_CANVAS_PADDING = 4800;
 
 const PREDEFINED_LEVELS = Object.keys(LEVEL_RADII).map(level => Number(level));
 const MAX_PREDEFINED_DEPTH = PREDEFINED_LEVELS.length
@@ -194,7 +181,6 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
   const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
-  const hasInitialCenterRef = useRef(false);
 
   const [size, setSize] = useState({ width: MIN_WIDTH, height: MIN_HEIGHT });
   const [activeServiceId, setActiveServiceId] = useState<ServiceId | null>(() => {
@@ -380,42 +366,12 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
 
     const positionedRoot = treeLayout(layoutRoot) as d3.HierarchyPointNode<any>;
 
-    const shouldCompactInfoNode = (node: d3.HierarchyPointNode<any>) => {
-      if (node.depth <= 0) {
-        return false;
-      }
-
-      const folderItem: FolderItem | undefined = node.data?.item;
-      if (!folderItem) {
-        return false;
-      }
-
-      const hasChildData = Array.isArray(node.data?.children) && node.data.children.length > 0;
-      const isLeafNode = !hasChildData || !node.children || node.children.length === 0;
-
-      if (!isLeafNode) {
-        return false;
-      }
-
-      const metrics = folderItem.metrics;
-      const hasMetricDetails = Boolean(
-        metrics && (metrics.totalSize || metrics.fileCount || metrics.folderCount),
-      );
-      const hasTimelineDetails = Boolean(folderItem.createdDate) || Boolean(folderItem.modifiedDate);
-      const hasLinkOrPath = Boolean(folderItem.link) || Boolean(folderItem.path);
-      const hasActivity = typeof folderItem.activityScore === 'number' && folderItem.activityScore > 0;
-
-      return hasMetricDetails || hasTimelineDetails || hasLinkOrPath || hasActivity;
-    };
-
     positionedRoot.each(node => {
-      const baseRadius = getRadiusForDepth(node.depth);
-      const multiplier = shouldCompactInfoNode(node) ? INFO_RESULT_RADIUS_FACTOR : 1;
-      node.y = baseRadius * multiplier;
+      node.y = getRadiusForDepth(node.depth);
     });
 
     const getNodeDimensions = (node: d3.HierarchyPointNode<any>) => {
-      const baseRadius = getNodeRadius(Math.min(node.depth, 3)) * NODE_SIZE_SCALE;
+      const baseRadius = getNodeRadius(Math.min(node.depth, 3));
 
       if (node.depth === 0) {
         const size = baseRadius * 2.1;
@@ -497,7 +453,7 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       .attr('class', 'radial-links')
       .attr('fill', 'none')
       .attr('stroke', '#CBD5E1')
-      .attr('stroke-width', 1.2 * NODE_SIZE_SCALE)
+      .attr('stroke-width', 1.2)
       .attr('stroke-opacity', 0.6)
       .selectAll<SVGPathElement, d3.HierarchyPointLink<any>>('path')
       .data(positionedRoot.links())
@@ -546,16 +502,10 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       .attr('x', node => -getNodeHalfWidth(node))
       .attr('y', node => -getNodeHalfHeight(node))
       .attr('rx', node =>
-        Math.max(
-          12 * NODE_SIZE_SCALE,
-          Math.min(getNodeHalfWidth(node), getNodeHalfHeight(node)) * 0.45,
-        ),
+        Math.max(12, Math.min(getNodeHalfWidth(node), getNodeHalfHeight(node)) * 0.45),
       )
       .attr('ry', node =>
-        Math.max(
-          12 * NODE_SIZE_SCALE,
-          Math.min(getNodeHalfWidth(node), getNodeHalfHeight(node)) * 0.45,
-        ),
+        Math.max(12, Math.min(getNodeHalfWidth(node), getNodeHalfHeight(node)) * 0.45),
       )
       .each(function (node) {
         const rect = d3.select(this);
@@ -981,11 +931,11 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         })
         .attr('stroke-width', d => {
           if (!hoveredId) {
-            return 1.2 * NODE_SIZE_SCALE;
+            return 1.2;
           }
           const sourceId = getNodeIdentifier(d.source as any);
           const targetId = getNodeIdentifier(d.target as any);
-          return (sourceId === hoveredId || targetId === hoveredId ? 2.3 : 1.05) * NODE_SIZE_SCALE;
+          return sourceId === hoveredId || targetId === hoveredId ? 2.3 : 1.05;
         })
         .attr('opacity', d => {
           if (!hoveredId) {
@@ -998,11 +948,6 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
     };
 
     highlightNodes(null);
-
-    if (!hasInitialCenterRef.current) {
-      centerOnRoot();
-      hasInitialCenterRef.current = true;
-    }
 
     nodeGroups
       .on('click', (event, node) => {
