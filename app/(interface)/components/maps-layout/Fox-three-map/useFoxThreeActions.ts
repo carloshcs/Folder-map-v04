@@ -36,8 +36,6 @@ const collectDescendantIds = (
 
 const snapUpToGrid = (value: number): number => Math.ceil(value / SNAP_SIZE) * SNAP_SIZE;
 
-const snapDownToGrid = (value: number): number => Math.floor(value / SNAP_SIZE) * SNAP_SIZE;
-
 const enforceGridAndReflow = (
   nodes: Array<Node<FoxNodeData>>,
 ): Array<Node<FoxNodeData>> => {
@@ -59,168 +57,56 @@ const enforceGridAndReflow = (
     };
   });
 
-  const positions = new Map<string, { x: number; y: number }>();
+  const columns = new Map<number, Array<Node<FoxNodeData>>>();
   snappedNodes.forEach(node => {
-    positions.set(node.id, { x: node.position.x, y: node.position.y });
-  });
-
-  const childrenLookup = new Map<string, string[]>();
-  snappedNodes.forEach(node => {
-    childrenLookup.set(node.id, []);
-  });
-
-  snappedNodes.forEach(node => {
-    const parentId = (node.data as FoxNodeData).parentId ?? null;
-    if (!parentId) {
-      return;
-    }
-
-    if (!childrenLookup.has(parentId)) {
-      childrenLookup.set(parentId, []);
-    }
-
-    childrenLookup.get(parentId)!.push(node.id);
-  });
-
-  const columnMembership = new Map<number, string[]>();
-  snappedNodes.forEach(node => {
-    const list = columnMembership.get(node.position.x);
-    if (list) {
-      list.push(node.id);
+    const columnNodes = columns.get(node.position.x);
+    if (columnNodes) {
+      columnNodes.push(node);
     } else {
-      columnMembership.set(node.position.x, [node.id]);
+      columns.set(node.position.x, [node]);
     }
   });
 
-  const shiftBranch = (nodeId: string, deltaY: number) => {
-    if (deltaY === 0) {
-      return;
-    }
+  const overrides = new Map<string, { x: number; y: number }>();
 
-    const queue: string[] = [nodeId];
-    const visited = new Set<string>();
+  columns.forEach(nodesInColumn => {
+    const sorted = [...nodesInColumn].sort(
+      (a, b) => a.position.y - b.position.y,
+    );
 
-    while (queue.length > 0) {
-      const currentId = queue.shift()!;
-      if (visited.has(currentId)) {
-        continue;
-      }
+    let previousY: number | null = null;
 
-      visited.add(currentId);
-      const currentPosition = positions.get(currentId);
-      if (!currentPosition) {
-        continue;
-      }
+    sorted.forEach(node => {
+      let targetY = snapPosition(node.position.y);
 
-      positions.set(currentId, {
-        x: currentPosition.x,
-        y: currentPosition.y + deltaY,
-      });
-
-      const children = childrenLookup.get(currentId);
-      if (children && children.length > 0) {
-        queue.push(...children);
-      }
-    }
-  };
-
-  let mutated = true;
-  let guard = 0;
-
-  while (mutated) {
-    mutated = false;
-
-    columnMembership.forEach(nodeIds => {
-      const sorted = [...nodeIds].sort((a, b) => {
-        const positionA = positions.get(a)!.y;
-        const positionB = positions.get(b)!.y;
-        return positionA - positionB;
-      });
-
-      let previousY: number | null = null;
-
-      sorted.forEach(nodeId => {
-        const position = positions.get(nodeId);
-        if (!position) {
-          return;
-        }
-
-        const snappedY = snapPosition(position.y);
-        if (snappedY !== position.y) {
-          shiftBranch(nodeId, snappedY - position.y);
-          mutated = true;
-        }
-
-        const updatedPosition = positions.get(nodeId)!;
-
-        if (previousY !== null) {
-          const minimum = previousY + VERTICAL_GAP;
-
-          if (updatedPosition.y < minimum) {
-            const targetY = snapUpToGrid(minimum);
-            shiftBranch(nodeId, targetY - updatedPosition.y);
-            mutated = true;
-          }
-        }
-
-        previousY = positions.get(nodeId)!.y;
-      });
-    });
-
-    guard += 1;
-    if (guard > 25) {
-      break;
-    }
-  }
-
-  columnMembership.forEach(nodeIds => {
-    const sorted = [...nodeIds].sort((a, b) => {
-      const positionA = positions.get(a)!.y;
-      const positionB = positions.get(b)!.y;
-      return positionB - positionA;
-    });
-
-    let nextY: number | null = null;
-
-    sorted.forEach(nodeId => {
-      const position = positions.get(nodeId);
-      if (!position) {
-        return;
-      }
-
-      const snappedY = snapPosition(position.y);
-      if (snappedY !== position.y) {
-        shiftBranch(nodeId, snappedY - position.y);
-      }
-
-      const updated = positions.get(nodeId)!;
-      if (nextY !== null) {
-        const maximum = nextY - VERTICAL_GAP;
-        if (updated.y > maximum) {
-          const targetY = snapDownToGrid(maximum);
-          if (targetY !== updated.y) {
-            shiftBranch(nodeId, targetY - updated.y);
-          }
+      if (previousY !== null) {
+        const minimum = previousY + VERTICAL_GAP;
+        if (targetY < minimum) {
+          targetY = snapUpToGrid(minimum);
         }
       }
 
-      nextY = positions.get(nodeId)!.y;
+      overrides.set(node.id, { x: node.position.x, y: targetY });
+      previousY = targetY;
     });
   });
 
   return snappedNodes.map(node => {
-    const adjusted = positions.get(node.id);
-    if (!adjusted) {
+    const override = overrides.get(node.id);
+    if (!override) {
       return node;
     }
 
-    if (adjusted.x === node.position.x && adjusted.y === node.position.y) {
+    if (
+      override.x === node.position.x &&
+      override.y === node.position.y
+    ) {
       return node;
     }
 
     return {
       ...node,
-      position: adjusted,
+      position: override,
     };
   });
 };
