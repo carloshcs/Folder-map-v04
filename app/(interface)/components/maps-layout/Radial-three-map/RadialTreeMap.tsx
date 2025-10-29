@@ -11,16 +11,16 @@ import { IntegrationFilter, IntegrationService } from '@/app/(interface)/compone
 import { getNodeRadius } from '../orbital-map/geometry';
 import { computeNodeStyles, DIMMED_FILL_LIGHTEN } from '../utils/styles';
 import { getNodeId } from '../orbital-map/nodeUtils';
-import { getReadableTextColor, shiftColor } from '@/app/(interface)/lib/utils/colors';
+import { shiftColor } from '@/app/(interface)/lib/utils/colors';
 
 const LEVEL_RADII: Record<number, number> = {
-  1: 220,
-  2: 420,
-  3: 620,
-  4: 820,
+  1: 280,
+  2: 600,
+  3: 920,
+  4: 1240,
 };
 
-const RADIAL_SPACING = 200;
+const RADIAL_SPACING = 320;
 const INFINITE_CANVAS_PADDING = 4800;
 
 const PREDEFINED_LEVELS = Object.keys(LEVEL_RADII).map(level => Number(level));
@@ -127,35 +127,6 @@ const SERVICE_DETAILS: Record<
     fill: '#FDE68A',
     stroke: '#CA8A04',
   },
-};
-
-const toRGBA = (color: string, alpha: number): string => {
-  if (!color) {
-    return `rgba(15, 23, 42, ${alpha})`;
-  }
-
-  if (color.startsWith('rgb(')) {
-    return color.replace('rgb(', 'rgba(').replace(')', `, ${alpha})`);
-  }
-
-  if (color.startsWith('#')) {
-    let hex = color.slice(1);
-    if (hex.length === 3) {
-      hex = hex
-        .split('')
-        .map(char => `${char}${char}`)
-        .join('');
-    }
-
-    if (hex.length === 6) {
-      const r = parseInt(hex.slice(0, 2), 16);
-      const g = parseInt(hex.slice(2, 4), 16);
-      const b = parseInt(hex.slice(4, 6), 16);
-      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-    }
-  }
-
-  return color;
 };
 
 const resolveServiceId = (
@@ -500,7 +471,26 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       .join('g')
       .attr('transform', node => getNodeTransform(node))
       .attr('data-initial-transform', node => getNodeTransform(node))
-      .style('cursor', 'default');
+      .style('cursor', 'grab');
+
+    const dragBehavior = d3
+      .drag<SVGGElement, d3.HierarchyPointNode<any>>()
+      .subject((_event, node) => getNodeCartesianPosition(node))
+      .on('start', event => {
+        event.sourceEvent?.stopPropagation?.();
+      })
+      .on('drag', function (event) {
+        d3.select(this).attr('transform', `translate(${event.x},${event.y})`);
+      })
+      .on('end', function () {
+        const selection = d3.select(this);
+        const initialTransform = selection.attr('data-initial-transform');
+        if (initialTransform) {
+          selection.attr('transform', initialTransform);
+        }
+      });
+
+    nodeGroups.call(dragBehavior as any);
 
     nodeGroups.append('title').text(node => node.data?.name ?? 'Folder');
 
@@ -630,127 +620,47 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       const labelDetails = nodeId ? nodeLabelCache.get(nodeId) : undefined;
       const labelText = labelDetails?.text ?? node.data?.name ?? 'Folder';
       const labelColor = labelDetails?.color ?? '#0F172A';
-      const nodeName = node.data?.name ?? 'folder';
       const nodeStyle = nodeStyles.get(getNodeId(node as any));
       const baseFillColor =
         nodeStyle?.fill ??
         (node.depth === 1 ? rootServiceDetails?.fill : undefined) ??
         details?.fill ??
         '#E2E8F0';
-      const accentColor = nodeStyle?.stroke ?? details?.stroke ?? '#6366f1';
-      const normalizedAccent = accentColor.trim().toLowerCase();
-      const isMinimalAccent = (() => {
-        if (normalizedAccent === '#ffffff' || normalizedAccent === '#fff') {
-          return true;
-        }
-
-        const rgbMatch = normalizedAccent.match(/rgba?\(([^)]+)\)/);
-        if (rgbMatch) {
-          const channels = rgbMatch[1]
-            .split(',')
-            .map(value => Number(value.trim()))
-            .slice(0, 3);
-          return channels.length === 3 && channels.every(channel => channel === 255);
-        }
-
-        return false;
-      })();
-
-      const iconBackgroundColor = shiftColor(accentColor, 0.7);
-      const iconColor = getReadableTextColor(iconBackgroundColor);
-      const iconShadowColor = toRGBA(accentColor, 0.2);
-      const buttonSurface = isMinimalAccent ? '#ffffff' : shiftColor(accentColor, 0.82);
-      const buttonBorder = isMinimalAccent ? '#0f172a' : shiftColor(accentColor, 0.55);
-      const buttonTextColor = isMinimalAccent ? '#0f172a' : accentColor;
-      const expandedButtonSurface = isMinimalAccent ? '#f8fafc' : shiftColor(accentColor, 0.55);
-      const expandedButtonBorder = isMinimalAccent ? '#0f172a' : shiftColor(accentColor, 0.3);
-      const expandedButtonText = getReadableTextColor(expandedButtonSurface);
-      const cardBorderColor = shiftColor(baseFillColor, -0.25);
-      const cardBackgroundColor = shiftColor(baseFillColor, 0.08);
-      const cardShadowColor = toRGBA(shiftColor(accentColor, 0.45), 0.2);
-
-      const getButtonStyles = (isActive: boolean) =>
-        isActive
-          ? {
-              background: expandedButtonSurface,
-              border: expandedButtonBorder,
-              color: expandedButtonText,
-            }
-          : {
-              background: buttonSurface,
-              border: buttonBorder,
-              color: buttonTextColor,
-            };
-
-      const applyButtonStyles = (
-        button: d3.Selection<HTMLButtonElement, unknown, null, undefined>,
-        isActive: boolean,
-      ) => {
-        const styles = getButtonStyles(isActive);
-        button
-          .style('background-color', styles.background)
-          .style('border-color', styles.border)
-          .style('color', styles.color);
-      };
+      const menuBorderColor = shiftColor(baseFillColor, -0.25);
+      const menuShadowColor = shiftColor(baseFillColor, -0.45);
 
       const wrapper = container
         .append('xhtml:div')
         .attr('class', 'relative h-full w-full pointer-events-none');
 
-      const card = wrapper
+      const interactive = wrapper
+        .append('xhtml:div')
+        .attr('class', 'group/menu relative flex h-full w-full pointer-events-auto');
+
+      const controlButtonClasses =
+        'inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
+
+      const menu = interactive
         .append('xhtml:div')
         .attr(
           'class',
-          'pointer-events-auto group flex h-full w-full items-center justify-between rounded-2xl border px-3 py-2 text-sm font-medium shadow transition-transform duration-300 hover:scale-[1.01]',
+          'absolute left-1/2 top-0 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-lg border border-border bg-popover/95 px-2.5 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-lg transition-opacity duration-300 ease-out backdrop-blur-sm dark:bg-popover/95',
         )
-        .style('background-color', cardBackgroundColor)
-        .style('border-color', cardBorderColor)
-        .style('box-shadow', `0 6px 14px ${cardShadowColor}, inset 0 1px 0 rgba(255, 255, 255, 0.35)`)
-        .style('backdrop-filter', 'blur(12px)')
-        .style('color', labelColor);
+        .style('transform', 'translate(-50%, calc(-100% - 8px))')
+        .style('pointer-events', 'none');
 
-      const content = card.append('xhtml:div').attr('class', 'flex min-w-0 flex-1 items-center gap-2');
+      const controlsRow = menu.append('xhtml:div').attr('class', 'flex items-center gap-2');
 
-      const iconWrapper = content
-        .append('xhtml:div')
-        .attr('class', 'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg shadow-sm')
-        .style('background-color', iconBackgroundColor)
-        .style('color', iconColor)
-        .style('box-shadow', `0 2px 6px ${iconShadowColor}`);
-
-      const iconLabel = labelText.trim().charAt(0).toUpperCase() || 'F';
-
-      iconWrapper
-        .append('xhtml:span')
-        .attr('class', 'text-xs font-semibold uppercase tracking-wide')
-        .text(iconLabel);
-
-      content
-        .append('xhtml:span')
-        .attr('class', 'radial-node-name inline-flex max-w-full flex-wrap items-center text-left leading-tight')
-        .style('white-space', 'normal')
-        .style('word-break', 'break-word')
-        .style('color', labelColor)
-        .attr('title', labelText)
-        .text(labelText);
-
-      const actions = card
-        .append('xhtml:div')
-        .attr('class', 'flex flex-shrink-0 items-center gap-1.5');
-
-      const infoPanel = wrapper
+      const infoPanel = interactive
         .append('xhtml:div')
         .attr(
           'class',
-          'absolute left-1/2 top-full z-30 hidden max-w-[260px] -translate-x-1/2 translate-y-2 space-y-1 rounded-xl border px-3 py-2 text-left text-[11px] leading-relaxed shadow-lg',
+          'absolute left-1/2 top-0 z-20 hidden max-w-[260px] -translate-x-1/2 space-y-1 rounded-xl border border-white/70 bg-white/95 px-3 py-2 text-left text-[11px] leading-relaxed text-slate-600 shadow-lg backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-950/95 dark:text-slate-200',
         )
-        .style('background-color', shiftColor(baseFillColor, 0.15))
-        .style('border-color', cardBorderColor)
-        .style('color', labelColor)
-        .style('box-shadow', `0 18px 36px -20px ${cardShadowColor}`)
-        .style('pointer-events', 'auto')
-        .style('display', 'none')
-        .classed('hidden', true);
+        .style('transform', 'translate(-50%, calc(-100% - 14px))')
+        .style('pointer-events', 'none')
+        .style('border-color', menuBorderColor)
+        .style('box-shadow', `0 24px 40px -26px ${menuShadowColor}`);
 
       const infoEntries: { label: string; value: string | null | undefined }[] = [
         { label: 'Path', value: folderItem?.path ?? folderItem?.name ?? null },
@@ -760,101 +670,184 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       ];
 
       infoEntries.forEach(entry => {
-        const row = infoPanel.append('xhtml:div').attr('class', 'flex flex-col gap-0.5');
+        const row = infoPanel.append('xhtml:div').attr('class', 'flex flex-col');
         row
           .append('xhtml:span')
-          .attr('class', 'font-semibold uppercase tracking-wide text-[10px] opacity-70')
+          .attr('class', 'font-semibold uppercase tracking-wide text-[10px] text-slate-400 dark:text-slate-500')
           .text(entry.label);
         row
           .append('xhtml:span')
-          .attr('class', 'max-w-[240px] break-words text-[11px]')
+          .attr('class', 'max-w-[240px] break-words text-[11px] text-slate-700 dark:text-slate-200')
           .attr('title', entry.value ?? '—')
           .text(entry.value ?? '—');
       });
 
+      const card = interactive
+        .append('xhtml:div')
+        .attr(
+          'class',
+          'pointer-events-none flex h-full w-full flex-col overflow-hidden rounded-2xl',
+        );
+
       let isInfoOpen = false;
+      let hideTimeout: ReturnType<typeof setTimeout> | null = null;
 
       const closeInfoPanel = () => {
         isInfoOpen = false;
-        infoPanel.style('display', 'none').classed('hidden', true);
+        infoPanel.style('display', 'none').classed('hidden', true).style('pointer-events', 'none');
       };
 
-      const toggleInfoPanel = () => {
-        isInfoOpen = !isInfoOpen;
-        infoPanel.style('display', isInfoOpen ? 'block' : 'none').classed('hidden', !isInfoOpen);
+      const clearHideTimeout = () => {
+        if (hideTimeout !== null) {
+          clearTimeout(hideTimeout);
+          hideTimeout = null;
+        }
       };
 
-      const infoButton = actions
+      const toggleMenuVisibility = (isVisible: boolean) => {
+        if (isVisible) {
+          clearHideTimeout();
+        }
+
+        menu
+          .interrupt()
+          .style('opacity', isVisible ? '1' : '0')
+          .style('pointer-events', isVisible ? 'auto' : 'none');
+
+        if (!isVisible) {
+          closeInfoPanel();
+        }
+      };
+
+      const scheduleHide = () => {
+        clearHideTimeout();
+        hideTimeout = setTimeout(() => {
+          toggleMenuVisibility(false);
+          hideTimeout = null;
+        }, 360);
+      };
+
+      const shouldKeepMenuVisible = (target: EventTarget | null) => {
+        if (!target || !(target instanceof Node)) {
+          return false;
+        }
+        const containers = [interactive.node(), menu.node(), infoPanel.node()].filter(
+          (element): element is Node => Boolean(element),
+        );
+        return containers.some(element => element.contains(target));
+      };
+
+      const handleExit = (event: MouseEvent | FocusEvent) => {
+        const relatedTarget =
+          (event as MouseEvent).relatedTarget ?? (event as FocusEvent).relatedTarget ?? null;
+        const related = (relatedTarget as Node | null) ?? null;
+        if (shouldKeepMenuVisible(related)) {
+          return;
+        }
+        scheduleHide();
+      };
+
+      interactive
+        .on('mouseenter', () => {
+          toggleMenuVisibility(true);
+        })
+        .on('mouseleave', event => {
+          handleExit(event as MouseEvent);
+        })
+        .on('focusin', () => {
+          toggleMenuVisibility(true);
+        })
+        .on('focusout', event => {
+          handleExit(event as FocusEvent);
+        });
+
+      menu
+        .on('mouseenter', () => {
+          toggleMenuVisibility(true);
+        })
+        .on('mouseleave', event => {
+          handleExit(event as MouseEvent);
+        });
+
+      infoPanel
+        .on('mouseenter', () => {
+          toggleMenuVisibility(true);
+        })
+        .on('mouseleave', event => {
+          handleExit(event as MouseEvent);
+        });
+
+      controlsRow
         .append('xhtml:button')
         .attr('type', 'button')
-        .attr('class', 'inline-flex h-7 w-7 items-center justify-center rounded-full border transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-background')
-        .attr('aria-label', `Show info for ${nodeName}`)
-        .html(renderInfoIcon()) as d3.Selection<HTMLButtonElement, unknown, null, undefined>;
-
-      applyButtonStyles(infoButton, isInfoOpen);
-
-      infoButton.on('click', event => {
-        event.preventDefault();
-        event.stopPropagation();
-        toggleInfoPanel();
-        applyButtonStyles(infoButton, isInfoOpen);
-      });
+        .attr('data-control', 'info')
+        .attr('class', controlButtonClasses)
+        .attr('aria-label', `Show info for ${node.data?.name ?? 'folder'}`)
+        .html(renderInfoIcon())
+        .on('click', event => {
+          event.preventDefault();
+          event.stopPropagation();
+          isInfoOpen = !isInfoOpen;
+          infoPanel
+            .style('display', isInfoOpen ? 'block' : 'none')
+            .classed('hidden', !isInfoOpen)
+            .style('pointer-events', isInfoOpen ? 'auto' : 'none');
+        });
 
       if (hasChildren && nodeId) {
         const isExpanded = expandedNodes.has(nodeId);
-        const toggleButton = actions
+        controlsRow
           .append('xhtml:button')
           .attr('type', 'button')
           .attr('data-control', 'toggle')
-          .attr('class', 'inline-flex h-7 w-7 items-center justify-center rounded-full border transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-background')
-          .attr('aria-label', `${isExpanded ? 'Collapse' : 'Expand'} ${nodeName}`)
-          .html(renderToggleIcon(isExpanded)) as d3.Selection<HTMLButtonElement, unknown, null, undefined>;
-
-        applyButtonStyles(toggleButton, isExpanded);
-
-        toggleButton.on('click', event => {
-          event.preventDefault();
-          event.stopPropagation();
-          closeInfoPanel();
-          applyButtonStyles(infoButton, isInfoOpen);
-          const nextExpanded = !isExpanded;
-          toggleButton
-            .html(renderToggleIcon(nextExpanded))
-            .attr('aria-label', `${nextExpanded ? 'Collapse' : 'Expand'} ${nodeName}`);
-          applyButtonStyles(toggleButton, nextExpanded);
-          setExpandedNodes(prev => {
-            const next = new Set(prev);
-            if (next.has(nodeId)) {
-              next.delete(nodeId);
-            } else {
-              next.add(nodeId);
-            }
-            return next;
+          .attr('class', controlButtonClasses)
+          .attr('aria-label', `${isExpanded ? 'Collapse' : 'Expand'} ${node.data?.name ?? 'folder'}`)
+          .html(renderToggleIcon(isExpanded))
+          .on('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            closeInfoPanel();
+            setExpandedNodes(prev => {
+              const next = new Set(prev);
+              if (next.has(nodeId)) {
+                next.delete(nodeId);
+              } else {
+                next.add(nodeId);
+              }
+              return next;
+            });
           });
-        });
       }
 
       if (link) {
-        const linkButton = actions
-          .append('xhtml:button')
-          .attr('type', 'button')
+        controlsRow
+          .append('xhtml:a')
           .attr('data-control', 'link')
-          .attr('class', 'inline-flex h-7 w-7 items-center justify-center rounded-full border transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-background')
-          .attr('aria-label', `Open ${nodeName}`)
-          .html(renderExternalLinkIcon()) as d3.Selection<HTMLButtonElement, unknown, null, undefined>;
-
-        applyButtonStyles(linkButton, false);
-
-        linkButton.on('click', event => {
-          event.preventDefault();
-          event.stopPropagation();
-          closeInfoPanel();
-          applyButtonStyles(infoButton, isInfoOpen);
-          if (typeof window !== 'undefined') {
-            window.open(link, '_blank', 'noopener,noreferrer');
-          }
-        });
+          .attr('href', link)
+          .attr('target', '_blank')
+          .attr('rel', 'noreferrer')
+          .attr('class', controlButtonClasses)
+          .attr('aria-label', `Open ${node.data?.name ?? 'folder'}`)
+          .html(renderExternalLinkIcon())
+          .on('click', event => {
+            closeInfoPanel();
+            event.stopPropagation();
+          });
       }
+
+      card
+        .append('xhtml:div')
+        .attr(
+          'class',
+          'pointer-events-none flex flex-1 items-center justify-center px-4 py-2 text-center text-[13px] font-medium leading-tight text-slate-700 dark:text-slate-100',
+        )
+        .append('xhtml:span')
+        .attr('class', 'radial-node-name inline-flex max-w-full flex-wrap justify-center text-center leading-tight')
+        .style('white-space', 'normal')
+        .style('word-break', 'break-word')
+        .style('color', labelColor)
+        .attr('title', labelText)
+        .text(labelText);
     });
 
     const nodeById = new Map<string, d3.HierarchyPointNode<any>>();
