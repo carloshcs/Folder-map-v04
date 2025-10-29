@@ -119,21 +119,6 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
 
   const computeTooltipAnchor = useCallback(
     (nodeId: string, depth: number): TooltipAnchor | null => {
-      const svgElement = svgRef.current;
-
-      if (svgElement) {
-        const latestTransform = d3.zoomTransform(svgElement);
-
-        if (
-          latestTransform &&
-          (latestTransform.k !== zoomTransformRef.current?.k ||
-            latestTransform.x !== zoomTransformRef.current?.x ||
-            latestTransform.y !== zoomTransformRef.current?.y)
-        ) {
-          zoomTransformRef.current = latestTransform;
-        }
-      }
-
       const transform = zoomTransformRef.current ?? d3.zoomIdentity;
 
       return getTooltipAnchorForNode({
@@ -209,40 +194,20 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   );
 
   const getEventBasedAnchor = (event: PointerEvent): TooltipAnchor | null => {
-    const svgElement = svgRef.current;
-
-    if (svgElement) {
-      const latestTransform = d3.zoomTransform(svgElement);
-
-      if (
-        latestTransform &&
-        (latestTransform.k !== zoomTransformRef.current?.k ||
-          latestTransform.x !== zoomTransformRef.current?.x ||
-          latestTransform.y !== zoomTransformRef.current?.y)
-      ) {
-        zoomTransformRef.current = latestTransform;
-      }
-    }
-
     const transform = zoomTransformRef.current ?? d3.zoomIdentity;
 
     const targetElement = event.currentTarget as Element | null;
     const circleElement = targetElement?.querySelector('circle.node-circle') as
       | SVGCircleElement
       | null;
-    const measuredElement =
-      (circleElement as SVGGraphicsElement | null) ??
-      (targetElement as SVGGraphicsElement | null);
-    const rect = measuredElement?.getBoundingClientRect?.() ?? null;
+    const circleRect = circleElement?.getBoundingClientRect() ?? null;
 
-    if (rect) {
-      const width = rect.width;
-      const height = rect.height;
-      const radius = Math.max(width, height) / 2;
+    if (circleRect) {
+      const radius = circleRect.width / 2;
       return {
         position: {
-          x: rect.left + width / 2,
-          y: rect.top + height / 2,
+          x: circleRect.left + radius,
+          y: circleRect.top,
         },
         screenRadius: radius,
         baseRadius: radius / transform.k,

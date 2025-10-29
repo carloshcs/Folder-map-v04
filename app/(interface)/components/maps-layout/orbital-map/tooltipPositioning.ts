@@ -7,7 +7,7 @@ export type TooltipAnchor = {
   baseRadius: number;
 };
 
-export type NodeAnchorResult = {
+export type PerimeterTopResult = {
   anchor: { x: number; y: number };
   screenRadius: number;
   baseRadius: number;
@@ -21,13 +21,13 @@ export interface TooltipPositioningParams {
   canvasToScreen: (point: { x: number; y: number }) => { x: number; y: number };
 }
 
-export const calculateNodeAnchor = ({
+export const calculateNodePerimeterTop = ({
   nodeId,
   depth,
   nodePositions,
   zoomScale,
   canvasToScreen,
-}: TooltipPositioningParams): NodeAnchorResult | null => {
+}: TooltipPositioningParams): PerimeterTopResult | null => {
   const nodePosition = nodePositions.get(nodeId);
 
   if (!nodePosition) {
@@ -41,7 +41,7 @@ export const calculateNodeAnchor = ({
   return {
     anchor: {
       x: screenCenter.x,
-      y: screenCenter.y,
+      y: screenCenter.y - screenRadius,
     },
     screenRadius,
     baseRadius,
@@ -51,15 +51,15 @@ export const calculateNodeAnchor = ({
 export const getTooltipAnchorForNode = (
   params: TooltipPositioningParams,
 ): TooltipAnchor | null => {
-  const nodeAnchor = calculateNodeAnchor(params);
+  const perimeterTop = calculateNodePerimeterTop(params);
 
-  if (!nodeAnchor) {
+  if (!perimeterTop) {
     return null;
   }
 
   return {
-    position: nodeAnchor.anchor,
-    screenRadius: nodeAnchor.screenRadius,
-    baseRadius: nodeAnchor.baseRadius,
+    position: perimeterTop.anchor,
+    screenRadius: perimeterTop.screenRadius,
+    baseRadius: perimeterTop.baseRadius,
   };
 };
