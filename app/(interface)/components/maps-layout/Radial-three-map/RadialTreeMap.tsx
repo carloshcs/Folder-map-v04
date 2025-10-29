@@ -29,6 +29,35 @@ const MAX_PREDEFINED_DEPTH = PREDEFINED_LEVELS.length
   : 0;
 const MAX_PREDEFINED_RADIUS = MAX_PREDEFINED_DEPTH ? LEVEL_RADII[MAX_PREDEFINED_DEPTH] : 0;
 
+const toRGBA = (color: string, alpha: number): string => {
+  if (!color) {
+    return `rgba(15, 23, 42, ${alpha})`;
+  }
+
+  if (color.startsWith('rgb(')) {
+    return color.replace('rgb(', 'rgba(').replace(')', `, ${alpha})`);
+  }
+
+  if (color.startsWith('#')) {
+    let hex = color.slice(1);
+    if (hex.length === 3) {
+      hex = hex
+        .split('')
+        .map(char => `${char}${char}`)
+        .join('');
+    }
+
+    if (hex.length === 6) {
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+  }
+
+  return color;
+};
+
 const getRadiusForDepth = (depth: number) => {
   if (depth <= 0) return 0;
   if (LEVEL_RADII[depth]) return LEVEL_RADII[depth];
@@ -341,7 +370,6 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
 
     const styledRoot = d3.hierarchy({ name: '__radial-root__', children: [rootData] });
     const nodeStyles = computeNodeStyles(styledRoot as any, colorPaletteId);
-    const nodeLabelCache = new Map<string, { text: string; color: string }>();
 
     const descendants = layoutRoot.descendants();
     const maxDepth = d3.max(descendants, node => node.depth) ?? 1;
@@ -565,14 +593,6 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         const dimensions = getNodeDimensions(node);
         ensureLabelFits(selection, node.data?.name ?? 'Folder', dimensions, textColor);
 
-        const identifier = getNodeIdentifier(node);
-        if (identifier) {
-          nodeLabelCache.set(identifier, {
-            text: selection.text(),
-            color: textColor,
-          });
-        }
-
         selection.remove();
       });
 
@@ -617,9 +637,6 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         return;
       }
 
-      const labelDetails = nodeId ? nodeLabelCache.get(nodeId) : undefined;
-      const labelText = labelDetails?.text ?? node.data?.name ?? 'Folder';
-      const labelColor = labelDetails?.color ?? '#0F172A';
       const nodeStyle = nodeStyles.get(getNodeId(node as any));
       const baseFillColor =
         nodeStyle?.fill ??
@@ -628,6 +645,13 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
         '#E2E8F0';
       const menuBorderColor = shiftColor(baseFillColor, -0.25);
       const menuShadowColor = shiftColor(baseFillColor, -0.45);
+      const accentColor = details?.stroke ?? rootServiceDetails?.stroke ?? '#6366F1';
+      const cardBackground = baseFillColor;
+      const cardBorderColor = shiftColor(cardBackground, -0.32);
+      const cardDimmedBackground = shiftColor(cardBackground, DIMMED_FILL_LIGHTEN);
+      const cardDimmedBorder = shiftColor(cardBorderColor, DIMMED_FILL_LIGHTEN * 0.65);
+      const cardShadowColor = toRGBA(shiftColor(accentColor, 0.45), 0.22);
+      const cardHoverShadow = toRGBA(shiftColor(accentColor, 0.35), 0.32);
 
       const wrapper = container
         .append('xhtml:div')
@@ -688,6 +712,30 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           'class',
           'pointer-events-none flex h-full w-full flex-col overflow-hidden rounded-2xl',
         );
+
+      const defaultShadow = `0 9px 22px ${cardShadowColor}, inset 0 1px 0 rgba(255, 255, 255, 0.42)`;
+      const hoverShadow = `0 18px 36px ${cardHoverShadow}, inset 0 1px 0 rgba(255, 255, 255, 0.46)`;
+
+      const cardSurface = card
+        .append('xhtml:div')
+        .attr(
+          'class',
+          'radial-node-card pointer-events-none flex h-full w-full items-center justify-center rounded-2xl border px-3 py-2 transition-transform duration-300 ease-out',
+        )
+        .style('background-color', cardBackground)
+        .style('border-color', cardBorderColor)
+        .style('border-width', '1.5px')
+        .style('background-image', 'linear-gradient(140deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.08))')
+        .style('background-blend-mode', 'overlay')
+        .style('box-shadow', defaultShadow)
+        .style('backdrop-filter', 'blur(12px)')
+        .style('opacity', '0.98')
+        .attr('data-base-fill', cardBackground)
+        .attr('data-base-border', cardBorderColor)
+        .attr('data-dimmed-fill', cardDimmedBackground)
+        .attr('data-dimmed-border', cardDimmedBorder)
+        .attr('data-default-shadow', defaultShadow)
+        .attr('data-hover-shadow', hoverShadow);
 
       let isInfoOpen = false;
       let hideTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -750,15 +798,27 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       interactive
         .on('mouseenter', () => {
           toggleMenuVisibility(true);
+          cardSurface
+            .style('transform', 'scale(1.02)')
+            .style('box-shadow', hoverShadow);
         })
         .on('mouseleave', event => {
           handleExit(event as MouseEvent);
+          cardSurface
+            .style('transform', 'scale(1)')
+            .style('box-shadow', defaultShadow);
         })
         .on('focusin', () => {
           toggleMenuVisibility(true);
+          cardSurface
+            .style('transform', 'scale(1.015)')
+            .style('box-shadow', hoverShadow);
         })
         .on('focusout', event => {
           handleExit(event as FocusEvent);
+          cardSurface
+            .style('transform', 'scale(1)')
+            .style('box-shadow', defaultShadow);
         });
 
       menu
@@ -835,19 +895,6 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
           });
       }
 
-      card
-        .append('xhtml:div')
-        .attr(
-          'class',
-          'pointer-events-none flex flex-1 items-center justify-center px-4 py-2 text-center text-[13px] font-medium leading-tight text-slate-700 dark:text-slate-100',
-        )
-        .append('xhtml:span')
-        .attr('class', 'radial-node-name inline-flex max-w-full flex-wrap justify-center text-center leading-tight')
-        .style('white-space', 'normal')
-        .style('word-break', 'break-word')
-        .style('color', labelColor)
-        .attr('title', labelText)
-        .text(labelText);
     });
 
     const nodeById = new Map<string, d3.HierarchyPointNode<any>>();
@@ -886,37 +933,55 @@ export const RadialTreeMap: React.FC<RadialTreeMapProps> = ({
       nodeGroups.each(function (node) {
         const selection = d3.select(this);
         const rect = selection.select<SVGRectElement>('rect.radial-node-rect');
-        if (rect.empty()) {
+        const cardElement = selection
+          .select<SVGForeignObjectElement>('foreignObject.radial-node-controls')
+          .select<HTMLElement>('.radial-node-card');
+
+        if (rect.empty() && cardElement.empty()) {
           return;
         }
-        const baseFill = rect.attr('data-base-fill');
+
+        const nodeIdentifier = getNodeIdentifier(node);
+        const label = selection.select<SVGTextElement>('text');
+
+        const baseFill = rect.attr('data-base-fill') || cardElement.attr('data-base-fill');
         if (!baseFill) {
           return;
         }
-        const nodeIdentifier = getNodeIdentifier(node);
-        const label = selection.select<SVGTextElement>('text');
-        const htmlLabel = selection
-          .select<SVGForeignObjectElement>('foreignObject.radial-node-controls')
-          .select<HTMLElement>('.radial-node-name');
+
+        const baseBorder = cardElement.attr('data-base-border');
+        const dimmedFill =
+          rect.attr('data-dimmed-fill') || cardElement.attr('data-dimmed-fill') || shiftColor(baseFill, DIMMED_FILL_LIGHTEN);
+        const dimmedBorder = cardElement.attr('data-dimmed-border') ||
+          (baseBorder ? shiftColor(baseBorder, DIMMED_FILL_LIGHTEN * 0.65) : undefined);
 
         if (!hoveredId || (nodeIdentifier && relatedIds.has(nodeIdentifier))) {
-          rect.attr('fill', baseFill);
+          if (!rect.empty()) {
+            rect.attr('fill', baseFill);
+          }
           if (!label.empty()) {
             label.style('opacity', 1);
           }
-          if (!htmlLabel.empty()) {
-            htmlLabel.style('opacity', 1);
+          if (!cardElement.empty()) {
+            cardElement.style('opacity', '0.98').style('background-color', baseFill);
+            if (baseBorder) {
+              cardElement.style('border-color', baseBorder);
+            }
           }
           return;
         }
 
-        const dimmedFill = rect.attr('data-dimmed-fill') || shiftColor(baseFill, DIMMED_FILL_LIGHTEN);
-        rect.attr('fill', dimmedFill).attr('data-dimmed-fill', dimmedFill);
+        if (!rect.empty()) {
+          rect.attr('fill', dimmedFill).attr('data-dimmed-fill', dimmedFill);
+        }
         if (!label.empty()) {
           label.style('opacity', 0.75);
         }
-        if (!htmlLabel.empty()) {
-          htmlLabel.style('opacity', 0.75);
+        if (!cardElement.empty()) {
+          cardElement.style('opacity', '0.9').style('background-color', dimmedFill);
+          if (dimmedBorder) {
+            cardElement.style('border-color', dimmedBorder);
+          }
         }
       });
 
