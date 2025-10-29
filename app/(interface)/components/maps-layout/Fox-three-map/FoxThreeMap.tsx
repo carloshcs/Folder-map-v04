@@ -278,7 +278,7 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders, colorPaletteI
         panOnScroll={false}
         onNodeDrag={(_, node) => handleNodeDrag(node.id, node.position)}
         onNodeDragStop={(_, node) => {
-          handleNodeDragStop(node.id, node.position);
+          handleNodeDragStop(node.id);
         }}
         onNodeDoubleClick={(_, node) => {
           const typedNode = node as Node<FoxNodeData>;

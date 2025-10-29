@@ -18,11 +18,15 @@ const createNode = (
   parentId: string | null,
 ): Node<FoxNodeData> => {
   const item = treeNode.item;
+  const snappedPosition = {
+    x: snapPosition(position.x),
+    y: snapPosition(position.y),
+  };
 
   return {
     id: treeNode.id,
     type: 'fox-folder',
-    position,
+    position: snappedPosition,
     width: NODE_WIDTH,
     height: NODE_HEIGHT,
     data: {
@@ -71,21 +75,23 @@ const layoutBranch = (
   edges: Edge[],
   parentId: string,
 ): number => {
-  nodes.push(createNode(node, depth, { x: currentX, y: currentY }, parentId));
+  const snappedX = snapPosition(currentX);
+  const snappedY = snapPosition(currentY);
+  nodes.push(createNode(node, depth, { x: snappedX, y: snappedY }, parentId));
 
   const children = node.children ?? [];
-  if (!shouldExpandNode(node, depth, expandedState)) return currentY;
+  if (!shouldExpandNode(node, depth, expandedState)) return snappedY;
 
   // Only expand direct children, not grandchildren
   const expandChildren = expandedState.get(node.id);
   if (!expandChildren) return currentY;
 
-  let cursorY = currentY;
+  let cursorY = snappedY;
 
   children.forEach((child) => {
     // Fixed vertical gap for all siblings and parent-child pairs
-    const childY = cursorY + VERTICAL_GAP;
-    const childX = currentX + HORIZONTAL_GAP;
+    const childY = snapPosition(cursorY + VERTICAL_GAP);
+    const childX = snapPosition(currentX + HORIZONTAL_GAP);
 
     edges.push({
       id: `${node.id}__${child.id}`,
@@ -127,14 +133,16 @@ export const createFlowLayout = (
   const rootX = 0;
   const rootY = 0;
 
-  nodes.push(createNode(tree, 0, { x: rootX, y: rootY }, null));
+  const snappedRootX = snapPosition(rootX);
+  const snappedRootY = snapPosition(rootY);
+  nodes.push(createNode(tree, 0, { x: snappedRootX, y: snappedRootY }, null));
 
   const rootChildren = tree.children ?? [];
-  let cursorY = rootY;
+  let cursorY = snappedRootY;
 
   rootChildren.forEach((child) => {
-    const childY = cursorY + VERTICAL_GAP;
-    const childX = rootX + HORIZONTAL_GAP;
+    const childY = snapPosition(cursorY + VERTICAL_GAP);
+    const childX = snapPosition(rootX + HORIZONTAL_GAP);
 
     edges.push({
       id: `${tree.id}__${child.id}`,

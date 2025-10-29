@@ -7,11 +7,109 @@ import { getPaletteColors, getReadableTextColor, shiftColor } from '@/app/(inter
 import { type FolderItem, type ServiceId } from '../../right-sidebar/data';
 import {
   DEFAULT_MAX_DEPTH,
+  SNAP_SIZE,
+  VERTICAL_GAP,
   type FoxNodeData,
   type FoxTreeNode,
 } from './foxThreeConfig';
 import { createFlowLayout, snapPosition } from './foxThreeCompile';
 import { SERVICE_DETAILS, buildFoxTree } from './foxThreeOrganization';
+
+const collectDescendantIds = (
+  lookup: Map<string, FoxTreeNode[]>,
+  nodeId: string,
+): string[] => {
+  const result: string[] = [];
+  const queue = [...(lookup.get(nodeId) ?? [])];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    result.push(current.id);
+    const children = lookup.get(current.id);
+    if (children && children.length > 0) {
+      queue.push(...children);
+    }
+  }
+
+  return result;
+};
+
+const snapUpToGrid = (value: number): number => Math.ceil(value / SNAP_SIZE) * SNAP_SIZE;
+
+const enforceGridAndReflow = (
+  nodes: Array<Node<FoxNodeData>>,
+): Array<Node<FoxNodeData>> => {
+  if (nodes.length === 0) {
+    return nodes;
+  }
+
+  const snappedNodes = nodes.map(node => {
+    const snappedX = snapPosition(node.position.x);
+    const snappedY = snapPosition(node.position.y);
+
+    if (snappedX === node.position.x && snappedY === node.position.y) {
+      return node;
+    }
+
+    return {
+      ...node,
+      position: { x: snappedX, y: snappedY },
+    };
+  });
+
+  const columns = new Map<number, Array<Node<FoxNodeData>>>();
+  snappedNodes.forEach(node => {
+    const columnNodes = columns.get(node.position.x);
+    if (columnNodes) {
+      columnNodes.push(node);
+    } else {
+      columns.set(node.position.x, [node]);
+    }
+  });
+
+  const overrides = new Map<string, { x: number; y: number }>();
+
+  columns.forEach(nodesInColumn => {
+    const sorted = [...nodesInColumn].sort(
+      (a, b) => a.position.y - b.position.y,
+    );
+
+    let previousY: number | null = null;
+
+    sorted.forEach(node => {
+      let targetY = snapPosition(node.position.y);
+
+      if (previousY !== null) {
+        const minimum = previousY + VERTICAL_GAP;
+        if (targetY < minimum) {
+          targetY = snapUpToGrid(minimum);
+        }
+      }
+
+      overrides.set(node.id, { x: node.position.x, y: targetY });
+      previousY = targetY;
+    });
+  });
+
+  return snappedNodes.map(node => {
+    const override = overrides.get(node.id);
+    if (!override) {
+      return node;
+    }
+
+    if (
+      override.x === node.position.x &&
+      override.y === node.position.y
+    ) {
+      return node;
+    }
+
+    return {
+      ...node,
+      position: override,
+    };
+  });
+};
 
 interface UseFoxThreeActionsResult {
   availableServices: IntegrationService[];
@@ -317,7 +415,11 @@ export const useFoxThreeActions = (
   }, [layout]);
 
   useEffect(() => {
-    setFlowNodes(layout.nodes);
+    setFlowNodes(
+      enforceGridAndReflow(
+        layout.nodes.map(node => ({ ...node, position: { ...node.position } })),
+      ),
+    );
   }, [layout]);
 
   useEffect(() => {
@@ -348,22 +450,130 @@ export const useFoxThreeActions = (
     });
   }, [filteredTree]);
 
-  const handleNodeDrag = useCallback((id: string, position?: XYPosition | null) => {
-    if (!position) {
-      return;
-    }
+  const getDescendantIds = useCallback(
+    (nodeId: string) => collectDescendantIds(childrenLookup, nodeId),
+    [childrenLookup],
+  );
 
-    setFlowNodes(nodes => nodes.map(node => (node.id === id ? { ...node, position } : node)));
-  }, []);
-
-  const handleNodeDragStop = useCallback(
+  const handleNodeDrag = useCallback(
     (id: string, position?: XYPosition | null) => {
       if (!position) {
         return;
       }
 
-      const snapped = { x: snapPosition(position.x), y: snapPosition(position.y) };
-      setFlowNodes(nodes => nodes.map(node => (node.id === id ? { ...node, position: snapped } : node)));
+      setFlowNodes(nodes => {
+        const targetIndex = nodes.findIndex(node => node.id === id);
+        if (targetIndex === -1) {
+          return nodes;
+        }
+
+        const targetNode = nodes[targetIndex];
+        const deltaX = position.x - targetNode.position.x;
+        const deltaY = position.y - targetNode.position.y;
+
+        if (deltaX === 0 && deltaY === 0) {
+          return nodes;
+        }
+
+        const descendantIds = getDescendantIds(id);
+        if (descendantIds.length === 0) {
+          return nodes.map(node =>
+            node.id === id ? { ...node, position: { ...position } } : node,
+          );
+        }
+
+        const branchIds = new Set([id, ...descendantIds]);
+
+        return nodes.map(node => {
+          if (!branchIds.has(node.id)) {
+            return node;
+          }
+
+          if (node.id === id) {
+            return { ...node, position: { ...position } };
+          }
+
+          return {
+            ...node,
+            position: {
+              x: node.position.x + deltaX,
+              y: node.position.y + deltaY,
+            },
+          };
+        });
+      });
+    },
+    [getDescendantIds],
+  );
+
+  const handleNodeDragStop = useCallback(
+    (id: string, _position?: XYPosition | null) => {
+      let updatedNodesSnapshot: Array<Node<FoxNodeData>> = [];
+
+      setFlowNodes(nodes => {
+        const existingIndex = nodes.findIndex(node => node.id === id);
+        if (existingIndex === -1) {
+          updatedNodesSnapshot = nodes;
+          return nodes;
+        }
+
+        const parentNode = nodes[existingIndex];
+        const descendantIds = getDescendantIds(id);
+        const branchIds = new Set([id, ...descendantIds]);
+
+        let workingNodes = nodes.map(node => ({
+          ...node,
+          position: { ...node.position },
+        }));
+
+        if (descendantIds.length > 0) {
+          const snappedParent = {
+            x: snapPosition(parentNode.position.x),
+            y: snapPosition(parentNode.position.y),
+          };
+          const deltaSnap = {
+            x: snappedParent.x - parentNode.position.x,
+            y: snappedParent.y - parentNode.position.y,
+          };
+
+          workingNodes = workingNodes.map(node => {
+            if (!branchIds.has(node.id)) {
+              return node;
+            }
+
+            if (node.id === id) {
+              return {
+                ...node,
+                position: snappedParent,
+              };
+            }
+
+            return {
+              ...node,
+              position: {
+                x: snapPosition(node.position.x + deltaSnap.x),
+                y: snapPosition(node.position.y + deltaSnap.y),
+              },
+            };
+          });
+        } else {
+          workingNodes = workingNodes.map(node =>
+            node.id === id
+              ? {
+                  ...node,
+                  position: {
+                    x: snapPosition(node.position.x),
+                    y: snapPosition(node.position.y),
+                  },
+                }
+              : node,
+          );
+        }
+
+        const reflowed = enforceGridAndReflow(workingNodes);
+        updatedNodesSnapshot = reflowed;
+        return reflowed;
+      });
 
       const parentId = parentLookup.get(id);
       if (!parentId) {
@@ -383,12 +593,12 @@ export const useFoxThreeActions = (
 
         const baseOrder = prev.get(parentId) ?? siblingIds;
 
-        const visibleSiblings = flowNodes
+        const visibleSiblings = updatedNodesSnapshot
           .filter(node => {
             const data = node.data as FoxNodeData;
             return (data.parentId ?? null) === parentId && siblingIds.includes(node.id);
           })
-          .map(node => ({ id: node.id, y: node.id === id ? snapped.y : node.position.y }));
+          .map(node => ({ id: node.id, y: node.position.y }));
 
         if (visibleSiblings.length <= 1) {
           return prev;
@@ -438,7 +648,7 @@ export const useFoxThreeActions = (
         return next;
       });
     },
-    [parentLookup, childrenLookup, flowNodes],
+    [getDescendantIds, parentLookup, childrenLookup],
   );
 
   const visibleNodeIds = useMemo(
