@@ -31,16 +31,22 @@ export interface NodeComponentProps<Data = any> {
   height: number;
 }
 
+type PointerLikeEvent = PointerEvent | React.PointerEvent<HTMLDivElement>;
+
+type NodeDragHandler<Data = any> = (event: PointerLikeEvent, node: Node<Data>) => void;
+
+type NodeMouseHandler<Data = any> = (event: React.PointerEvent<HTMLDivElement>, node: Node<Data>) => void;
+
 interface ReactFlowProps<Data = any> {
   nodes: Array<Node<Data>>;
   edges: Edge[];
   nodeTypes?: Record<string, React.ComponentType<NodeComponentProps<Data>>>;
-  onNodeDragStart?: (id: string, position: Position) => void;
-  onNodeDrag?: (id: string, position: Position) => void;
-  onNodeDragStop?: (id: string, position: Position) => void;
-  onNodeMouseEnter?: (event: React.PointerEvent<HTMLDivElement>, node: Node<Data>) => void;
-  onNodeMouseMove?: (event: React.PointerEvent<HTMLDivElement>, node: Node<Data>) => void;
-  onNodeMouseLeave?: (event: React.PointerEvent<HTMLDivElement>, node: Node<Data>) => void;
+  onNodeDragStart?: NodeDragHandler<Data>;
+  onNodeDrag?: NodeDragHandler<Data>;
+  onNodeDragStop?: NodeDragHandler<Data>;
+  onNodeMouseEnter?: NodeMouseHandler<Data>;
+  onNodeMouseMove?: NodeMouseHandler<Data>;
+  onNodeMouseLeave?: NodeMouseHandler<Data>;
   className?: string;
   style?: React.CSSProperties;
   children?: React.ReactNode;
@@ -57,6 +63,7 @@ type DragState = {
   id: string;
   offsetX: number;
   offsetY: number;
+  pointerId: number;
 };
 
 const ReactFlow: React.FC<ReactFlowProps> = ({
@@ -98,23 +105,38 @@ const ReactFlow: React.FC<ReactFlowProps> = ({
       const dragState = dragStateRef.current;
       if (!dragState) return;
 
+      const node = nodeMap.get(dragState.id);
+      if (!node) return;
+
       event.preventDefault();
       const x = event.clientX - dragState.offsetX;
       const y = event.clientY - dragState.offsetY;
-      onNodeDrag?.(dragState.id, { x, y });
+
+      const updatedNode = { ...node, position: { x, y } };
+      onNodeDrag?.(event, updatedNode);
     };
 
     const handlePointerUp = (event: PointerEvent) => {
       const dragState = dragStateRef.current;
       if (!dragState) return;
 
+      const node = nodeMap.get(dragState.id);
+      if (!node) return;
+
       event.preventDefault();
+
       dragStateRef.current = null;
       setDraggingId(null);
-      onNodeDragStop?.(dragState.id, {
-        x: event.clientX - dragState.offsetX,
-        y: event.clientY - dragState.offsetY,
-      });
+
+      if (containerRef.current?.hasPointerCapture(dragState.pointerId)) {
+        containerRef.current.releasePointerCapture(dragState.pointerId);
+      }
+
+      const x = event.clientX - dragState.offsetX;
+      const y = event.clientY - dragState.offsetY;
+      const updatedNode = { ...node, position: { x, y } };
+
+      onNodeDragStop?.(event, updatedNode);
     };
 
     window.addEventListener('pointermove', handlePointerMove);
@@ -124,7 +146,7 @@ const ReactFlow: React.FC<ReactFlowProps> = ({
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
     };
-  }, [onNodeDrag, onNodeDragStop]);
+  }, [nodeMap, onNodeDrag, onNodeDragStop]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>, node: Node) => {
     event.stopPropagation();
@@ -136,9 +158,10 @@ const ReactFlow: React.FC<ReactFlowProps> = ({
       id: node.id,
       offsetX: event.clientX - node.position.x,
       offsetY: event.clientY - node.position.y,
+      pointerId: event.pointerId,
     };
     setDraggingId(node.id);
-    onNodeDragStart?.(node.id, node.position);
+    onNodeDragStart?.(event, node);
   };
 
   return (

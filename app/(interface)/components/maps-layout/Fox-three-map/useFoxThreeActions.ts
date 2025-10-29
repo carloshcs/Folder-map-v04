@@ -123,6 +123,75 @@ const computeColorAssignments = (
   return assignments;
 };
 
+const buildParentLookup = (root: FoxTreeNode): Map<string, string | null> => {
+  const map = new Map<string, string | null>();
+
+  const traverse = (node: FoxTreeNode, parentId: string | null) => {
+    map.set(node.id, parentId);
+    node.children?.forEach(child => traverse(child, node.id));
+  };
+
+  traverse(root, null);
+
+  return map;
+};
+
+const buildChildrenLookup = (root: FoxTreeNode): Map<string, FoxTreeNode[]> => {
+  const map = new Map<string, FoxTreeNode[]>();
+
+  const traverse = (node: FoxTreeNode) => {
+    if (node.children && node.children.length > 0) {
+      map.set(node.id, node.children);
+      node.children.forEach(traverse);
+    }
+  };
+
+  traverse(root);
+
+  return map;
+};
+
+const reorderTreeWithCustomOrder = (
+  node: FoxTreeNode,
+  orderMap: Map<string, string[]>,
+): FoxTreeNode => {
+  const children = node.children ?? [];
+
+  if (!children.length) {
+    return { ...node };
+  }
+
+  const order = orderMap.get(node.id);
+  const originalIndex = new Map(children.map((child, index) => [child.id, index]));
+  const orderIndex = order
+    ? new Map(order.map((childId, index) => [childId, index]))
+    : new Map<string, number>();
+
+  const sortedChildren = [...children].sort((a, b) => {
+    const orderA = orderIndex.get(a.id);
+    const orderB = orderIndex.get(b.id);
+
+    if (orderA !== undefined && orderB !== undefined) {
+      return orderA - orderB;
+    }
+
+    if (orderA !== undefined) {
+      return -1;
+    }
+
+    if (orderB !== undefined) {
+      return 1;
+    }
+
+    return (originalIndex.get(a.id) ?? 0) - (originalIndex.get(b.id) ?? 0);
+  });
+
+  return {
+    ...node,
+    children: sortedChildren.map(child => reorderTreeWithCustomOrder(child, orderMap)),
+  };
+};
+
 export const useFoxThreeActions = (
   folders: FolderItem[],
   colorPaletteId?: string | null,
@@ -130,10 +199,13 @@ export const useFoxThreeActions = (
   const [flowNodes, setFlowNodes] = useState<Array<Node<FoxNodeData>>>([]);
   const [flowEdges, setFlowEdges] = useState<Edge[]>([]);
   const [expandedState, setExpandedState] = useState<Map<string, boolean>>(new Map());
-  const [customPositions, setCustomPositions] = useState<Map<string, XYPosition>>(new Map());
+  const [customOrder, setCustomOrder] = useState<Map<string, string[]>>(new Map());
   const [activeServiceId, setActiveServiceId] = useState<ServiceId | null>(null);
 
   const tree = useMemo(() => buildFoxTree(folders), [folders]);
+
+  const parentLookup = useMemo(() => buildParentLookup(tree), [tree]);
+  const childrenLookup = useMemo(() => buildChildrenLookup(tree), [tree]);
 
   const availableServices = useMemo<IntegrationService[]>(() => {
     const services: IntegrationService[] = [];
@@ -185,20 +257,8 @@ export const useFoxThreeActions = (
     };
   }, [tree, activeServiceId]);
 
-  const colorAssignments = useMemo(
-    () => computeColorAssignments(filteredTree, colorPaletteId),
-    [filteredTree, colorPaletteId],
-  );
-
-  const layout = useMemo(() => createFlowLayout(filteredTree, expandedState), [filteredTree, expandedState]);
-
   useEffect(() => {
-    setFlowEdges(layout.edges);
-  }, [layout]);
-
-  useEffect(() => {
-    const layoutNodeIds = new Set(layout.nodes.map(node => node.id));
-    setCustomPositions(prev => {
+    setCustomOrder(prev => {
       if (prev.size === 0) {
         return prev;
       }
@@ -206,25 +266,59 @@ export const useFoxThreeActions = (
       let mutated = false;
       const next = new Map(prev);
 
-      Array.from(prev.keys()).forEach(key => {
-        if (!layoutNodeIds.has(key)) {
-          next.delete(key);
+      prev.forEach((order, parentId) => {
+        const children = childrenLookup.get(parentId);
+        if (!children || children.length === 0) {
+          if (next.delete(parentId)) {
+            mutated = true;
+          }
+          return;
+        }
+
+        const childIds = children.map(child => child.id);
+        const childIdSet = new Set(childIds);
+        const filteredOrder = order.filter(id => childIdSet.has(id));
+        const missingIds = childIds.filter(id => !filteredOrder.includes(id));
+        const updatedOrder = missingIds.length > 0 || filteredOrder.length !== order.length
+          ? [...filteredOrder, ...missingIds]
+          : filteredOrder;
+
+        const currentOrder = next.get(parentId) ?? [];
+        if (
+          currentOrder.length !== updatedOrder.length ||
+          currentOrder.some((value, index) => value !== updatedOrder[index])
+        ) {
+          next.set(parentId, updatedOrder);
           mutated = true;
         }
       });
 
       return mutated ? next : prev;
     });
+  }, [childrenLookup]);
+
+  const colorAssignments = useMemo(
+    () => computeColorAssignments(filteredTree, colorPaletteId),
+    [filteredTree, colorPaletteId],
+  );
+
+  const orderedTree = useMemo(
+    () => reorderTreeWithCustomOrder(filteredTree, customOrder),
+    [filteredTree, customOrder],
+  );
+
+  const layout = useMemo(
+    () => createFlowLayout(orderedTree, expandedState),
+    [orderedTree, expandedState],
+  );
+
+  useEffect(() => {
+    setFlowEdges(layout.edges);
   }, [layout]);
 
   useEffect(() => {
-    setFlowNodes(
-      layout.nodes.map(node => {
-        const custom = customPositions.get(node.id);
-        return custom ? { ...node, position: custom } : node;
-      }),
-    );
-  }, [layout, customPositions]);
+    setFlowNodes(layout.nodes);
+  }, [layout]);
 
   useEffect(() => {
     setExpandedState(prevState => {
@@ -262,19 +356,90 @@ export const useFoxThreeActions = (
     setFlowNodes(nodes => nodes.map(node => (node.id === id ? { ...node, position } : node)));
   }, []);
 
-  const handleNodeDragStop = useCallback((id: string, position?: XYPosition | null) => {
-    if (!position) {
-      return;
-    }
+  const handleNodeDragStop = useCallback(
+    (id: string, position?: XYPosition | null) => {
+      if (!position) {
+        return;
+      }
 
-    const snapped = { x: snapPosition(position.x), y: snapPosition(position.y) };
-    setFlowNodes(nodes => nodes.map(node => (node.id === id ? { ...node, position: snapped } : node)));
-    setCustomPositions(prev => {
-      const next = new Map(prev);
-      next.set(id, snapped);
-      return next;
-    });
-  }, []);
+      const snapped = { x: snapPosition(position.x), y: snapPosition(position.y) };
+      setFlowNodes(nodes => nodes.map(node => (node.id === id ? { ...node, position: snapped } : node)));
+
+      const parentId = parentLookup.get(id);
+      if (!parentId) {
+        return;
+      }
+
+      const siblings = childrenLookup.get(parentId);
+      if (!siblings || siblings.length <= 1) {
+        return;
+      }
+
+      setCustomOrder(prev => {
+        const siblingIds = siblings.map(child => child.id);
+        if (!siblingIds.includes(id)) {
+          return prev;
+        }
+
+        const baseOrder = prev.get(parentId) ?? siblingIds;
+
+        const visibleSiblings = flowNodes
+          .filter(node => {
+            const data = node.data as FoxNodeData;
+            return (data.parentId ?? null) === parentId && siblingIds.includes(node.id);
+          })
+          .map(node => ({ id: node.id, y: node.id === id ? snapped.y : node.position.y }));
+
+        if (visibleSiblings.length <= 1) {
+          return prev;
+        }
+
+        const sortedVisibleIds = visibleSiblings
+          .slice()
+          .sort((a, b) => a.y - b.y)
+          .map(item => item.id);
+
+        const visibleSet = new Set(sortedVisibleIds);
+        const sanitizedBase = baseOrder.filter(childId => siblingIds.includes(childId));
+        const completeBase =
+          sanitizedBase.length === siblingIds.length
+            ? sanitizedBase
+            : [
+                ...sanitizedBase,
+                ...siblingIds.filter(childId => !sanitizedBase.includes(childId)),
+              ];
+
+        const mergedOrder: string[] = [];
+        const remainingVisible = [...sortedVisibleIds];
+
+        completeBase.forEach(childId => {
+          if (visibleSet.has(childId)) {
+            const nextVisible = remainingVisible.shift();
+            if (nextVisible) {
+              mergedOrder.push(nextVisible);
+            }
+          } else {
+            mergedOrder.push(childId);
+          }
+        });
+
+        mergedOrder.push(...remainingVisible);
+
+        const changed =
+          mergedOrder.length !== completeBase.length ||
+          mergedOrder.some((value, index) => value !== completeBase[index]);
+
+        if (!changed) {
+          return prev;
+        }
+
+        const next = new Map(prev);
+        next.set(parentId, mergedOrder);
+        return next;
+      });
+    },
+    [parentLookup, childrenLookup, flowNodes],
+  );
 
   const visibleNodeIds = useMemo(
     () => collectVisibleNodeIds(filteredTree, expandedState),
