@@ -44,13 +44,25 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   const [hoveredNode, setHoveredNode] = useState<HoveredNodeInfo | null>(null);
   const hoveredNodeIdRef = useRef<string | null>(null);
   const [isTooltipExpanded, setIsTooltipExpanded] = useState(false);
+  const [isTooltipVisible, setIsTooltipVisible] = useState(false);
   const isTooltipHoveredRef = useRef(false);
   const closeTooltipTimeoutRef = useRef<number | null>(null);
+  const tooltipFadeTimeoutRef = useRef<number | null>(null);
   const isDraggingRef = useRef(false);
   const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
 
   const closeTooltip = useCallback(() => {
-    setHoveredNode(null);
+    if (tooltipFadeTimeoutRef.current !== null) {
+      window.clearTimeout(tooltipFadeTimeoutRef.current);
+      tooltipFadeTimeoutRef.current = null;
+    }
+
+    setIsTooltipVisible(false);
+
+    tooltipFadeTimeoutRef.current = window.setTimeout(() => {
+      setHoveredNode(null);
+      tooltipFadeTimeoutRef.current = null;
+    }, 240);
   }, []);
 
   const canvasToScreen = useCallback(
@@ -197,13 +209,17 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       window.clearTimeout(closeTooltipTimeoutRef.current);
       closeTooltipTimeoutRef.current = null;
     }
+    if (tooltipFadeTimeoutRef.current !== null) {
+      window.clearTimeout(tooltipFadeTimeoutRef.current);
+      tooltipFadeTimeoutRef.current = null;
+    }
   };
 
   const scheduleTooltipClose = () => {
     clearTooltipTimeout();
     closeTooltipTimeoutRef.current = window.setTimeout(() => {
       closeTooltip();
-    }, 180);
+    }, 160);
   };
 
   const toggleHoveredExpansion = () => {
@@ -397,6 +413,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
             : undefined;
 
       setIsTooltipExpanded(false);
+      setIsTooltipVisible(true);
       setHoveredNode({
         id,
         name: d.data?.name ?? 'Node',
@@ -497,6 +514,9 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       hoveredNodeIdRef.current = null;
     }
 
+    if (hoveredNode?.id) {
+      setIsTooltipVisible(true);
+    }
     setIsTooltipExpanded(false);
   }, [hoveredNode?.id, recalculateTooltipPosition]);
 
@@ -619,6 +639,10 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   useEffect(() => {
     return () => {
       clearTooltipTimeout();
+      if (tooltipFadeTimeoutRef.current !== null) {
+        window.clearTimeout(tooltipFadeTimeoutRef.current);
+        tooltipFadeTimeoutRef.current = null;
+      }
     };
   }, []);
 
@@ -663,6 +687,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
           onHide={canHideFromTooltip ? handleHideFromTooltip : undefined}
           hideButtonDisabled={hideButtonDisabled}
           hideButtonLabel={hideButtonLabel}
+          isVisible={isTooltipVisible}
           onPointerEnter={() => {
             setTooltipHoverState(true);
             clearTooltipTimeout();
