@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import ReactFlow, { type Node } from 'reactflow';
 import {
   ChevronDown,
@@ -16,7 +16,15 @@ import {
 import { IntegrationFilter } from '@/app/(interface)/components/IntegrationFilter';
 import { getReadableTextColor, shiftColor } from '@/app/(interface)/lib/utils/colors';
 
-import { IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, type FoxNodeData, type FoxThreeMapProps } from './foxThreeConfig';
+import {
+  IMAGE_EXTENSIONS,
+  NODE_HEIGHT,
+  NODE_WIDTH,
+  SNAP_SIZE,
+  VIDEO_EXTENSIONS,
+  type FoxNodeData,
+  type FoxThreeMapProps,
+} from './foxThreeConfig';
 import { useFoxThreeActions } from './useFoxThreeActions';
 
 const determineNodeIcon = (data: FoxNodeData): LucideIcon => {
@@ -251,8 +259,105 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders, colorPaletteI
     return () => observer.disconnect();
   }, [nodesWithControls]);
 
+  const rootNode = useMemo(
+    () => nodesWithControls.find(node => node.id === 'fox-root'),
+    [nodesWithControls],
+  );
+
+  const rootOrigin = useMemo(() => {
+    const width = rootNode?.width ?? NODE_WIDTH;
+    const height = rootNode?.height ?? NODE_HEIGHT;
+    const { x, y } = rootNode?.position ?? { x: 0, y: 0 };
+
+    return {
+      x: x + width / 2,
+      y: y + height / 2,
+    };
+  }, [rootNode]);
+
+  const quadrantStyles = useMemo(() => {
+    const CANVAS_EXTENT = SNAP_SIZE * 600;
+
+    const createGridStyle = (offsetX: number, offsetY: number): React.CSSProperties => ({
+      backgroundImage:
+        'radial-gradient(circle, rgba(148, 163, 184, 0.85) 0, rgba(148, 163, 184, 0.85) 1.5px, transparent 1.5px)',
+      backgroundSize: `${SNAP_SIZE}px ${SNAP_SIZE}px`,
+      backgroundPosition: `${offsetX}px ${offsetY}px`,
+      backgroundColor: 'rgba(15, 23, 42, 0.03)',
+    });
+
+    return {
+      topLeft: {
+        top: rootOrigin.y - CANVAS_EXTENT,
+        left: rootOrigin.x - CANVAS_EXTENT,
+        width: CANVAS_EXTENT,
+        height: CANVAS_EXTENT,
+        ...createGridStyle(CANVAS_EXTENT, CANVAS_EXTENT),
+      } satisfies React.CSSProperties,
+      topRight: {
+        top: rootOrigin.y - CANVAS_EXTENT,
+        left: rootOrigin.x,
+        width: CANVAS_EXTENT,
+        height: CANVAS_EXTENT,
+        ...createGridStyle(0, CANVAS_EXTENT),
+      } satisfies React.CSSProperties,
+      bottomLeft: {
+        top: rootOrigin.y,
+        left: rootOrigin.x - CANVAS_EXTENT,
+        width: CANVAS_EXTENT,
+        height: CANVAS_EXTENT,
+        ...createGridStyle(CANVAS_EXTENT, 0),
+      } satisfies React.CSSProperties,
+      bottomRight: {
+        top: rootOrigin.y,
+        left: rootOrigin.x,
+        width: CANVAS_EXTENT,
+        height: CANVAS_EXTENT,
+        ...createGridStyle(0, 0),
+      } satisfies React.CSSProperties,
+    };
+  }, [rootOrigin.x, rootOrigin.y]);
+
+  const axisThickness = 2;
+  const axisColor = 'rgba(148, 163, 184, 0.45)';
+  const axisGlow = 'rgba(148, 163, 184, 0.3)';
+  const centerMarkerSize = Math.max(10, SNAP_SIZE / 2);
+
   return (
     <div ref={containerRef} className="fox-three-map relative h-full w-full">
+      <div className="pointer-events-none absolute inset-0" aria-hidden>
+        <div className="absolute" style={quadrantStyles.topLeft} />
+        <div className="absolute" style={quadrantStyles.topRight} />
+        <div className="absolute" style={quadrantStyles.bottomLeft} />
+        <div className="absolute" style={quadrantStyles.bottomRight} />
+        <div
+          className="absolute inset-y-0"
+          style={{
+            left: rootOrigin.x - axisThickness / 2,
+            width: axisThickness,
+            backgroundColor: axisColor,
+            boxShadow: `0 0 12px ${axisGlow}`,
+          }}
+        />
+        <div
+          className="absolute inset-x-0"
+          style={{
+            top: rootOrigin.y - axisThickness / 2,
+            height: axisThickness,
+            backgroundColor: axisColor,
+            boxShadow: `0 0 12px ${axisGlow}`,
+          }}
+        />
+        <div
+          className="absolute rounded-full border border-slate-400/60 bg-white/60 shadow-[0_0_10px_rgba(148,163,184,0.45)]"
+          style={{
+            width: centerMarkerSize,
+            height: centerMarkerSize,
+            left: rootOrigin.x - centerMarkerSize / 2,
+            top: rootOrigin.y - centerMarkerSize / 2,
+          }}
+        />
+      </div>
       <IntegrationFilter
         services={availableServices}
         activeServiceId={activeServiceId}
@@ -267,7 +372,7 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders, colorPaletteI
             <FoxThreeNode data={data as FoxNodeData} dragging={dragging} />
           ),
         }}
-        className="bg-transparent"
+        className="relative z-[1] bg-transparent"
         style={{ background: 'transparent', overflow: 'visible' }}
         proOptions={{ hideAttribution: true }}
         panOnDrag={false}
