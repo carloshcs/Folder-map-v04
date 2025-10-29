@@ -62,7 +62,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     tooltipFadeTimeoutRef.current = window.setTimeout(() => {
       setHoveredNode(null);
       tooltipFadeTimeoutRef.current = null;
-    }, 240);
+    }, 520);
   }, []);
 
   const canvasToScreen = useCallback(
@@ -144,7 +144,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       return {
         position: {
           x: circleRect.left + radius,
-          y: circleRect.top,
+          y: circleRect.top + radius,
         },
         screenRadius: radius,
         baseRadius: radius / transform.k,

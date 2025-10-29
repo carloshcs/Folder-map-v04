@@ -1,9 +1,9 @@
 //constants.ts
 export const ORBITAL_RADII: Record<number, number> = {
   0: 0,
-  1: 100,
-  2: 90,
-  3: 65,
+  1: 150,
+  2: 135,
+  3: 97.5,
 };
 
 export const LOGO_MAP: Record<string, string> = {
