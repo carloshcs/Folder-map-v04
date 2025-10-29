@@ -34,7 +34,7 @@ interface OrbitalTooltipProps {
 
 const getActionButtonClasses = (disabled?: boolean) =>
   cn(
-    'inline-flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200 bg-white text-slate-600 shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-200 hover:text-indigo-600 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:border-indigo-500/40 dark:hover:text-indigo-300',
+    'inline-flex h-[26px] w-[26px] items-center justify-center rounded-full border border-neutral-200 bg-white text-slate-600 shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-200 hover:text-indigo-600 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:border-indigo-500/40 dark:hover:text-indigo-300',
     disabled &&
       'pointer-events-none cursor-not-allowed opacity-45 hover:-translate-y-0 hover:border-neutral-200 hover:text-slate-600 hover:shadow-md dark:hover:border-neutral-700',
   );
@@ -67,26 +67,28 @@ export const OrbitalTooltip: React.FC<OrbitalTooltipProps> = ({
       ? hoveredNode.pathSegments.join(' / ')
       : hoveredNode.lineage.join(' / ');
 
-  const tooltipTopOffset = (hoveredNode.screenRadius || 0) + 36;
+  const radiusOffset = hoveredNode.screenRadius || 0;
+  const tooltipGap = Math.max(12, Math.min(radiusOffset * 0.4, 28));
+  const tooltipVerticalOffset = radiusOffset + tooltipGap;
 
   return (
     <div
       className={cn(
-        'pointer-events-auto fixed z-50 max-w-[320px] -translate-x-1/2 transform transition-all duration-300 ease-out',
+        'pointer-events-auto fixed z-50 max-w-[256px] -translate-x-1/2 transform transition-all duration-500 ease-out',
         isVisible
           ? 'opacity-100 translate-y-0'
           : 'pointer-events-none opacity-0 translate-y-2',
       )}
       style={{
         left: hoveredNode.position.x,
-        top: hoveredNode.position.y - tooltipTopOffset,
+        top: hoveredNode.position.y - tooltipVerticalOffset,
       }}
       onMouseEnter={onPointerEnter}
       onMouseLeave={onPointerLeave}
     >
       <TooltipProvider delayDuration={200}>
-        <div className="rounded-2xl border border-neutral-200 bg-white/95 px-3 py-2 shadow-2xl backdrop-blur-md dark:border-neutral-700 dark:bg-neutral-900/90">
-          <div className="flex items-center gap-1">
+        <div className="rounded-2xl border border-neutral-200 bg-white/95 px-2.5 py-1 shadow-2xl backdrop-blur-md dark:border-neutral-700 dark:bg-neutral-900/90">
+          <div className="flex items-center gap-1.5">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -100,7 +102,7 @@ export const OrbitalTooltip: React.FC<OrbitalTooltipProps> = ({
                   aria-label="Show info"
                   disabled={!hasExtraInfo}
                 >
-                  <Info className="h-4 w-4" />
+                  <Info className="h-3.5 w-3.5" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">Details</TooltipContent>
@@ -120,14 +122,14 @@ export const OrbitalTooltip: React.FC<OrbitalTooltipProps> = ({
                     aria-label={hideButtonLabel}
                     disabled={hideButtonDisabled}
                   >
-                    <EyeOff className="h-4 w-4" />
+                    <EyeOff className="h-3.5 w-3.5" />
                   </button>
                 ) : (
                   <span
                     className={getActionButtonClasses(true)}
                     aria-disabled
                   >
-                    <EyeOff className="h-4 w-4" />
+                    <EyeOff className="h-3.5 w-3.5" />
                   </span>
                 )}
               </TooltipTrigger>
@@ -148,14 +150,14 @@ export const OrbitalTooltip: React.FC<OrbitalTooltipProps> = ({
                     aria-label={hoveredNode.isExpanded ? 'Collapse' : 'Expand'}
                   >
                     {hoveredNode.isExpanded ? (
-                      <ChevronUp className="h-4 w-4" />
+                      <ChevronUp className="h-3.5 w-3.5" />
                     ) : (
-                      <ChevronDown className="h-4 w-4" />
+                      <ChevronDown className="h-3.5 w-3.5" />
                     )}
                   </button>
                 ) : (
                   <span className={getActionButtonClasses(true)} aria-disabled>
-                    <ChevronDown className="h-4 w-4" />
+                    <ChevronDown className="h-3.5 w-3.5" />
                   </span>
                 )}
               </TooltipTrigger>
@@ -177,11 +179,11 @@ export const OrbitalTooltip: React.FC<OrbitalTooltipProps> = ({
                     }}
                     aria-label="Open link"
                   >
-                    <ExternalLink className="h-4 w-4" />
+                    <ExternalLink className="h-3.5 w-3.5" />
                   </a>
                 ) : (
                   <span className={getActionButtonClasses(true)} aria-disabled>
-                    <ExternalLink className="h-4 w-4" />
+                    <ExternalLink className="h-3.5 w-3.5" />
                   </span>
                 )}
               </TooltipTrigger>
@@ -190,7 +192,7 @@ export const OrbitalTooltip: React.FC<OrbitalTooltipProps> = ({
           </div>
 
           {showExtraInfo && (
-            <div className="mt-3 space-y-3 rounded-xl border border-neutral-200/70 bg-white/95 p-4 text-[12px] shadow-inner dark:border-neutral-700/60 dark:bg-neutral-900/80">
+            <div className="mt-1.5 space-y-1.5 rounded-xl border border-neutral-200/70 bg-white/95 p-2.5 text-[11px] shadow-inner dark:border-neutral-700/60 dark:bg-neutral-900/80">
               <div>
                 {hoveredNode.serviceName && (
                   <p className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-neutral-500">
