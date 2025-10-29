@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type Edge, type Node, type XYPosition } from 'reactflow';
 
 import { type IntegrationService } from '@/app/(interface)/components/IntegrationFilter';
@@ -7,6 +7,7 @@ import { getPaletteColors, getReadableTextColor, shiftColor } from '@/app/(inter
 import { type FolderItem, type ServiceId } from '../../right-sidebar/data';
 import {
   DEFAULT_MAX_DEPTH,
+  HORIZONTAL_GAP,
   SNAP_SIZE,
   VERTICAL_GAP,
   type FoxNodeData,
@@ -35,6 +36,47 @@ const collectDescendantIds = (
 };
 
 const snapUpToGrid = (value: number): number => Math.ceil(value / SNAP_SIZE) * SNAP_SIZE;
+const snapDownToGrid = (value: number): number => Math.floor(value / SNAP_SIZE) * SNAP_SIZE;
+
+const resolveDirectionHint = (
+  primary: number | null | undefined,
+  fallback: number | null | undefined,
+): number => {
+  if (primary !== null && primary !== undefined && primary !== 0) {
+    return primary > 0 ? 1 : -1;
+  }
+
+  if (fallback !== null && fallback !== undefined && fallback !== 0) {
+    return fallback > 0 ? 1 : -1;
+  }
+
+  return 1;
+};
+
+const snapWithMinimum = (
+  value: number,
+  reference: number,
+  minimum: number,
+  directionHint: number,
+): number => {
+  const snapped = snapPosition(value);
+  const diff = snapped - reference;
+
+  let direction = diff === 0 ? directionHint : diff > 0 ? 1 : -1;
+  if (direction === 0) {
+    direction = 1;
+  }
+
+  if (Math.abs(diff) >= minimum) {
+    return snapped;
+  }
+
+  if (direction > 0) {
+    return snapUpToGrid(reference + minimum);
+  }
+
+  return snapDownToGrid(reference - minimum);
+};
 
 const enforceGridAndReflow = (
   nodes: Array<Node<FoxNodeData>>,
@@ -43,7 +85,7 @@ const enforceGridAndReflow = (
     return nodes;
   }
 
-  const snappedNodes = nodes.map(node => {
+  return nodes.map(node => {
     const snappedX = snapPosition(node.position.x);
     const snappedY = snapPosition(node.position.y);
 
@@ -56,59 +98,13 @@ const enforceGridAndReflow = (
       position: { x: snappedX, y: snappedY },
     };
   });
+};
 
-  const columns = new Map<number, Array<Node<FoxNodeData>>>();
-  snappedNodes.forEach(node => {
-    const columnNodes = columns.get(node.position.x);
-    if (columnNodes) {
-      columnNodes.push(node);
-    } else {
-      columns.set(node.position.x, [node]);
-    }
-  });
-
-  const overrides = new Map<string, { x: number; y: number }>();
-
-  columns.forEach(nodesInColumn => {
-    const sorted = [...nodesInColumn].sort(
-      (a, b) => a.position.y - b.position.y,
-    );
-
-    let previousY: number | null = null;
-
-    sorted.forEach(node => {
-      let targetY = snapPosition(node.position.y);
-
-      if (previousY !== null) {
-        const minimum = previousY + VERTICAL_GAP;
-        if (targetY < minimum) {
-          targetY = snapUpToGrid(minimum);
-        }
-      }
-
-      overrides.set(node.id, { x: node.position.x, y: targetY });
-      previousY = targetY;
-    });
-  });
-
-  return snappedNodes.map(node => {
-    const override = overrides.get(node.id);
-    if (!override) {
-      return node;
-    }
-
-    if (
-      override.x === node.position.x &&
-      override.y === node.position.y
-    ) {
-      return node;
-    }
-
-    return {
-      ...node,
-      position: override,
-    };
-  });
+type ActiveDragState = {
+  id: string;
+  parentId: string | null;
+  initialParentOffset: { x: number; y: number } | null;
+  lastCursor: XYPosition | null;
 };
 
 interface UseFoxThreeActionsResult {
@@ -298,7 +294,11 @@ export const useFoxThreeActions = (
   const [flowEdges, setFlowEdges] = useState<Edge[]>([]);
   const [expandedState, setExpandedState] = useState<Map<string, boolean>>(new Map());
   const [customOrder, setCustomOrder] = useState<Map<string, string[]>>(new Map());
+  const [manualPositions, setManualPositions] = useState<Map<string, XYPosition>>(new Map());
   const [activeServiceId, setActiveServiceId] = useState<ServiceId | null>(null);
+
+  const manualPositionsRef = useRef(manualPositions);
+  const activeDragRef = useRef<ActiveDragState | null>(null);
 
   const tree = useMemo(() => buildFoxTree(folders), [folders]);
 
@@ -411,13 +411,27 @@ export const useFoxThreeActions = (
   );
 
   useEffect(() => {
+    manualPositionsRef.current = manualPositions;
+  }, [manualPositions]);
+
+  useEffect(() => {
     setFlowEdges(layout.edges);
   }, [layout]);
 
   useEffect(() => {
     setFlowNodes(
       enforceGridAndReflow(
-        layout.nodes.map(node => ({ ...node, position: { ...node.position } })),
+        layout.nodes.map(node => {
+          const manual = manualPositionsRef.current.get(node.id);
+          if (!manual) {
+            return { ...node, position: { ...node.position } };
+          }
+
+          return {
+            ...node,
+            position: { x: manual.x, y: manual.y },
+          };
+        }),
       ),
     );
   }, [layout]);
@@ -457,7 +471,7 @@ export const useFoxThreeActions = (
 
   const handleNodeDrag = useCallback(
     (id: string, position?: XYPosition | null) => {
-      if (!position) {
+      if (!position || id === 'fox-root') {
         return;
       }
 
@@ -468,35 +482,38 @@ export const useFoxThreeActions = (
         }
 
         const targetNode = nodes[targetIndex];
-        const targetData = targetNode.data as FoxNodeData;
+        const branchIds = new Set([id, ...getDescendantIds(id)]);
+        const parentId = parentLookup.get(id) ?? null;
 
-        let constrainedPosition = { ...position };
+        if (!activeDragRef.current || activeDragRef.current.id !== id) {
+          let initialParentOffset: { x: number; y: number } | null = null;
 
-        if (targetData.parentId) {
-          const parentNode = nodes.find(node => node.id === targetData.parentId);
-          if (parentNode) {
-            const minimumY = parentNode.position.y + VERTICAL_GAP;
-            if (constrainedPosition.y < minimumY) {
-              constrainedPosition = { ...constrainedPosition, y: minimumY };
+          if (parentId) {
+            const parentNode = nodes.find(node => node.id === parentId);
+            if (parentNode) {
+              initialParentOffset = {
+                x: targetNode.position.x - parentNode.position.x,
+                y: targetNode.position.y - parentNode.position.y,
+              };
             }
           }
+
+          activeDragRef.current = {
+            id,
+            parentId,
+            initialParentOffset,
+            lastCursor: { ...position },
+          };
+        } else {
+          activeDragRef.current.lastCursor = { ...position };
         }
 
-        const deltaX = constrainedPosition.x - targetNode.position.x;
-        const deltaY = constrainedPosition.y - targetNode.position.y;
+        const deltaX = position.x - targetNode.position.x;
+        const deltaY = position.y - targetNode.position.y;
 
         if (deltaX === 0 && deltaY === 0) {
           return nodes;
         }
-
-        const descendantIds = getDescendantIds(id);
-        if (descendantIds.length === 0) {
-          return nodes.map(node =>
-            node.id === id ? { ...node, position: { ...constrainedPosition } } : node,
-          );
-        }
-
-        const branchIds = new Set([id, ...descendantIds]);
 
         return nodes.map(node => {
           if (!branchIds.has(node.id)) {
@@ -504,7 +521,7 @@ export const useFoxThreeActions = (
           }
 
           if (node.id === id) {
-            return { ...node, position: { ...constrainedPosition } };
+            return { ...node, position: { ...position } };
           }
 
           return {
@@ -517,81 +534,251 @@ export const useFoxThreeActions = (
         });
       });
     },
-    [getDescendantIds],
+    [getDescendantIds, parentLookup],
   );
 
   const handleNodeDragStop = useCallback(
     (id: string, _position?: XYPosition | null) => {
+      if (id === 'fox-root') {
+        activeDragRef.current = null;
+        return;
+      }
+
       let updatedNodesSnapshot: Array<Node<FoxNodeData>> = [];
+      let branchMutationsSnapshot: Array<{
+        id: string;
+        branchIds: string[];
+        deltaX: number;
+        deltaY: number;
+        finalPosition: XYPosition;
+      }> = [];
 
       setFlowNodes(nodes => {
         const existingIndex = nodes.findIndex(node => node.id === id);
         if (existingIndex === -1) {
           updatedNodesSnapshot = nodes;
+          branchMutationsSnapshot = [];
           return nodes;
         }
 
-        const parentNode = nodes[existingIndex];
-        const descendantIds = getDescendantIds(id);
-        const branchIds = new Set([id, ...descendantIds]);
+        const targetNode = nodes[existingIndex];
+        const parentId = parentLookup.get(id);
 
-        let workingNodes = nodes.map(node => ({
-          ...node,
-          position: { ...node.position },
-        }));
-
-        if (descendantIds.length > 0) {
-          const snappedParent = {
-            x: snapPosition(parentNode.position.x),
-            y: snapPosition(parentNode.position.y),
-          };
-          const deltaSnap = {
-            x: snappedParent.x - parentNode.position.x,
-            y: snappedParent.y - parentNode.position.y,
-          };
-
-          workingNodes = workingNodes.map(node => {
-            if (!branchIds.has(node.id)) {
-              return node;
-            }
-
-            if (node.id === id) {
-              return {
-                ...node,
-                position: snappedParent,
-              };
-            }
-
-            return {
-              ...node,
-              position: {
-                x: snapPosition(node.position.x + deltaSnap.x),
-                y: snapPosition(node.position.y + deltaSnap.y),
-              },
-            };
-          });
-        } else {
-          workingNodes = workingNodes.map(node =>
-            node.id === id
-              ? {
-                  ...node,
-                  position: {
-                    x: snapPosition(node.position.x),
-                    y: snapPosition(node.position.y),
-                  },
-                }
-              : node,
-          );
+        if (!parentId) {
+          updatedNodesSnapshot = nodes;
+          branchMutationsSnapshot = [];
+          activeDragRef.current = null;
+          return nodes;
         }
 
-        const reflowed = enforceGridAndReflow(workingNodes);
-        updatedNodesSnapshot = reflowed;
-        return reflowed;
+        const parentNode = nodes.find(node => node.id === parentId);
+        if (!parentNode) {
+          updatedNodesSnapshot = nodes;
+          branchMutationsSnapshot = [];
+          activeDragRef.current = null;
+          return nodes;
+        }
+
+        const dragState = activeDragRef.current;
+        activeDragRef.current = null;
+
+        const parentPosition = parentNode.position;
+        const branchAdjustments: Array<{
+          id: string;
+          branchIds: Set<string>;
+          currentX: number;
+          currentY: number;
+          targetX: number;
+          targetY: number;
+          resolvedY?: number;
+          finalX?: number;
+          finalY?: number;
+          deltaX?: number;
+          deltaY?: number;
+        }> = [];
+
+        const primaryDirectionX =
+          dragState && dragState.id === id
+            ? (dragState.lastCursor?.x ?? targetNode.position.x) - parentPosition.x
+            : targetNode.position.x - parentPosition.x;
+        const primaryDirectionY =
+          dragState && dragState.id === id
+            ? (dragState.lastCursor?.y ?? targetNode.position.y) - parentPosition.y
+            : targetNode.position.y - parentPosition.y;
+
+        const initialOffset = dragState?.initialParentOffset ?? null;
+
+        const branchIds = new Set([id, ...getDescendantIds(id)]);
+        const targetX = snapWithMinimum(
+          targetNode.position.x,
+          parentPosition.x,
+          HORIZONTAL_GAP,
+          resolveDirectionHint(primaryDirectionX, initialOffset?.x ?? null),
+        );
+        const targetY = snapWithMinimum(
+          targetNode.position.y,
+          parentPosition.y,
+          VERTICAL_GAP,
+          resolveDirectionHint(primaryDirectionY, initialOffset?.y ?? null),
+        );
+
+        branchAdjustments.push({
+          id,
+          branchIds,
+          currentX: targetNode.position.x,
+          currentY: targetNode.position.y,
+          targetX,
+          targetY,
+        });
+
+        const siblingNodes = (childrenLookup.get(parentId) ?? [])
+          .map(child => nodes.find(node => node.id === child.id))
+          .filter((sibling): sibling is Node<FoxNodeData> => Boolean(sibling) && sibling.id !== id);
+
+        siblingNodes.forEach(siblingNode => {
+          const siblingBranchIds = new Set([siblingNode.id, ...getDescendantIds(siblingNode.id)]);
+          const diffX = siblingNode.position.x - parentPosition.x;
+          const diffY = siblingNode.position.y - parentPosition.y;
+
+          const siblingTargetX = snapWithMinimum(
+            siblingNode.position.x,
+            parentPosition.x,
+            HORIZONTAL_GAP,
+            resolveDirectionHint(diffX, diffX),
+          );
+
+          const siblingTargetY = snapWithMinimum(
+            siblingNode.position.y,
+            parentPosition.y,
+            VERTICAL_GAP,
+            resolveDirectionHint(diffY, diffY),
+          );
+
+          branchAdjustments.push({
+            id: siblingNode.id,
+            branchIds: siblingBranchIds,
+            currentX: siblingNode.position.x,
+            currentY: siblingNode.position.y,
+            targetX: siblingTargetX,
+            targetY: siblingTargetY,
+          });
+        });
+
+        if (branchAdjustments.length === 0) {
+          updatedNodesSnapshot = nodes;
+          branchMutationsSnapshot = [];
+          return nodes;
+        }
+
+        const sortedBranches = branchAdjustments
+          .slice()
+          .sort((a, b) => a.targetY - b.targetY);
+
+        sortedBranches.forEach((branch, index) => {
+          if (index === 0) {
+            branch.resolvedY = snapPosition(branch.targetY);
+            return;
+          }
+
+          const previous = sortedBranches[index - 1];
+          const previousY = previous.resolvedY ?? snapPosition(previous.targetY);
+          let resolvedY = snapPosition(branch.targetY);
+          const minimum = previousY + VERTICAL_GAP;
+          if (resolvedY < minimum) {
+            resolvedY = snapUpToGrid(minimum);
+          }
+          branch.resolvedY = resolvedY;
+        });
+
+        branchAdjustments.forEach(branch => {
+          branch.finalX = branch.targetX;
+          branch.finalY = branch.resolvedY ?? snapPosition(branch.targetY);
+          branch.deltaX = branch.finalX - branch.currentX;
+          branch.deltaY = branch.finalY - branch.currentY;
+        });
+
+        const branchMembership = new Map<string, (typeof branchAdjustments)[number]>();
+        branchAdjustments.forEach(branch => {
+          branch.branchIds.forEach(nodeId => {
+            branchMembership.set(nodeId, branch);
+          });
+        });
+
+        const updatedNodes = nodes.map(nodeItem => {
+          const branch = branchMembership.get(nodeItem.id);
+          if (!branch) {
+            return {
+              ...nodeItem,
+              position: {
+                x: snapPosition(nodeItem.position.x),
+                y: snapPosition(nodeItem.position.y),
+              },
+            };
+          }
+
+          if (nodeItem.id === branch.id) {
+            return {
+              ...nodeItem,
+              position: {
+                x: branch.finalX ?? branch.targetX,
+                y: branch.finalY ?? branch.targetY,
+              },
+            };
+          }
+
+          return {
+            ...nodeItem,
+            position: {
+              x: snapPosition(nodeItem.position.x + (branch.deltaX ?? 0)),
+              y: snapPosition(nodeItem.position.y + (branch.deltaY ?? 0)),
+            },
+          };
+        });
+
+        const finalNodes = enforceGridAndReflow(updatedNodes);
+
+        updatedNodesSnapshot = finalNodes;
+        branchMutationsSnapshot = branchAdjustments.map(branch => ({
+          id: branch.id,
+          branchIds: Array.from(branch.branchIds),
+          deltaX: branch.deltaX ?? 0,
+          deltaY: branch.deltaY ?? 0,
+          finalPosition: {
+            x: branch.finalX ?? branch.targetX,
+            y: branch.finalY ?? branch.targetY,
+          },
+        }));
+
+        return finalNodes;
       });
 
       const parentId = parentLookup.get(id);
       if (!parentId) {
         return;
+      }
+
+      if (branchMutationsSnapshot.length > 0) {
+        const updatedMap = new Map(updatedNodesSnapshot.map(node => [node.id, node]));
+        setManualPositions(prev => {
+          const next = new Map(prev);
+
+          branchMutationsSnapshot.forEach(branch => {
+            branch.branchIds.forEach(nodeId => {
+              const updatedNode = updatedMap.get(nodeId);
+              if (updatedNode) {
+                next.set(nodeId, { ...updatedNode.position });
+              } else if (next.has(nodeId)) {
+                const stored = next.get(nodeId)!;
+                next.set(nodeId, {
+                  x: snapPosition(stored.x + branch.deltaX),
+                  y: snapPosition(stored.y + branch.deltaY),
+                });
+              }
+            });
+          });
+
+          return next;
+        });
       }
 
       const siblings = childrenLookup.get(parentId);
@@ -662,7 +849,12 @@ export const useFoxThreeActions = (
         return next;
       });
     },
-    [getDescendantIds, parentLookup, childrenLookup],
+    [
+      getDescendantIds,
+      parentLookup,
+      childrenLookup,
+      setManualPositions,
+    ],
   );
 
   const visibleNodeIds = useMemo(
@@ -724,6 +916,7 @@ export const useFoxThreeActions = (
 
         return {
           ...typedNode,
+          draggable: node.id !== 'fox-root',
           data: {
             ...typedNode.data,
             isExpanded,
