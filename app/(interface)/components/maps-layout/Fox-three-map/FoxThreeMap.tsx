@@ -16,7 +16,15 @@ import {
 import { IntegrationFilter } from '@/app/(interface)/components/IntegrationFilter';
 import { getReadableTextColor, shiftColor } from '@/app/(interface)/lib/utils/colors';
 
-import { IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, type FoxNodeData, type FoxThreeMapProps } from './foxThreeConfig';
+import {
+  IMAGE_EXTENSIONS,
+  NODE_HEIGHT,
+  NODE_WIDTH,
+  SNAP_SIZE,
+  VIDEO_EXTENSIONS,
+  type FoxNodeData,
+  type FoxThreeMapProps,
+} from './foxThreeConfig';
 import { useFoxThreeActions } from './useFoxThreeActions';
 
 const determineNodeIcon = (data: FoxNodeData): LucideIcon => {
@@ -253,6 +261,16 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders, colorPaletteI
 
   return (
     <div ref={containerRef} className="fox-three-map relative h-full w-full">
+      <div
+        className="pointer-events-none absolute inset-0"
+        aria-hidden
+        style={{
+          backgroundImage:
+            'radial-gradient(circle, rgba(148, 163, 184, 0.9) 0, rgba(148, 163, 184, 0.9) 1.5px, transparent 1.5px)',
+          backgroundSize: `${SNAP_SIZE}px ${SNAP_SIZE}px`,
+          backgroundPosition: `${NODE_WIDTH / 2}px ${NODE_HEIGHT / 2}px`,
+        }}
+      />
       <IntegrationFilter
         services={availableServices}
         activeServiceId={activeServiceId}
@@ -267,7 +285,7 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders, colorPaletteI
             <FoxThreeNode data={data as FoxNodeData} dragging={dragging} />
           ),
         }}
-        className="bg-transparent"
+        className="relative z-[1] bg-transparent"
         style={{ background: 'transparent', overflow: 'visible' }}
         proOptions={{ hideAttribution: true }}
         panOnDrag={false}
