@@ -6,9 +6,15 @@ import { D3HierarchyNode, NodePosition } from './types';
 import { INTEGRATION_NAMES } from './constants';
 import { getNodeId, getNodeLineage } from './nodeUtils';
 
+export type PhysicsTickPayload = {
+  nodes: D3HierarchyNode[];
+  positions: Map<string, NodePosition>;
+  isStabilized: boolean;
+};
+
 export function createManualPhysics(
   nodes: D3HierarchyNode[],
-  onTick: () => void,
+  onTick: (payload: PhysicsTickPayload) => void,
   existingPositions: Map<string, NodePosition>,
 ) {
   const visNodes = new DataSet<any>();
@@ -16,6 +22,32 @@ export function createManualPhysics(
 
   // Identify the root ("Folder Fox")
   const root = nodes.find(n => n?.depth === 0);
+
+  const levelOneNodes = nodes.filter(node => node.depth === 1);
+  const preferredOrder = new Map<string, number>();
+  INTEGRATION_NAMES.forEach((name, index) => {
+    preferredOrder.set(name, index);
+  });
+
+  const sortedLevelOneNodes = levelOneNodes
+    .slice()
+    .sort((a, b) => {
+      const aName = a.data?.name ?? '';
+      const bName = b.data?.name ?? '';
+      const aIndex = preferredOrder.has(aName)
+        ? preferredOrder.get(aName)!
+        : INTEGRATION_NAMES.length + levelOneNodes.indexOf(a);
+      const bIndex = preferredOrder.has(bName)
+        ? preferredOrder.get(bName)!
+        : INTEGRATION_NAMES.length + levelOneNodes.indexOf(b);
+
+      return aIndex - bIndex;
+    });
+
+  const levelOneIndexById = new Map<string, number>();
+  sortedLevelOneNodes.forEach((node, index) => {
+    levelOneIndexById.set(getNodeId(node), index);
+  });
 
   // Build vis.js node + edge dataset
   nodes.forEach(node => {
@@ -48,8 +80,9 @@ export function createManualPhysics(
       x = 0;
       y = 0;
     } else if (node.depth === 1 && root) {
-      const idx = INTEGRATION_NAMES.indexOf(node.data?.name || '');
-      const angle = (2 * Math.PI / INTEGRATION_NAMES.length) * idx;
+      const levelOneIndex = levelOneIndexById.get(id) ?? 0;
+      const totalLevelOne = Math.max(sortedLevelOneNodes.length, 1);
+      const angle = (2 * Math.PI / totalLevelOne) * levelOneIndex;
       const radius = 240;
       x = Math.cos(angle) * radius;
       y = Math.sin(angle) * radius;
@@ -127,9 +160,13 @@ export function createManualPhysics(
   const network = new Network(container, data, options);
 
   // Animation: sync vis.js positions back to d3 nodes
-  let animationId: number;
+  let animationId: number | null = null;
+  let isStabilized = false;
+
   function syncPositions() {
     const positions = network.getPositions();
+    existingPositions.clear();
+
     nodes.forEach(node => {
       const id = getNodeId(node);
       const pos = positions[id];
@@ -137,21 +174,38 @@ export function createManualPhysics(
         node.x = pos.x;
         node.y = pos.y;
       }
+
+      existingPositions.set(id, {
+        x: node.x ?? 0,
+        y: node.y ?? 0,
+        baseOrbitRadius: node.baseOrbitRadius ?? 0,
+        calculatedRadius: node.calculatedRadius ?? 0,
+        offsetAngle: node.offsetAngle ?? 0,
+        orbitAngle: node.orbitAngle ?? 0,
+      });
     });
-    onTick();
+
+    onTick({
+      nodes,
+      positions: existingPositions,
+      isStabilized,
+    });
+
     animationId = requestAnimationFrame(syncPositions);
   }
 
+  syncPositions();
+
   // Stop physics drift once stable
   network.once('stabilizationIterationsDone', () => {
+    isStabilized = true;
     network.setOptions({ physics: false }); // freeze graph
-    syncPositions();
   });
 
   // If already stable, just sync
   if (network.physics.stabilized) {
+    isStabilized = true;
     network.setOptions({ physics: false });
-    syncPositions();
   }
 
   // ----- Drag Handlers -----
@@ -183,15 +237,20 @@ export function createManualPhysics(
     network.setOptions({ physics: true });
     network.startSimulation();
 
+    isStabilized = false;
+
     // Freeze again after new settle
     network.once('stabilized', () => {
+      isStabilized = true;
       network.setOptions({ physics: false });
     });
   }
 
   return {
     stop: () => {
-      cancelAnimationFrame(animationId);
+      if (animationId !== null) {
+        cancelAnimationFrame(animationId);
+      }
       network.destroy();
       if (container.parentNode) container.parentNode.removeChild(container);
     },
