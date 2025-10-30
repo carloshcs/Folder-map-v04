@@ -67,22 +67,20 @@ export const OrbitalTooltip: React.FC<OrbitalTooltipProps> = ({
       ? hoveredNode.pathSegments.join(' / ')
       : hoveredNode.lineage.join(' / ');
 
-  const tooltipGap = Math.max((hoveredNode.screenRadius || 0) * 0.08, 16);
-  // Position the tooltip above the bubble by accounting for the node's
-  // screen radius (current zoom level aware) plus a small gap.
-  const tooltipTopOffset = (hoveredNode.screenRadius || 0) + tooltipGap;
+  const tooltipGapPx = 16; // gap from node edge in screen px
+  const tooltipTop = hoveredNode.position.y - (hoveredNode.screenRadius || 0) - tooltipGapPx;
 
   return (
     <div
       className={cn(
-        'pointer-events-auto fixed z-50 max-w-[320px] -translate-x-1/2 transform transition-all duration-500 ease-out',
-        isVisible
-          ? 'opacity-100 translate-y-0'
-          : 'pointer-events-none opacity-0 translate-y-2',
+        'pointer-events-auto fixed z-50 max-w-[320px] transform transition-transform duration-500 ease-out',
+        isVisible ? 'opacity-100' : 'pointer-events-none opacity-0',
       )}
       style={{
         left: hoveredNode.position.x,
-        top: hoveredNode.position.y - tooltipTopOffset,
+        top: tooltipTop,
+        // Anchor the tooltip so its bottom edge sits above the node
+        transform: `translate(-50%, ${isVisible ? '-100%' : 'calc(-100% + 8px)'})`,
       }}
       onMouseEnter={onPointerEnter}
       onMouseLeave={onPointerLeave}
@@ -262,3 +260,4 @@ export const OrbitalTooltip: React.FC<OrbitalTooltipProps> = ({
     </div>
   );
 };
+

@@ -18,7 +18,7 @@ import {
   FolderItem,
 } from './types';
 import { getNodeRadius } from './geometry';
-import { computeNodeStyles, DIMMED_FILL_LIGHTEN } from '../utils/styles';
+import { computeNodeStyles, DIMMED_FILL_LIGHTEN } from './styles';
 import { shiftColor } from '@/app/(interface)/lib/utils/colors';
 import { OrbitalTooltip } from './OrbitalTooltip';
 import { getTooltipAnchorForNode } from './tooltipPositioning';
@@ -41,6 +41,8 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
   const nodeLayerRef = useRef<D3GroupSelection | null>(null);
   const physicsRef = useRef<any>(null);
   const nodePositionsRef = useRef<Map<string, NodePosition>>(new Map());
+  
+  const nodePositionHistoryRef = useRef<Map<string, Array<{ x: number; y: number; t: number }>>> (new Map());
   const [hoveredNode, setHoveredNode] = useState<HoveredNodeInfo | null>(null);
   const hoveredNodeIdRef = useRef<string | null>(null);
   const [isTooltipExpanded, setIsTooltipExpanded] = useState(false);
@@ -297,6 +299,22 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       };
     });
   }, [computeTooltipAnchor]);
+  const recordNodePositions = useCallback((positions: Map<string, NodePosition>) => {
+    const now = Date.now();
+    const history = nodePositionHistoryRef.current;
+    positions.forEach((pos, id) => {
+      let arr = history.get(id);
+      if (!arr) {
+        arr = [];
+        history.set(id, arr);
+      }
+      const last = arr[arr.length - 1];
+      if (!last || Math.abs(last.x - pos.x) > 0.5 || Math.abs(last.y - pos.y) > 0.5) {
+        arr.push({ x: pos.x, y: pos.y, t: now });
+        if (arr.length > 10) arr.shift();
+      }
+    });
+  }, []);
 
   const setTooltipHoverState = (value: boolean) => {
     isTooltipHoveredRef.current = value;
@@ -478,7 +496,9 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
           node.attr('transform', (d: any) => `translate(${d.x},${d.y})`);
         }
 
-        nodePositionsRef.current = new Map(positions);
+        
+
+        recordNodePositions(positions);
 
         if (hoveredNodeIdRef.current) {
           recalculateTooltipPosition();
@@ -579,6 +599,7 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
       colorAssignments: nodeStyles,
       onNodeEnter: handleNodeEnter,
       onNodeLeave: handleNodeLeave,
+      onNodeMove: () => { if (hoveredNodeIdRef.current) { recalculateTooltipPosition(); } },
       paletteId: colorPaletteId ?? null,
     }).style('pointer-events', 'all');
 
@@ -640,21 +661,6 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     }
     setIsTooltipExpanded(false);
   }, [hoveredNode?.id, recalculateTooltipPosition]);
-
-  // Keep tooltip aligned during page scroll/resize
-  useEffect(() => {
-    const handleViewportChange = () => {
-      if (hoveredNodeIdRef.current) {
-        recalculateTooltipPosition();
-      }
-    };
-    window.addEventListener('scroll', handleViewportChange, true);
-    window.addEventListener('resize', handleViewportChange);
-    return () => {
-      window.removeEventListener('scroll', handleViewportChange, true);
-      window.removeEventListener('resize', handleViewportChange);
-    };
-  }, [recalculateTooltipPosition]);
 
   useEffect(() => {
     recalculateTooltipPosition();
@@ -782,7 +788,20 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     };
   }, []);
 
-  const canHideFromTooltip = Boolean(
+
+  useEffect(() => {
+    const handler = () => {
+      if (hoveredNodeIdRef.current) {
+        recalculateTooltipPosition();
+      }
+    };
+    window.addEventListener('scroll', handler, { passive: true } as any);
+    window.addEventListener('resize', handler, { passive: true } as any);
+    return () => {
+      window.removeEventListener('scroll', handler as any);
+      window.removeEventListener('resize', handler as any);
+    };
+  }, [recalculateTooltipPosition]);  const canHideFromTooltip = Boolean(
     onFolderSelectionChange &&
       hoveredNode &&
       hoveredNode.id !== 'folder-fox' &&
@@ -837,3 +856,4 @@ export const OrbitalMap: React.FC<OrbitalMapProps> = ({
     </div>
   );
 };
+

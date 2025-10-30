@@ -149,6 +149,10 @@ const ReactFlow: React.FC<ReactFlowProps> = ({
   }, [nodeMap, onNodeDrag, onNodeDragStop]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>, node: Node) => {
+    // Only start dragging with the primary (left) mouse button
+    if (event.button !== 0) {
+      return;
+    }
     event.stopPropagation();
     const container = containerRef.current;
     if (container) {

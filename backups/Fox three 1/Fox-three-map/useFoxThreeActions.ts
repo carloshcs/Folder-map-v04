@@ -10,16 +10,11 @@ import {
   HORIZONTAL_GAP,
   SNAP_SIZE,
   VERTICAL_GAP,
-  NODE_HEIGHT,
   type FoxNodeData,
   type FoxTreeNode,
 } from './foxThreeConfig';
 import { createFlowLayout, snapPosition } from './foxThreeCompile';
 import { SERVICE_DETAILS, buildFoxTree } from './foxThreeOrganization';
-
-// Global minimum separation between blocks. Adjust as needed.
-const GLOBAL_MIN_X_GAP = HORIZONTAL_GAP;
-const GLOBAL_MIN_Y_GAP = VERTICAL_GAP;
 
 const collectDescendantIds = (
   lookup: Map<string, FoxTreeNode[]>,
@@ -105,104 +100,11 @@ const enforceGridAndReflow = (
   });
 };
 
-// Invisible wall: clamp a child position so it may not infringe the
-// minimum parent-child gaps on X and Y, regardless of quadrant.
-// Ensures |x - parent.x| >= HORIZONTAL_GAP and |y - parent.y| >= VERTICAL_GAP
-// while preserving the intended side (based on desired position).
-const clampToParentGap = (
-  parent: XYPosition,
-  desired: XYPosition,
-): XYPosition => {
-  let clampedX = desired.x;
-  let clampedY = desired.y;
-
-  // Directional rule relative to parent quadrant
-  if (parent.x >= 0) {
-    const minX = parent.x + HORIZONTAL_GAP;
-    if (clampedX < minX) clampedX = minX;
-  } else {
-    const maxX = parent.x - HORIZONTAL_GAP;
-    if (clampedX > maxX) clampedX = maxX;
-  }
-
-  if (parent.y >= 0) {
-    const minY = parent.y + VERTICAL_GAP;
-    if (clampedY < minY) clampedY = minY;
-  } else {
-    const maxY = parent.y - VERTICAL_GAP;
-    if (clampedY > maxY) clampedY = maxY;
-  }
-
-  return { x: snapPosition(clampedX), y: snapPosition(clampedY) };
-};
-
-// Ensure nodes at the same depth within the current movement scope (family/branch)
-// do not visually overlap vertically. Applies a minimal downward push to keep
-// at least NODE_HEIGHT + GLOBAL_MIN_Y_GAP separation between consecutive nodes.
-const enforceDepthVerticalSeparation = (
-  nodesList: Array<Node<FoxNodeData>>,
-  scopeSet: Set<string>,
-  depth: number,
-  getDescendants: (id: string) => string[],
-): Array<Node<FoxNodeData>> => {
-  const nodes = nodesList.slice();
-  const idToIndex = new Map(nodes.map((n, i) => [n.id, i]));
-  const group = nodes
-    .filter(n => scopeSet.has(n.id) && (n.data as FoxNodeData).depth === depth)
-    .sort((a, b) => a.position.y - b.position.y);
-
-  if (group.length <= 1) return nodes;
-
-  let lastBottom = group[0].position.y + NODE_HEIGHT;
-  for (let i = 1; i < group.length; i += 1) {
-    const curr = group[i];
-    const minY = lastBottom + GLOBAL_MIN_Y_GAP;
-    if (curr.position.y < minY) {
-      const dy = snapPosition(minY - curr.position.y);
-      const branchIds = new Set([curr.id, ...getDescendants(curr.id)]);
-      branchIds.forEach(nid => {
-        const idx = idToIndex.get(nid);
-        if (idx === undefined) return;
-        nodes[idx] = {
-          ...nodes[idx],
-          position: { x: nodes[idx].position.x, y: snapPosition(nodes[idx].position.y + dy) },
-        };
-      });
-      lastBottom = minY + NODE_HEIGHT;
-    } else {
-      lastBottom = curr.position.y + NODE_HEIGHT;
-    }
-  }
-
-  return nodes;
-};
-
-// Compute vertical bounds for a branch (root + descendants) based on current node positions
-const computeBranchBounds = (
-  nodes: Array<Node<FoxNodeData>>,
-  branchIds: Set<string>,
-): { minY: number; maxY: number } => {
-  let minY = Infinity;
-  let maxY = -Infinity;
-  for (const n of nodes) {
-    if (!branchIds.has(n.id)) continue;
-    const top = n.position.y;
-    const bottom = n.position.y + NODE_HEIGHT;
-    if (top < minY) minY = top;
-    if (bottom > maxY) maxY = bottom;
-  }
-  if (!isFinite(minY) || !isFinite(maxY)) {
-    return { minY: 0, maxY: 0 };
-  }
-  return { minY: snapPosition(minY), maxY: snapPosition(maxY) };
-};
-
 type ActiveDragState = {
   id: string;
   parentId: string | null;
   initialParentOffset: { x: number; y: number } | null;
   lastCursor: XYPosition | null;
-  serviceId?: string | null;
 };
 
 interface UseFoxThreeActionsResult {
@@ -214,19 +116,6 @@ interface UseFoxThreeActionsResult {
   handleNodeDrag: (id: string, position?: XYPosition | null) => void;
   handleNodeDragStop: (id: string, position?: XYPosition | null) => void;
 }
-
-// Build a family set for a given service id from a snapshot of nodes
-const computeFamilySetFromNodes = (
-  nodes: Array<Node<FoxNodeData>>,
-  serviceId: FoxNodeData['serviceId'] | undefined,
-): Set<string> => {
-  if (!serviceId) return new Set();
-  return new Set(
-    nodes
-      .filter(n => (n.data as FoxNodeData).serviceId === serviceId)
-      .map(n => n.id),
-  );
-};
 
 const collectVisibleNodeIds = (
   root: FoxTreeNode,
@@ -410,8 +299,6 @@ export const useFoxThreeActions = (
 
   const manualPositionsRef = useRef(manualPositions);
   const activeDragRef = useRef<ActiveDragState | null>(null);
-  const dragStartPositionsRef = useRef<Map<string, XYPosition> | null>(null);
-  const dragFamilyIdsRef = useRef<Set<string> | null>(null);
 
   const tree = useMemo(() => buildFoxTree(folders), [folders]);
 
@@ -582,15 +469,12 @@ export const useFoxThreeActions = (
     [childrenLookup],
   );
 
-  
-
   const handleNodeDrag = useCallback(
     (id: string, position?: XYPosition | null) => {
       if (!position || id === 'fox-root') {
         return;
       }
 
-      const latestPos = position;
       setFlowNodes(nodes => {
         const targetIndex = nodes.findIndex(node => node.id === id);
         if (targetIndex === -1) {
@@ -614,258 +498,40 @@ export const useFoxThreeActions = (
             }
           }
 
-          // Determine movement scope: top-level services move whole family; deeper nodes move only their branch
-          const startPositions = new Map<string, XYPosition>();
-          const draggedData = targetNode.data as FoxNodeData;
-          const isServiceLevel = (draggedData.depth ?? 0) === 1;
-          const draggedServiceId = draggedData.serviceId;
-          const scopeIds = isServiceLevel
-            ? computeFamilySetFromNodes(nodes, draggedServiceId)
-            : branchIds;
-          dragFamilyIdsRef.current = scopeIds;
-          nodes.forEach(n => {
-            if (scopeIds.has(n.id)) {
-              startPositions.set(n.id, { x: n.position.x, y: n.position.y });
-            }
-          });
-          dragStartPositionsRef.current = startPositions;
-
           activeDragRef.current = {
             id,
             parentId,
             initialParentOffset,
             lastCursor: { ...position },
-            serviceId: draggedServiceId ?? null,
           };
         } else {
-          activeDragRef.current.lastCursor = { ...latestPos };
+          activeDragRef.current.lastCursor = { ...position };
         }
 
-        // Drag with branch + family behavior
-        const startPositions = dragStartPositionsRef.current;
-        if (!startPositions) {
-          // Fallback to incremental update if somehow start snapshot is missing
-          const deltaX = latestPos.x - targetNode.position.x;
-          const deltaY = latestPos.y - targetNode.position.y;
+        const deltaX = position.x - targetNode.position.x;
+        const deltaY = position.y - targetNode.position.y;
 
-          if (deltaX === 0 && deltaY === 0) {
-            return nodes;
+        if (deltaX === 0 && deltaY === 0) {
+          return nodes;
+        }
+
+        return nodes.map(node => {
+          if (!branchIds.has(node.id)) {
+            return node;
           }
-
-          return nodes.map(node => {
-            if (!branchIds.has(node.id)) return node;
-            if (node.id === id) return { ...node, position: { ...latestPos } };
-            return {
-              ...node,
-              position: {
-                x: node.position.x + deltaX,
-                y: node.position.y + deltaY,
-              },
-            };
-          });
-        }
-
-        // Use total deltas from drag start to compute mirroring
-        const startRoot = startPositions.get(id) ?? { x: targetNode.position.x, y: targetNode.position.y };
-        const totalDeltaX = latestPos.x - startRoot.x;
-        const totalDeltaY = latestPos.y - startRoot.y;
-        const crossedAxisX = (startRoot.x < 0 && latestPos.x > 0) || (startRoot.x > 0 && latestPos.x < 0);
-        const crossedAxisY = (startRoot.y < 0 && latestPos.y > 0) || (startRoot.y > 0 && latestPos.y < 0);
-        const mirroredRootX = -startRoot.x;
-        const mirroredRootY = -startRoot.y;
-        const extraAfterMirrorX = latestPos.x - mirroredRootX;
-        const extraAfterMirrorY = latestPos.y - mirroredRootY;
-
-        // Movement scope set (family when dragging a top-level service, otherwise just the branch)
-        const familySet =
-          dragFamilyIdsRef.current ?? computeFamilySetFromNodes(nodes, (targetNode.data as FoxNodeData).serviceId);
-
-        // If dragging a subfolder (not service level), clamp dragged node to respect parent-child gaps
-        const draggedData = targetNode.data as FoxNodeData;
-        const isServiceLevel = (draggedData.depth ?? 0) === 1;
-        const parentNodeForClamp = parentId ? nodes.find(n => n.id === parentId) : undefined;
-        const clampedDraggedPos = !isServiceLevel && parentNodeForClamp
-          ? clampToParentGap(parentNodeForClamp.position, latestPos)
-          : latestPos;
-
-        let nextNodes = nodes.map(node => {
-          const inBranch = branchIds.has(node.id);
-          const inFamily = familySet.has(node.id);
-
-          if (!inBranch && !inFamily) return node;
 
           if (node.id === id) {
-            // Dragged node follows pointer
-            return { ...node, position: { x: clampedDraggedPos.x, y: clampedDraggedPos.y } };
+            return { ...node, position: { ...position } };
           }
 
-          const start = startPositions.get(node.id) ?? node.position;
-          if (inBranch) {
-            // Descendants of dragged node track deltas or mirror with extra offset, per-axis
-            // Recompute total deltas based on possibly clamped dragged position
-            const adjDeltaX = clampedDraggedPos.x - (startPositions.get(id)?.x ?? targetNode.position.x);
-            const adjDeltaY = clampedDraggedPos.y - (startPositions.get(id)?.y ?? targetNode.position.y);
-            const adjExtraAfterMirrorX = clampedDraggedPos.x - mirroredRootX;
-            const adjExtraAfterMirrorY = clampedDraggedPos.y - mirroredRootY;
-
-            const nextX = crossedAxisX
-              ? snapPosition(-start.x + adjExtraAfterMirrorX)
-              : snapPosition(start.x + adjDeltaX);
-            const nextY = crossedAxisY
-              ? snapPosition(-start.y + adjExtraAfterMirrorY)
-              : snapPosition(start.y + adjDeltaY);
-            return { ...node, position: { x: nextX, y: nextY } };
-          }
-
-          // Other family members stay in place until crossing, then mirror with same offsets (either axis)
-          if (!crossedAxisX && !crossedAxisY) return node;
-          const nextX = crossedAxisX
-            ? snapPosition(-start.x + extraAfterMirrorX)
-            : snapPosition(start.x + totalDeltaX);
-          const nextY = crossedAxisY
-            ? snapPosition(-start.y + extraAfterMirrorY)
-            : snapPosition(start.y + totalDeltaY);
-          return { ...node, position: { x: nextX, y: nextY } };
+          return {
+            ...node,
+            position: {
+              x: node.position.x + deltaX,
+              y: node.position.y + deltaY,
+            },
+          };
         });
-
-        // Dynamic sibling stacking: while dragging vertically, push siblings into spaced slots
-        {
-          const parentId = parentLookup.get(id) ?? null;
-          if (parentId) {
-            const parentNodeLive = nextNodes.find(n => n.id === parentId);
-            if (parentNodeLive) {
-              const siblingIds = (childrenLookup.get(parentId) ?? []).map(c => c.id);
-              const siblingSet = new Set(siblingIds);
-              const liveSiblings = nextNodes.filter(n => siblingSet.has(n.id));
-              if (liveSiblings.length > 1) {
-                const sorted = liveSiblings
-                  .slice()
-                  .sort((a, b) => a.position.y - b.position.y);
-
-                const adjustments = new Map<string, number>(); // rootId -> deltaY
-                sorted.forEach((sib, index) => {
-                  if (sib.id === id) {
-                    // Dragged node follows pointer; no forced slot
-                    return;
-                  }
-                  const targetY = snapPosition(parentNodeLive.position.y + VERTICAL_GAP * (index + 1));
-                  const dy = targetY - sib.position.y;
-                  if (dy !== 0) {
-                    adjustments.set(sib.id, dy);
-                  }
-                });
-
-                if (adjustments.size > 0) {
-                  const membership = new Map<string, number>();
-                  const branchCache = new Map<string, string[]>();
-                  adjustments.forEach((dy, rootId) => {
-                    membership.set(rootId, dy);
-                    const cached = branchCache.get(rootId) ?? getDescendantIds(rootId);
-                    branchCache.set(rootId, cached);
-                    cached.forEach(descId => membership.set(descId, dy));
-                  });
-
-                  nextNodes = nextNodes.map(n => {
-                    const dy = membership.get(n.id);
-                    if (dy === undefined) return n;
-                    return {
-                      ...n,
-                      position: { x: n.position.x, y: snapPosition(n.position.y + dy) },
-                    };
-                  });
-                }
-              }
-            }
-          }
-        }
-
-        // While dragging a subfolder, if its branch extends into/overlaps uncles below,
-        // push only those uncle branches downward (including their descendants).
-        {
-          // Only applies when dragging subfolders (not top-level service nodes)
-          const draggedNodeLive = nextNodes.find(n => n.id === id);
-          const isServiceLevelDrag = (draggedNodeLive ? (draggedNodeLive.data as FoxNodeData).depth ?? 0 : 0) === 1;
-          if (!isServiceLevelDrag) {
-          const directParentId = parentLookup.get(id) ?? null;
-          const grandParentId = directParentId ? parentLookup.get(directParentId) ?? null : null;
-          if (directParentId && grandParentId) {
-            const branchRoots = (childrenLookup.get(grandParentId) ?? []).map(c => c.id);
-            if (branchRoots.length > 1) {
-              const idToIndex = new Map(nextNodes.map((n, i) => [n.id, i]));
-              const branches = branchRoots.map(rootId => {
-                const ids = new Set([rootId, ...getDescendantIds(rootId)]);
-                const bounds = computeBranchBounds(nextNodes, ids);
-                return { rootId, ids, ...bounds };
-              });
-
-              branches.sort((a, b) => a.minY - b.minY);
-              const draggedParentIndex = branches.findIndex(b => b.rootId === directParentId);
-
-              if (draggedParentIndex !== -1) {
-                const draggedBranch = branches[draggedParentIndex];
-                const firstBelow = branches[draggedParentIndex + 1];
-                if (firstBelow) {
-                  const neededTop = draggedBranch.maxY + VERTICAL_GAP;
-                  const dy = snapPosition(neededTop - firstBelow.minY);
-                  if (dy !== 0) {
-                    for (let i = draggedParentIndex + 1; i < branches.length; i += 1) {
-                      const cur = branches[i];
-                      cur.ids.forEach(nid => {
-                        const idx = idToIndex.get(nid);
-                        if (idx === undefined) return;
-                        const node = nextNodes[idx];
-                        nextNodes[idx] = {
-                          ...node,
-                          position: { x: node.position.x, y: snapPosition(node.position.y + dy) },
-                        };
-                      });
-                      cur.minY = snapPosition(cur.minY + dy);
-                      cur.maxY = snapPosition(cur.maxY + dy);
-                    }
-                  }
-                }
-              }
-            }
-          }
-          }
-        }
-
-        // Live enforce: prevent resting inside non-rest zone during drag as well
-        {
-          const draggedFinal = nextNodes.find(n => n.id === id) ?? targetNode;
-          const signX = (draggedFinal.position.x ?? 0) >= 0 ? 1 : -1;
-          const signY = (draggedFinal.position.y ?? 0) >= 0 ? 1 : -1;
-
-          let minAbsX = Infinity;
-          let minAbsY = Infinity;
-          nextNodes.forEach(n => {
-            if (!familySet.has(n.id)) return;
-            const ax = Math.abs(n.position.x);
-            const ay = Math.abs(n.position.y);
-            if (ax < minAbsX) minAbsX = ax;
-            if (ay < minAbsY) minAbsY = ay;
-          });
-
-          const pushX = Math.max(0, HORIZONTAL_GAP - (isFinite(minAbsX) ? minAbsX : HORIZONTAL_GAP));
-          const pushY = Math.max(0, VERTICAL_GAP - (isFinite(minAbsY) ? minAbsY : VERTICAL_GAP));
-
-          if (pushX > 0 || pushY > 0) {
-            const dx = snapPosition(signX * pushX);
-            const dy = snapPosition(signY * pushY);
-            nextNodes = nextNodes.map(n => {
-              if (!familySet.has(n.id)) return n;
-              return {
-                ...n,
-                position: {
-                  x: snapPosition(n.position.x + dx),
-                  y: snapPosition(n.position.y + dy),
-                },
-              };
-            });
-          }
-        }
-
-        return nextNodes;
       });
     },
     [getDescendantIds, parentLookup],
@@ -940,20 +606,20 @@ export const useFoxThreeActions = (
             ? (dragState.lastCursor?.y ?? targetNode.position.y) - parentPosition.y
             : targetNode.position.y - parentPosition.y;
 
-        const initialOffset = dragState?.initialParentOffset ?? null;
+        const parentInitialOffset = dragState?.initialParentOffset ?? null;
 
         const branchIds = new Set([id, ...getDescendantIds(id)]);
         const targetX = snapWithMinimum(
           targetNode.position.x,
           parentPosition.x,
           HORIZONTAL_GAP,
-          resolveDirectionHint(primaryDirectionX, initialOffset?.x ?? null),
+          resolveDirectionHint(primaryDirectionX, parentInitialOffset?.x ?? null),
         );
         const targetY = snapWithMinimum(
           targetNode.position.y,
           parentPosition.y,
           VERTICAL_GAP,
-          resolveDirectionHint(primaryDirectionY, initialOffset?.y ?? null),
+          resolveDirectionHint(primaryDirectionY, parentInitialOffset?.y ?? null),
         );
 
         branchAdjustments.push({
@@ -1038,6 +704,29 @@ export const useFoxThreeActions = (
           });
         });
 
+        // Detect quadrant sign flips for the actively dragged branch relative to its parent.
+        const mainBranch = branchAdjustments.find(b => b.id === id);
+        const sign = (n: number) => (n > 0 ? 1 : n < 0 ? -1 : 0);
+        const flipX = (() => {
+          if (!mainBranch || !parentInitialOffset) return false;
+          const newDx = (mainBranch.finalX ?? mainBranch.targetX) - parentPosition.x;
+          const prevDx = parentInitialOffset.x;
+          const sNew = sign(newDx);
+          const sPrev = sign(prevDx);
+          return sNew !== 0 && sPrev !== 0 && sNew !== sPrev;
+        })();
+        const flipY = (() => {
+          if (!mainBranch || !parentInitialOffset) return false;
+          const newDy = (mainBranch.finalY ?? mainBranch.targetY) - parentPosition.y;
+          const prevDy = parentInitialOffset.y;
+          const sNew = sign(newDy);
+          const sPrev = sign(prevDy);
+          return sNew !== 0 && sPrev !== 0 && sNew !== sPrev;
+        })();
+
+        const anchorX = mainBranch ? (mainBranch.finalX ?? mainBranch.targetX) : undefined;
+        const anchorY = mainBranch ? (mainBranch.finalY ?? mainBranch.targetY) : undefined;
+
         const updatedNodes = nodes.map(nodeItem => {
           const branch = branchMembership.get(nodeItem.id);
           if (!branch) {
@@ -1050,6 +739,7 @@ export const useFoxThreeActions = (
             };
           }
 
+          // Branch root: set to resolved final position
           if (nodeItem.id === branch.id) {
             return {
               ...nodeItem,
@@ -1060,171 +750,31 @@ export const useFoxThreeActions = (
             };
           }
 
+          // Other nodes: apply delta
+          let nextX = nodeItem.position.x + (branch.deltaX ?? 0);
+          let nextY = nodeItem.position.y + (branch.deltaY ?? 0);
+
+          // If this node belongs to the actively dragged branch subtree, mirror offsets
+          // about the branch root when crossing axes so the subtree preserves its shape.
+          if (branch.id === id && mainBranch) {
+            if (flipX && anchorX !== undefined) {
+              nextX = anchorX - (nextX - anchorX);
+            }
+            if (flipY && anchorY !== undefined) {
+              nextY = anchorY - (nextY - anchorY);
+            }
+          }
+
           return {
             ...nodeItem,
             position: {
-              x: snapPosition(nodeItem.position.x + (branch.deltaX ?? 0)),
-              y: snapPosition(nodeItem.position.y + (branch.deltaY ?? 0)),
+              x: snapPosition(nextX),
+              y: snapPosition(nextY),
             },
           };
         });
 
-        let finalNodes = enforceGridAndReflow(updatedNodes);
-
-        // If dragged across axes relative to root, mirror entire family per-axis to pre-drag values
-        const startPositions = dragStartPositionsRef.current;
-        if (startPositions) {
-          const start = startPositions.get(id);
-          const finalNode = finalNodes.find(n => n.id === id);
-          const finalX = finalNode ? finalNode.position.x : targetNode.position.x;
-          const finalY = finalNode ? finalNode.position.y : targetNode.position.y;
-          const startX = start ? start.x : targetNode.position.x;
-          const startY = start ? start.y : targetNode.position.y;
-          const crossedAxisX = (startX < 0 && finalX > 0) || (startX > 0 && finalX < 0);
-          const crossedAxisY = (startY < 0 && finalY > 0) || (startY > 0 && finalY < 0);
-
-          if (crossedAxisX || crossedAxisY) {
-            const familySet =
-              dragFamilyIdsRef.current ?? computeFamilySetFromNodes(finalNodes, (targetNode.data as FoxNodeData).serviceId);
-            const mirroredRootX = -startX;
-            const mirroredRootY = -startY;
-            const extraAfterMirrorX = finalX - mirroredRootX;
-            const extraAfterMirrorY = finalY - mirroredRootY;
-            const totalDeltaX = finalX - startX;
-            const totalDeltaY = finalY - startY;
-
-            finalNodes = finalNodes.map(n => {
-              if (!familySet.has(n.id)) return n;
-              if (n.id === id) return n; // keep dragged final as resolved above
-              const origin = startPositions.get(n.id) ?? n.position;
-              return {
-                ...n,
-                position: {
-                  x: snapPosition(crossedAxisX ? -origin.x + extraAfterMirrorX : origin.x + totalDeltaX),
-                  y: snapPosition(crossedAxisY ? -origin.y + extraAfterMirrorY : origin.y + totalDeltaY),
-                },
-              };
-            });
-          }
-        }
-
-        // On drop: ensure dragged parent's branch does not overlap uncles below.
-        // Push only the uncle branches beneath the dragged parent downward, including their descendants.
-        {
-          // Only applies when dropping subfolders (not top-level service nodes)
-          const droppedNode = finalNodes.find(n => n.id === id);
-          const isServiceLevelDrop = (droppedNode ? (droppedNode.data as FoxNodeData).depth ?? 0 : 0) === 1;
-          if (!isServiceLevelDrop) {
-          const directParentId = parentLookup.get(id) ?? null;
-          const grandParentId = directParentId ? parentLookup.get(directParentId) ?? null : null;
-          if (directParentId && grandParentId) {
-            const branchRoots = (childrenLookup.get(grandParentId) ?? []).map(c => c.id);
-            if (branchRoots.length > 1) {
-              const idToIndex = new Map(finalNodes.map((n, i) => [n.id, i]));
-              const branches = branchRoots.map(rootId => {
-                const ids = new Set([rootId, ...getDescendantIds(rootId)]);
-                const bounds = computeBranchBounds(finalNodes, ids);
-                return { rootId, ids, ...bounds };
-              });
-
-              branches.sort((a, b) => a.minY - b.minY);
-              const draggedParentIndex = branches.findIndex(b => b.rootId === directParentId);
-
-              if (draggedParentIndex !== -1) {
-                const draggedBranch = branches[draggedParentIndex];
-                const firstBelow = branches[draggedParentIndex + 1];
-                if (firstBelow) {
-                  const neededTop = draggedBranch.maxY + VERTICAL_GAP;
-                  const dy = snapPosition(neededTop - firstBelow.minY);
-                  if (dy !== 0) {
-                    for (let i = draggedParentIndex + 1; i < branches.length; i += 1) {
-                      const cur = branches[i];
-                      cur.ids.forEach(nid => {
-                        const idx = idToIndex.get(nid);
-                        if (idx === undefined) return;
-                        const node = finalNodes[idx];
-                        finalNodes[idx] = {
-                          ...node,
-                          position: { x: node.position.x, y: snapPosition(node.position.y + dy) },
-                        };
-                      });
-                      cur.minY = snapPosition(cur.minY + dy);
-                      cur.maxY = snapPosition(cur.maxY + dy);
-                    }
-                  }
-                }
-              }
-            }
-          }
-          }
-        }
-
-        // Enforce non-rest zone for the entire family:
-        // ensure no family node rests with |x| < HORIZONTAL_GAP and |y| < VERTICAL_GAP.
-        {
-          const familySet =
-            dragFamilyIdsRef.current ?? computeFamilySetFromNodes(finalNodes, (targetNode.data as FoxNodeData).serviceId);
-          const draggedFinal = finalNodes.find(n => n.id === id) ?? targetNode;
-          const signX = (draggedFinal.position.x ?? 0) >= 0 ? 1 : -1;
-          const signY = (draggedFinal.position.y ?? 0) >= 0 ? 1 : -1;
-
-          let minAbsX = Infinity;
-          let minAbsY = Infinity;
-          finalNodes.forEach(n => {
-            if (!familySet.has(n.id)) return;
-            const ax = Math.abs(n.position.x);
-            const ay = Math.abs(n.position.y);
-            if (ax < minAbsX) minAbsX = ax;
-            if (ay < minAbsY) minAbsY = ay;
-          });
-
-          const pushX = Math.max(0, HORIZONTAL_GAP - (isFinite(minAbsX) ? minAbsX : HORIZONTAL_GAP));
-          const pushY = Math.max(0, VERTICAL_GAP - (isFinite(minAbsY) ? minAbsY : VERTICAL_GAP));
-
-          if (pushX > 0 || pushY > 0) {
-            const dx = snapPosition(signX * pushX);
-            const dy = snapPosition(signY * pushY);
-            finalNodes = finalNodes.map(n => {
-              if (!familySet.has(n.id)) return n;
-              return {
-                ...n,
-                position: {
-                  x: snapPosition(n.position.x + dx),
-                  y: snapPosition(n.position.y + dy),
-                },
-              };
-            });
-          }
-        }
-
-        // Final clamp to parent gap for subfolders (on drop)
-        {
-          const draggedFinalIndex = finalNodes.findIndex(n => n.id === id);
-          if (draggedFinalIndex !== -1) {
-            const draggedNode = finalNodes[draggedFinalIndex];
-            const draggedData = draggedNode.data as FoxNodeData;
-            const isServiceLevel = (draggedData.depth ?? 0) === 1;
-            const parentIdFinal = parentLookup.get(id);
-            if (!isServiceLevel && parentIdFinal) {
-              const parentNode = finalNodes.find(n => n.id === parentIdFinal);
-              if (parentNode) {
-                const clamped = clampToParentGap(parentNode.position, draggedNode.position);
-                if (clamped.x !== draggedNode.position.x || clamped.y !== draggedNode.position.y) {
-                  finalNodes = finalNodes.map(n => (n.id === id ? { ...n, position: clamped } : n));
-                }
-              }
-            }
-          }
-        }
-
-        // Enforce vertical separation for nodes at same depth within scope to avoid overlaps with "uncles"
-        {
-          const scopeSet =
-            dragFamilyIdsRef.current ?? computeFamilySetFromNodes(finalNodes, (targetNode.data as FoxNodeData).serviceId);
-          const draggedNode = finalNodes.find(n => n.id === id);
-          const draggedDepth = draggedNode ? ((draggedNode.data as FoxNodeData).depth ?? 0) : 0;
-          finalNodes = enforceDepthVerticalSeparation(finalNodes, scopeSet, draggedDepth, getDescendantIds);
-        }
+        const finalNodes = enforceGridAndReflow(updatedNodes);
 
         updatedNodesSnapshot = finalNodes;
         branchMutationsSnapshot = branchAdjustments.map(branch => ({
@@ -1244,25 +794,6 @@ export const useFoxThreeActions = (
       const parentId = parentLookup.get(id);
       if (!parentId) {
         return;
-      }
-
-      {
-        const updatedMap = new Map(updatedNodesSnapshot.map(node => [node.id, node]));
-        const draggedNode = updatedNodesSnapshot.find(n => n.id === id);
-        const draggedServiceId = (draggedNode?.data as FoxNodeData | undefined)?.serviceId;
-        const familySet = dragFamilyIdsRef.current ?? computeFamilySetFromNodes(updatedNodesSnapshot, draggedServiceId);
-
-        // Persist final absolute positions for entire family so they stick after re-render
-        setManualPositions(prev => {
-          const next = new Map(prev);
-          familySet.forEach(nodeId => {
-            const updatedNode = updatedMap.get(nodeId);
-            if (updatedNode) {
-              next.set(nodeId, { ...updatedNode.position });
-            }
-          });
-          return next;
-        });
       }
 
       if (branchMutationsSnapshot.length > 0) {
@@ -1288,10 +819,6 @@ export const useFoxThreeActions = (
           return next;
         });
       }
-
-      // Clear drag-start snapshot after handling drag stop
-      dragStartPositionsRef.current = null;
-      dragFamilyIdsRef.current = null;
 
       const siblings = childrenLookup.get(parentId);
       if (!siblings || siblings.length <= 1) {

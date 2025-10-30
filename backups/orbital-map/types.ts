@@ -1,0 +1,83 @@
+import * as d3 from 'd3';
+import type { FolderItem as SidebarFolderItem } from '../../right-sidebar/data';
+
+export type FolderItem = SidebarFolderItem;
+
+export interface D3HierarchyNode {
+  data: any;
+  depth: number;
+  parent?: D3HierarchyNode;
+  children?: D3HierarchyNode[];
+  x?: number;
+  y?: number;
+  targetX?: number;
+  targetY?: number;
+  orbitAngle?: number;
+  offsetAngle?: number;
+  baseOrbitRadius?: number;
+  calculatedRadius?: number;
+  expansionOffset?: number;
+  isDragging?: boolean;
+  isInOrbit?: boolean;
+  isExpanded?: boolean;
+  hasChildren?: boolean;
+  parentNode?: D3HierarchyNode;
+  isPrimary?: boolean;
+  // Force simulation properties (for level 3+ nodes)
+  fx?: number | null;
+  fy?: number | null;
+  vx?: number;
+  vy?: number;
+  index?: number;
+}
+
+export interface D3Link {
+  source: D3HierarchyNode;
+  target: D3HierarchyNode;
+}
+
+export type D3GroupSelection = d3.Selection<SVGGElement, unknown, null, undefined>;
+
+export interface OrbitalMapProps {
+  folders: FolderItem[];
+  colorPaletteId?: string;
+  onFolderSelectionChange?: (folderId: string, isSelected: boolean) => void;
+}
+
+export interface NodePosition {
+  x: number;
+  y: number;
+  baseOrbitRadius: number;
+  calculatedRadius: number;
+  offsetAngle: number;
+  orbitAngle: number;
+}
+
+export type NodeVisualStyle = {
+  fill: string;
+  textColor: string;
+};
+
+export type HoveredNodeInfo = {
+  id: string;
+  name: string;
+  depth: number;
+  lineage: string[];
+  position: { x: number; y: number };
+  screenRadius: number;
+  baseRadius: number;
+  pathSegments: string[];
+  serviceName?: string;
+  link?: string;
+  metrics?: {
+    totalSize?: number;
+    fileCount?: number;
+    folderCount?: number;
+  };
+  createdDate?: string;
+  modifiedDate?: string;
+  activityScore?: number;
+  canExpand: boolean;
+  isExpanded: boolean;
+  isSelected?: boolean;
+};
