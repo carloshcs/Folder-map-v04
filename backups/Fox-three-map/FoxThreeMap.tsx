@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef } from 'react';
-import ReactFlow, { type Node, type ReactFlowInstance } from 'reactflow';
+import ReactFlow, { type Node } from 'reactflow';
 import {
   ChevronDown,
   ChevronUp,
@@ -24,8 +24,6 @@ import {
   VIDEO_EXTENSIONS,
   type FoxNodeData,
   type FoxThreeMapProps,
-  HORIZONTAL_GAP,
-  VERTICAL_GAP,
 } from './foxThreeConfig';
 import { useFoxThreeActions } from './useFoxThreeActions';
 
@@ -225,16 +223,6 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders, colorPaletteI
     handleNodeDragStop,
   } = useFoxThreeActions(folders, colorPaletteId);
 
-  const handleFlowInit = React.useCallback((instance: ReactFlowInstance) => {
-    const container = containerRef.current;
-    if (!container) return;
-    const w = container.clientWidth || 0;
-    const h = container.clientHeight || 0;
-    // Center world origin (0,0) so that the root node (NODE_WIDTH x NODE_HEIGHT)
-    // appears centered on screen.
-    instance.setViewport({ x: w / 2 - NODE_WIDTH / 2, y: h / 2 - NODE_HEIGHT / 2, zoom: 1 });
-  }, []);
-
   useEffect(() => {
     const container = containerRef.current;
 
@@ -335,20 +323,6 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders, colorPaletteI
   const axisGlow = 'rgba(148, 163, 184, 0.3)';
   const centerMarkerSize = Math.max(10, SNAP_SIZE / 2);
 
-  // TEMP: Non-rest zone boundary positions; edit here if needed later
-  const nonRestConfig = useMemo(() => {
-    return {
-      xMin: rootOrigin.x - HORIZONTAL_GAP,
-      xMax: rootOrigin.x + HORIZONTAL_GAP,
-      yMin: rootOrigin.y - VERTICAL_GAP,
-      yMax: rootOrigin.y + VERTICAL_GAP,
-    };
-  }, [rootOrigin.x, rootOrigin.y]);
-  const nonRestLineColor = 'rgba(239, 68, 68, 0.7)';
-  const nonRestLineThickness = 2;
-  // Large extent to simulate "infinite" lines
-  const NON_REST_EXTENT = SNAP_SIZE * 600;
-
   return (
     <div ref={containerRef} className="fox-three-map relative h-full w-full">
       <div className="pointer-events-none absolute inset-0" aria-hidden>
@@ -356,47 +330,6 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders, colorPaletteI
         <div className="absolute" style={quadrantStyles.topRight} />
         <div className="absolute" style={quadrantStyles.bottomLeft} />
         <div className="absolute" style={quadrantStyles.bottomRight} />
-        {/* TEMP: Non-rest zone boundary lines (horizontal at yMin/yMax, vertical at xMin/xMax) */}
-        <div
-          className="absolute"
-          style={{
-            top: nonRestConfig.yMin - nonRestLineThickness / 2,
-            left: rootOrigin.x - NON_REST_EXTENT,
-            width: NON_REST_EXTENT * 2,
-            height: nonRestLineThickness,
-            borderTop: `${nonRestLineThickness}px dashed ${nonRestLineColor}`,
-          }}
-        />
-        <div
-          className="absolute"
-          style={{
-            top: nonRestConfig.yMax - nonRestLineThickness / 2,
-            left: rootOrigin.x - NON_REST_EXTENT,
-            width: NON_REST_EXTENT * 2,
-            height: nonRestLineThickness,
-            borderTop: `${nonRestLineThickness}px dashed ${nonRestLineColor}`,
-          }}
-        />
-        <div
-          className="absolute"
-          style={{
-            left: nonRestConfig.xMin - nonRestLineThickness / 2,
-            top: rootOrigin.y - NON_REST_EXTENT,
-            height: NON_REST_EXTENT * 2,
-            width: nonRestLineThickness,
-            borderLeft: `${nonRestLineThickness}px dashed ${nonRestLineColor}`,
-          }}
-        />
-        <div
-          className="absolute"
-          style={{
-            left: nonRestConfig.xMax - nonRestLineThickness / 2,
-            top: rootOrigin.y - NON_REST_EXTENT,
-            height: NON_REST_EXTENT * 2,
-            width: nonRestLineThickness,
-            borderLeft: `${nonRestLineThickness}px dashed ${nonRestLineColor}`,
-          }}
-        />
         <div
           className="absolute inset-y-0"
           style={{
@@ -434,7 +367,6 @@ export const FoxThreeMap: React.FC<FoxThreeMapProps> = ({ folders, colorPaletteI
       <ReactFlow
         nodes={nodesWithControls}
         edges={edgesToRender}
-        onInit={handleFlowInit}
         nodeTypes={{
           'fox-folder': ({ data, dragging }) => (
             <FoxThreeNode data={data as FoxNodeData} dragging={dragging} />

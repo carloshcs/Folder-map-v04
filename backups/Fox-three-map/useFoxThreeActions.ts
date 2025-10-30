@@ -105,7 +105,6 @@ type ActiveDragState = {
   parentId: string | null;
   initialParentOffset: { x: number; y: number } | null;
   lastCursor: XYPosition | null;
-  serviceId?: string | null;
 };
 
 interface UseFoxThreeActionsResult {
@@ -117,19 +116,6 @@ interface UseFoxThreeActionsResult {
   handleNodeDrag: (id: string, position?: XYPosition | null) => void;
   handleNodeDragStop: (id: string, position?: XYPosition | null) => void;
 }
-
-// Build a family set for a given service id from a snapshot of nodes
-const computeFamilySetFromNodes = (
-  nodes: Array<Node<FoxNodeData>>,
-  serviceId: FoxNodeData['serviceId'] | undefined,
-): Set<string> => {
-  if (!serviceId) return new Set();
-  return new Set(
-    nodes
-      .filter(n => (n.data as FoxNodeData).serviceId === serviceId)
-      .map(n => n.id),
-  );
-};
 
 const collectVisibleNodeIds = (
   root: FoxTreeNode,
@@ -314,7 +300,6 @@ export const useFoxThreeActions = (
   const manualPositionsRef = useRef(manualPositions);
   const activeDragRef = useRef<ActiveDragState | null>(null);
   const dragStartPositionsRef = useRef<Map<string, XYPosition> | null>(null);
-  const dragFamilyIdsRef = useRef<Set<string> | null>(null);
 
   const tree = useMemo(() => buildFoxTree(folders), [folders]);
 
@@ -485,19 +470,6 @@ export const useFoxThreeActions = (
     [childrenLookup],
   );
 
-  const getFamilyRootId = useCallback(
-    (nodeId: string): string => {
-      let current: string = nodeId;
-      let parentId: string | null | undefined = parentLookup.get(current);
-      while (parentId && parentLookup.get(parentId) !== null) {
-        current = parentId;
-        parentId = parentLookup.get(current);
-      }
-      return current;
-    },
-    [parentLookup],
-  );
-
   const handleNodeDrag = useCallback(
     (id: string, position?: XYPosition | null) => {
       if (!position || id === 'fox-root') {
@@ -527,13 +499,11 @@ export const useFoxThreeActions = (
             }
           }
 
-          // Capture starting positions for the dragged node's family by serviceId
+          // Capture starting positions for the dragged branch (for mirroring across axis)
           const startPositions = new Map<string, XYPosition>();
-          const draggedServiceId = (targetNode.data as FoxNodeData).serviceId;
-          const familyIds = computeFamilySetFromNodes(nodes, draggedServiceId);
-          dragFamilyIdsRef.current = familyIds;
+          const allBranchIds = new Set([id, ...getDescendantIds(id)]);
           nodes.forEach(n => {
-            if (familyIds.has(n.id)) {
+            if (allBranchIds.has(n.id)) {
               startPositions.set(n.id, { x: n.position.x, y: n.position.y });
             }
           });
@@ -544,13 +514,12 @@ export const useFoxThreeActions = (
             parentId,
             initialParentOffset,
             lastCursor: { ...position },
-            serviceId: draggedServiceId ?? null,
           };
         } else {
           activeDragRef.current.lastCursor = { ...position };
         }
 
-        // Drag with branch + family behavior
+        // Drag with branch behavior
         const startPositions = dragStartPositionsRef.current;
         if (!startPositions) {
           // Fallback to incremental update if somehow start snapshot is missing
@@ -582,15 +551,10 @@ export const useFoxThreeActions = (
         const mirroredRootX = -startRoot.x;
         const extraAfterMirrorX = position.x - mirroredRootX;
 
-        // Family set by captured service id (fallback recompute if needed)
-        const familySet =
-          dragFamilyIdsRef.current ?? computeFamilySetFromNodes(nodes, (targetNode.data as FoxNodeData).serviceId);
-
-        let nextNodes = nodes.map(node => {
-          const inBranch = branchIds.has(node.id);
-          const inFamily = familySet.has(node.id);
-
-          if (!inBranch && !inFamily) return node;
+        return nodes.map(node => {
+          if (!branchIds.has(node.id)) {
+            return node;
+          }
 
           if (node.id === id) {
             // Dragged node follows pointer
@@ -598,58 +562,10 @@ export const useFoxThreeActions = (
           }
 
           const start = startPositions.get(node.id) ?? node.position;
-          if (inBranch) {
-            // Descendants of dragged node track deltas or mirror with extra offset
-            const nextX = crossedAxis
-              ? snapPosition(-start.x + extraAfterMirrorX)
-              : snapPosition(start.x + totalDeltaX);
-            const nextY = snapPosition(start.y + totalDeltaY);
-            return { ...node, position: { x: nextX, y: nextY } };
-          }
-
-          // Other family members stay in place until crossing, then mirror with same offsets
-          if (!crossedAxis) return node;
-          const nextX = snapPosition(-start.x + extraAfterMirrorX);
+          const nextX = crossedAxis ? snapPosition(-start.x + extraAfterMirrorX) : snapPosition(start.x + totalDeltaX);
           const nextY = snapPosition(start.y + totalDeltaY);
           return { ...node, position: { x: nextX, y: nextY } };
         });
-
-        // Live enforce: prevent resting inside non-rest zone during drag as well
-        {
-          const draggedFinal = nextNodes.find(n => n.id === id) ?? targetNode;
-          const signX = (draggedFinal.position.x ?? 0) >= 0 ? 1 : -1;
-          const signY = (draggedFinal.position.y ?? 0) >= 0 ? 1 : -1;
-
-          let minAbsX = Infinity;
-          let minAbsY = Infinity;
-          nextNodes.forEach(n => {
-            if (!familySet.has(n.id)) return;
-            const ax = Math.abs(n.position.x);
-            const ay = Math.abs(n.position.y);
-            if (ax < minAbsX) minAbsX = ax;
-            if (ay < minAbsY) minAbsY = ay;
-          });
-
-          const pushX = Math.max(0, HORIZONTAL_GAP - (isFinite(minAbsX) ? minAbsX : HORIZONTAL_GAP));
-          const pushY = Math.max(0, VERTICAL_GAP - (isFinite(minAbsY) ? minAbsY : VERTICAL_GAP));
-
-          if (pushX > 0 || pushY > 0) {
-            const dx = snapPosition(signX * pushX);
-            const dy = snapPosition(signY * pushY);
-            nextNodes = nextNodes.map(n => {
-              if (!familySet.has(n.id)) return n;
-              return {
-                ...n,
-                position: {
-                  x: snapPosition(n.position.x + dx),
-                  y: snapPosition(n.position.y + dy),
-                },
-              };
-            });
-          }
-        }
-
-        return nextNodes;
       });
     },
     [getDescendantIds, parentLookup],
@@ -855,7 +771,7 @@ export const useFoxThreeActions = (
 
         let finalNodes = enforceGridAndReflow(updatedNodes);
 
-        // If dragged across vertical axis relative to root, mirror entire family X to pre-drag X
+        // If dragged across vertical axis relative to root, mirror entire branch X to pre-drag X
         const startPositions = dragStartPositionsRef.current;
         if (startPositions) {
           const start = startPositions.get(id);
@@ -867,14 +783,13 @@ export const useFoxThreeActions = (
           const crossedAxis = (startX < 0 && finalX > 0) || (startX > 0 && finalX < 0);
 
           if (crossedAxis) {
-            const familySet =
-              dragFamilyIdsRef.current ?? computeFamilySetFromNodes(finalNodes, (targetNode.data as FoxNodeData).serviceId);
+            const branchSet = new Set([id, ...getDescendantIds(id)]);
             const mirroredRootX = -startX;
             const extraAfterMirrorX = finalX - mirroredRootX;
             const totalDeltaY = finalY - startY;
 
             finalNodes = finalNodes.map(n => {
-              if (!familySet.has(n.id)) return n;
+              if (!branchSet.has(n.id)) return n;
               if (n.id === id) return n; // keep dragged final as resolved above
               const origin = startPositions.get(n.id) ?? n.position;
               return {
@@ -882,44 +797,6 @@ export const useFoxThreeActions = (
                 position: {
                   x: snapPosition(-origin.x + extraAfterMirrorX),
                   y: snapPosition(origin.y + totalDeltaY),
-                },
-              };
-            });
-          }
-        }
-
-        // Enforce non-rest zone for the entire family:
-        // ensure no family node rests with |x| < HORIZONTAL_GAP and |y| < VERTICAL_GAP.
-        {
-          const familySet =
-            dragFamilyIdsRef.current ?? computeFamilySetFromNodes(finalNodes, (targetNode.data as FoxNodeData).serviceId);
-          const draggedFinal = finalNodes.find(n => n.id === id) ?? targetNode;
-          const signX = (draggedFinal.position.x ?? 0) >= 0 ? 1 : -1;
-          const signY = (draggedFinal.position.y ?? 0) >= 0 ? 1 : -1;
-
-          let minAbsX = Infinity;
-          let minAbsY = Infinity;
-          finalNodes.forEach(n => {
-            if (!familySet.has(n.id)) return;
-            const ax = Math.abs(n.position.x);
-            const ay = Math.abs(n.position.y);
-            if (ax < minAbsX) minAbsX = ax;
-            if (ay < minAbsY) minAbsY = ay;
-          });
-
-          const pushX = Math.max(0, HORIZONTAL_GAP - (isFinite(minAbsX) ? minAbsX : HORIZONTAL_GAP));
-          const pushY = Math.max(0, VERTICAL_GAP - (isFinite(minAbsY) ? minAbsY : VERTICAL_GAP));
-
-          if (pushX > 0 || pushY > 0) {
-            const dx = snapPosition(signX * pushX);
-            const dy = snapPosition(signY * pushY);
-            finalNodes = finalNodes.map(n => {
-              if (!familySet.has(n.id)) return n;
-              return {
-                ...n,
-                position: {
-                  x: snapPosition(n.position.x + dx),
-                  y: snapPosition(n.position.y + dy),
                 },
               };
             });
@@ -946,23 +823,29 @@ export const useFoxThreeActions = (
         return;
       }
 
-      {
+      const startPositions = dragStartPositionsRef.current;
+      if (startPositions) {
+        // If we mirrored, persist absolute positions directly from updated nodes
         const updatedMap = new Map(updatedNodesSnapshot.map(node => [node.id, node]));
-        const draggedNode = updatedNodesSnapshot.find(n => n.id === id);
-        const draggedServiceId = (draggedNode?.data as FoxNodeData | undefined)?.serviceId;
-        const familySet = dragFamilyIdsRef.current ?? computeFamilySetFromNodes(updatedNodesSnapshot, draggedServiceId);
+        const branchSet = new Set([id, ...getDescendantIds(id)]);
+        const start = startPositions.get(id);
+        const finalNode = updatedMap.get(id);
+        const startX = start?.x ?? 0;
+        const finalX = finalNode?.position.x ?? 0;
+        const crossedAxis = (startX < 0 && finalX > 0) || (startX > 0 && finalX < 0);
 
-        // Persist final absolute positions for entire family so they stick after re-render
-        setManualPositions(prev => {
-          const next = new Map(prev);
-          familySet.forEach(nodeId => {
-            const updatedNode = updatedMap.get(nodeId);
-            if (updatedNode) {
-              next.set(nodeId, { ...updatedNode.position });
-            }
+        if (crossedAxis) {
+          setManualPositions(prev => {
+            const next = new Map(prev);
+            branchSet.forEach(nodeId => {
+              const updatedNode = updatedMap.get(nodeId);
+              if (updatedNode) {
+                next.set(nodeId, { ...updatedNode.position });
+              }
+            });
+            return next;
           });
-          return next;
-        });
+        }
       }
 
       if (branchMutationsSnapshot.length > 0) {
@@ -991,7 +874,6 @@ export const useFoxThreeActions = (
 
       // Clear drag-start snapshot after handling drag stop
       dragStartPositionsRef.current = null;
-      dragFamilyIdsRef.current = null;
 
       const siblings = childrenLookup.get(parentId);
       if (!siblings || siblings.length <= 1) {
