@@ -12,7 +12,20 @@ import {
   snapUpToGrid,
   snapWithMinimum,
 } from '../utils/grid';
-import { HORIZONTAL_GAP, VERTICAL_GAP, DRAG_VERTICAL_GAP } from '../config';
+import { HORIZONTAL_GAP, VERTICAL_GAP, DRAG_VERTICAL_GAP, DRAG_SMOOTH_MAX_STEP, NODE_HEIGHT } from '../config';
+
+// Branch-to-branch padding measured from previous bottom to next top so that
+// top-to-top spacing remains exactly VERTICAL_GAP when branches are unexpanded.
+const BRANCH_PAD = Math.max(0, 0);
+//const BRANCH_PAD = Math.max(0, VERTICAL_GAP - NODE_HEIGHT);
+
+// Limit per-update movement for smoother visual push/pull during drag
+const clampStep = (delta: number): number => {
+  const max = DRAG_SMOOTH_MAX_STEP;
+  if (delta > max) return max;
+  if (delta < -max) return -max;
+  return delta;
+};
 
 type Lookups = {
   parentLookup: Map<string, string | null>;
@@ -42,7 +55,13 @@ export const useDragHandlers = (lookups: Lookups, setters: Setters) => {
   const dragStartPositionsRef = useRef<Map<string, XYPosition> | null>(null);
   const dragFamilyIdsRef = useRef<Set<string> | null>(null);
 
-  const handleNodeDrag = useCallback(
+  // Throttle drag updates to animation frames to reduce re-renders
+  const rafInFlightRef = useRef(false);
+  const rafQueuedRef = useRef(false);
+  const lastDragIdRef = useRef<string | null>(null);
+  const lastDragPositionRef = useRef<XYPosition | null>(null);
+
+  const rawHandleNodeDrag = useCallback(
     (id: string, position?: XYPosition | null) => {
       if (!position || id === 'fox-root') return;
 
@@ -152,34 +171,44 @@ export const useDragHandlers = (lookups: Lookups, setters: Setters) => {
         {
           const parentId = parentLookup.get(id) ?? null;
           if (parentId) {
-            const parentNodeLive = nextNodes.find(n => n.id === parentId);
-            if (parentNodeLive) {
-              const siblingIds = (childrenLookup.get(parentId) ?? []).map(c => c.id);
+            const siblingIds = (childrenLookup.get(parentId) ?? []).map(c => c.id);
+            if (siblingIds.length > 1) {
               const siblingSet = new Set(siblingIds);
               const liveSiblings = nextNodes.filter(n => siblingSet.has(n.id));
-              if (liveSiblings.length > 1) {
-                const sorted = liveSiblings.slice().sort((a, b) => a.position.y - b.position.y);
-                const adjustments = new Map<string, number>();
-                sorted.forEach((sib, index) => {
-                  if (sib.id === id) return;
-                  const targetY = snapPosition(parentNodeLive.position.y + VERTICAL_GAP + VERTICAL_GAP * index);
-                  const dy = targetY - sib.position.y;
-                  if (dy !== 0) adjustments.set(sib.id, dy);
-                });
-                if (adjustments.size > 0) {
-                  const membership = new Map<string, number>();
-                  const branchCache = new Map<string, string[]>();
-                  adjustments.forEach((dy, rootId) => {
-                    membership.set(rootId, dy);
-                    const cached = branchCache.get(rootId) ?? lookups.getDescendantIds(rootId);
-                    branchCache.set(rootId, cached);
-                    cached.forEach(descId => membership.set(descId, dy));
+              // If any sibling branch is expanded (taller than one node),
+              // skip tidy stacking to avoid fighting with branch spacing.
+              const branchInfo = liveSiblings.map(sib => {
+                const ids = new Set([sib.id, ...lookups.getDescendantIds(sib.id)]);
+                const bounds = computeBranchBounds(nextNodes as any, ids);
+                return { root: sib, ids, ...bounds };
+              });
+              const anyExpanded = branchInfo.some(b => b.maxY - b.minY > NODE_HEIGHT);
+              if (!anyExpanded) {
+                const parentNodeLive = nextNodes.find(n => n.id === parentId);
+                if (parentNodeLive) {
+                  const sorted = liveSiblings.slice().sort((a, b) => a.position.y - b.position.y);
+                  const adjustments = new Map<string, number>();
+                  sorted.forEach((sib, index) => {
+                    if (sib.id === id) return;
+                    const targetY = snapPosition(parentNodeLive.position.y + VERTICAL_GAP + VERTICAL_GAP * index);
+                    const dy = clampStep(targetY - sib.position.y);
+                    if (dy !== 0) adjustments.set(sib.id, dy);
                   });
-                  nextNodes = nextNodes.map(n => {
-                    const dy = membership.get(n.id);
-                    if (dy === undefined) return n;
-                    return { ...n, position: { x: n.position.x, y: snapPosition(n.position.y + dy) } };
-                  });
+                  if (adjustments.size > 0) {
+                    const membership = new Map<string, number>();
+                    const branchCache = new Map<string, string[]>();
+                    adjustments.forEach((dy, rootId) => {
+                      membership.set(rootId, dy);
+                      const cached = branchCache.get(rootId) ?? lookups.getDescendantIds(rootId);
+                      branchCache.set(rootId, cached);
+                      cached.forEach(descId => membership.set(descId, dy));
+                    });
+                    nextNodes = nextNodes.map(n => {
+                      const dy = membership.get(n.id);
+                      if (dy === undefined) return n;
+                      return { ...n, position: { x: n.position.x, y: snapPosition(n.position.y + dy) } };
+                    });
+                  }
                 }
               }
             }
@@ -188,44 +217,66 @@ export const useDragHandlers = (lookups: Lookups, setters: Setters) => {
 
         {
           const draggedNodeLive = nextNodes.find(n => n.id === id);
-          const isServiceLevelDrag = (draggedNodeLive ? (draggedNodeLive.data as FoxNodeData).depth ?? 0 : 0) === 1;
-          if (!isServiceLevelDrag) {
-            const directParentId = parentLookup.get(id) ?? null;
-            const grandParentId = directParentId ? parentLookup.get(directParentId) ?? null : null;
-            if (directParentId && grandParentId) {
-              const branchRoots = (childrenLookup.get(grandParentId) ?? []).map(c => c.id);
-              if (branchRoots.length > 1) {
-                const idToIndex = new Map(nextNodes.map((n, i) => [n.id, i]));
-                const branches = branchRoots.map(rootId => {
-                  const ids = new Set([rootId, ...getDescendantIds(rootId)]);
-                  const bounds = computeBranchBounds(nextNodes, ids);
-                  return { rootId, ids, ...bounds };
+          const draggedDepth = (draggedNodeLive ? (draggedNodeLive.data as FoxNodeData).depth ?? 0 : 0);
+          const isServiceLevelDrag = draggedDepth === 1;
+          const directParentId = parentLookup.get(id) ?? null;
+          const grandParentId = directParentId ? parentLookup.get(directParentId) ?? null : null;
+
+          const resolveAndSpaceBranches = (branchRootIds: string[], draggedRootId: string) => {
+            if (branchRootIds.length <= 1) return;
+            const idToIndex = new Map(nextNodes.map((n, i) => [n.id, i]));
+            const branches = branchRootIds.map(rootId => {
+              const ids = new Set([rootId, ...getDescendantIds(rootId)]);
+              const bounds = computeBranchBounds(nextNodes, ids);
+              return { rootId, ids, ...bounds };
+            });
+            branches.sort((a, b) => a.minY - b.minY);
+            const draggedIndex = branches.findIndex(b => b.rootId === draggedRootId);
+            if (draggedIndex === -1) return;
+            // Push all branches below the dragged branch down enough to keep gap
+            for (let i = draggedIndex + 1; i < branches.length; i += 1) {
+              const prev = branches[i - 1];
+              const cur = branches[i];
+              const neededTop = prev.maxY + BRANCH_PAD;
+              const rawDy = snapPosition(neededTop - cur.minY);
+              const dy = clampStep(rawDy);
+              if (dy !== 0) {
+                cur.ids.forEach(nid => {
+                  const idx = idToIndex.get(nid);
+                  if (idx === undefined) return;
+                  const node = nextNodes[idx];
+                  nextNodes[idx] = { ...node, position: { x: node.position.x, y: snapPosition(node.position.y + dy) } };
                 });
-                branches.sort((a, b) => a.minY - b.minY);
-                const draggedParentIndex = branches.findIndex(b => b.rootId === directParentId);
-                if (draggedParentIndex !== -1) {
-                  const draggedBranch = branches[draggedParentIndex];
-                  const firstBelow = branches[draggedParentIndex + 1];
-                  if (firstBelow) {
-                    const neededTop = draggedBranch.maxY + DRAG_VERTICAL_GAP;
-                    const dy = snapPosition(neededTop - firstBelow.minY);
-                    if (dy !== 0) {
-                      for (let i = draggedParentIndex + 1; i < branches.length; i += 1) {
-                        const cur = branches[i];
-                        cur.ids.forEach(nid => {
-                          const idx = idToIndex.get(nid);
-                          if (idx === undefined) return;
-                          const node = nextNodes[idx];
-                          nextNodes[idx] = { ...node, position: { x: node.position.x, y: snapPosition(node.position.y + dy) } };
-                        });
-                        cur.minY = snapPosition(cur.minY + dy);
-                        cur.maxY = snapPosition(cur.maxY + dy);
-                      }
-                    }
-                  }
-                }
+                cur.minY = snapPosition(cur.minY + dy);
+                cur.maxY = snapPosition(cur.maxY + dy);
               }
             }
+            // Pull branches above the dragged branch up enough to keep gap
+            for (let i = draggedIndex - 1; i >= 0; i -= 1) {
+              const next = branches[i + 1];
+              const cur = branches[i];
+              const neededBottom = next.minY - BRANCH_PAD;
+              const rawDy = snapPosition(neededBottom - cur.maxY);
+              const dy = clampStep(rawDy);
+              if (dy !== 0) {
+                cur.ids.forEach(nid => {
+                  const idx = idToIndex.get(nid);
+                  if (idx === undefined) return;
+                  const node = nextNodes[idx];
+                  nextNodes[idx] = { ...node, position: { x: node.position.x, y: snapPosition(node.position.y + dy) } };
+                });
+                cur.minY = snapPosition(cur.minY + dy);
+                cur.maxY = snapPosition(cur.maxY + dy);
+              }
+            }
+          };
+
+          if (!isServiceLevelDrag && directParentId && grandParentId) {
+            const branchRoots = (childrenLookup.get(grandParentId) ?? []).map(c => c.id);
+            resolveAndSpaceBranches(branchRoots, directParentId);
+          } else if (isServiceLevelDrag && directParentId) {
+            const rootBranchRoots = (childrenLookup.get(directParentId) ?? []).map(c => c.id);
+            resolveAndSpaceBranches(rootBranchRoots, id);
           }
         }
 
@@ -260,11 +311,51 @@ export const useDragHandlers = (lookups: Lookups, setters: Setters) => {
     [getDescendantIds, parentLookup, childrenLookup, setFlowNodes],
   );
 
+  const handleNodeDrag = useCallback(
+    (id: string, position?: XYPosition | null) => {
+      if (!position || id === 'fox-root') return;
+
+      lastDragIdRef.current = id;
+      lastDragPositionRef.current = position;
+
+      if (rafInFlightRef.current) {
+        rafQueuedRef.current = true;
+        return;
+      }
+
+      rafInFlightRef.current = true;
+      requestAnimationFrame(() => {
+        const dragId = lastDragIdRef.current;
+        const dragPos = lastDragPositionRef.current;
+        if (dragId && dragPos) {
+          rawHandleNodeDrag(dragId, dragPos);
+        }
+        rafInFlightRef.current = false;
+        if (rafQueuedRef.current) {
+          rafQueuedRef.current = false;
+          const nextId = lastDragIdRef.current;
+          const nextPos = lastDragPositionRef.current;
+          if (nextId && nextPos) {
+            handleNodeDrag(nextId, nextPos);
+          }
+        }
+      });
+    },
+    [rawHandleNodeDrag],
+  );
+
   const handleNodeDragStop = useCallback(
     (id: string, _position?: XYPosition | null) => {
       if (id === 'fox-root') {
         activeDragRef.current = null;
         return;
+      }
+
+      // Flush any pending drag frame so stop logic works with latest cursor
+      if ((rafInFlightRef.current || rafQueuedRef.current) && lastDragIdRef.current === id && lastDragPositionRef.current) {
+        rafInFlightRef.current = false;
+        rafQueuedRef.current = false;
+        rawHandleNodeDrag(id, lastDragPositionRef.current);
       }
 
       let updatedNodesSnapshot: Array<Node<FoxNodeData>> = [];
@@ -414,7 +505,10 @@ export const useDragHandlers = (lookups: Lookups, setters: Setters) => {
         const updatedNodes = nodes.map(nodeItem => {
           const branch = branchMembership.get(nodeItem.id);
           if (!branch) {
-            return { ...nodeItem, position: { x: snapPosition(nodeItem.position.x), y: snapPosition(nodeItem.position.y) } };
+            const sx = snapPosition(nodeItem.position.x);
+            const sy = snapPosition(nodeItem.position.y);
+            if (sx === nodeItem.position.x && sy === nodeItem.position.y) return nodeItem;
+            return { ...nodeItem, position: { x: sx, y: sy } };
           }
           if (nodeItem.id === branch.id) {
             return { ...nodeItem, position: { x: branch.finalX ?? branch.targetX, y: branch.finalY ?? branch.targetY } };
@@ -478,28 +572,91 @@ export const useDragHandlers = (lookups: Lookups, setters: Setters) => {
                   const ids = new Set([rootId, ...getDescendantIds(rootId)]);
                   const bounds = computeBranchBounds(finalNodes, ids);
                   return { rootId, ids, ...bounds };
-                });
-                branches.sort((a, b) => a.minY - b.minY);
-                const draggedParentIndex = branches.findIndex(b => b.rootId === directParentId);
-                if (draggedParentIndex !== -1) {
-                  const draggedBranch = branches[draggedParentIndex];
-                  const firstBelow = branches[draggedParentIndex + 1];
-                  if (firstBelow) {
-                    const neededTop = draggedBranch.maxY + DRAG_VERTICAL_GAP;
-                    const dy = snapPosition(neededTop - firstBelow.minY);
+                }).sort((a, b) => a.minY - b.minY);
+                const draggedIndex = branches.findIndex(b => b.rootId === directParentId);
+                if (draggedIndex !== -1) {
+                  for (let i = draggedIndex + 1; i < branches.length; i += 1) {
+                    const prev = branches[i - 1];
+                    const cur = branches[i];
+                  const neededTop = prev.maxY + BRANCH_PAD;
+                  const dy = snapPosition(neededTop - cur.minY);
                     if (dy !== 0) {
-                      for (let i = draggedParentIndex + 1; i < branches.length; i += 1) {
-                        const cur = branches[i];
-                        cur.ids.forEach(nid => {
-                          const idx = idToIndex.get(nid);
-                          if (idx === undefined) return;
-                          const node = finalNodes[idx];
-                          finalNodes[idx] = { ...node, position: { x: node.position.x, y: snapPosition(node.position.y + dy) } };
-                        });
-                        cur.minY = snapPosition(cur.minY + dy);
-                        cur.maxY = snapPosition(cur.maxY + dy);
-                      }
+                      cur.ids.forEach(nid => {
+                        const idx = idToIndex.get(nid);
+                        if (idx === undefined) return;
+                        const node = finalNodes[idx];
+                        finalNodes[idx] = { ...node, position: { x: node.position.x, y: snapPosition(node.position.y + dy) } };
+                      });
+                      cur.minY = snapPosition(cur.minY + dy);
+                      cur.maxY = snapPosition(cur.maxY + dy);
                     }
+                  }
+                  for (let i = draggedIndex - 1; i >= 0; i -= 1) {
+                    const next = branches[i + 1];
+                    const cur = branches[i];
+                  const neededBottom = next.minY - BRANCH_PAD;
+                  const dy = snapPosition(neededBottom - cur.maxY);
+                    if (dy !== 0) {
+                      cur.ids.forEach(nid => {
+                        const idx = idToIndex.get(nid);
+                        if (idx === undefined) return;
+                        const node = finalNodes[idx];
+                        finalNodes[idx] = { ...node, position: { x: node.position.x, y: snapPosition(node.position.y + dy) } };
+                      });
+                      cur.minY = snapPosition(cur.minY + dy);
+                      cur.maxY = snapPosition(cur.maxY + dy);
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Also resolve branch spacing when a service-level node was dropped.
+        if ((finalNodes.find(n => n.id === id)?.data as FoxNodeData | undefined)?.depth === 1) {
+          const rootId = parentLookup.get(id) ?? null;
+          if (rootId) {
+            const branchRoots = (childrenLookup.get(rootId) ?? []).map(c => c.id);
+            if (branchRoots.length > 1) {
+              const idToIndex = new Map(finalNodes.map((n, i) => [n.id, i]));
+              const branches = branchRoots.map(rootId2 => {
+                const ids = new Set([rootId2, ...getDescendantIds(rootId2)]);
+                const bounds = computeBranchBounds(finalNodes, ids);
+                return { rootId: rootId2, ids, ...bounds };
+              }).sort((a, b) => a.minY - b.minY);
+              const draggedIndex = branches.findIndex(b => b.rootId === id);
+              if (draggedIndex !== -1) {
+                for (let i = draggedIndex + 1; i < branches.length; i += 1) {
+                  const prev = branches[i - 1];
+                  const cur = branches[i];
+                  const neededTop = prev.maxY + BRANCH_PAD;
+                  const dy = snapPosition(neededTop - cur.minY);
+                  if (dy !== 0) {
+                    cur.ids.forEach(nid => {
+                      const idx = idToIndex.get(nid);
+                      if (idx === undefined) return;
+                      const node = finalNodes[idx];
+                      finalNodes[idx] = { ...node, position: { x: node.position.x, y: snapPosition(node.position.y + dy) } };
+                    });
+                    cur.minY = snapPosition(cur.minY + dy);
+                    cur.maxY = snapPosition(cur.maxY + dy);
+                  }
+                }
+                for (let i = draggedIndex - 1; i >= 0; i -= 1) {
+                  const next = branches[i + 1];
+                  const cur = branches[i];
+                  const neededBottom = next.minY - BRANCH_PAD;
+                  const dy = snapPosition(neededBottom - cur.maxY);
+                  if (dy !== 0) {
+                    cur.ids.forEach(nid => {
+                      const idx = idToIndex.get(nid);
+                      if (idx === undefined) return;
+                      const node = finalNodes[idx];
+                      finalNodes[idx] = { ...node, position: { x: node.position.x, y: snapPosition(node.position.y + dy) } };
+                    });
+                    cur.minY = snapPosition(cur.minY + dy);
+                    cur.maxY = snapPosition(cur.maxY + dy);
                   }
                 }
               }
@@ -554,9 +711,17 @@ export const useDragHandlers = (lookups: Lookups, setters: Setters) => {
 
         {
           const scopeSet = dragFamilyIdsRef.current ?? computeFamilySetFromNodes(finalNodes, (targetNode.data as FoxNodeData).serviceId);
-          const draggedNode = finalNodes.find(n => n.id === id);
-          const draggedDepth = draggedNode ? ((draggedNode.data as FoxNodeData).depth ?? 0) : 0;
-          finalNodes = enforceDepthVerticalSeparation(finalNodes, scopeSet, draggedDepth, getDescendantIds);
+          const orderedDepths = Array.from(
+            finalNodes.reduce((acc, node) => {
+              if (!scopeSet.has(node.id)) return acc;
+              const nodeDepth = ((node.data as FoxNodeData).depth ?? 0);
+              if (nodeDepth > 0) acc.add(nodeDepth);
+              return acc;
+            }, new Set<number>()),
+          ).sort((a, b) => a - b).filter(d => d !== 1); // skip service-level; branch spacing handles it
+          orderedDepths.forEach(depth => {
+            finalNodes = enforceDepthVerticalSeparation(finalNodes, scopeSet, depth, getDescendantIds);
+          });
         }
 
         updatedNodesSnapshot = finalNodes;
@@ -650,7 +815,7 @@ export const useDragHandlers = (lookups: Lookups, setters: Setters) => {
         return next;
       });
     },
-    [childrenLookup, getDescendantIds, parentLookup, setCustomOrder, setFlowNodes, setManualPositions],
+    [childrenLookup, getDescendantIds, parentLookup, rawHandleNodeDrag, setCustomOrder, setFlowNodes, setManualPositions],
   );
 
   return { handleNodeDrag, handleNodeDragStop } as const;

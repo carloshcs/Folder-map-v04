@@ -49,9 +49,13 @@ export const HORIZONTAL_GAP = 200; // horizontal distance between generations
 // This keeps default layout spacing equal to push/pull distance during drag.
 export const VERTICAL_GAP = Math.ceil((NODE_HEIGHT + 10) / SNAP_SIZE) * SNAP_SIZE; // ~70 -> 72
 
-// During-drag additional push spacing (between branches). Set to 0 to disable
-// extra gap so only the default layout spacing applies.
-export const DRAG_VERTICAL_GAP = 0;
+// During drag, keep the same spacing buffer used in the static layout so
+// branches snap back into the default vertical rhythm instead of drifting.
+export const DRAG_VERTICAL_GAP = VERTICAL_GAP;
+
+// Smoothness: limit how much neighbors move per drag tick.
+// Keep aligned with grid for visual stability.
+export const DRAG_SMOOTH_MAX_STEP = SNAP_SIZE; // max 1 grid unit per update
 
 // Default expansion depth
 // Only show the reference root (Folder Fox (0,0)) expanded initially so cloud services start collapsed
