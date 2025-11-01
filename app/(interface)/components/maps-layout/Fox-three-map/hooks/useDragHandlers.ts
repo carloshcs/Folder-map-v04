@@ -89,9 +89,6 @@ const clampPositionWithinBoundary = (
   };
 };
 
-const isNodeCenterOutsideBoundary = (node: Node<FoxNodeData>, boundary: Boundary): boolean =>
-  isCenterOutsideBoundary(getNodeCenter(node), boundary);
-
 type Lookups = {
   parentLookup: Map<string, string | null>;
   childrenLookup: Map<string, any[]>; // FoxTreeNode[] but we only use .id
