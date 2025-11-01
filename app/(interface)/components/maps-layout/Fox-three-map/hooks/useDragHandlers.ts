@@ -302,28 +302,40 @@ export const useDragHandlers = (lookups: Lookups, setters: Setters) => {
                 const liveServiceSiblings = liveSiblingsAll.filter(n => ((n.data as FoxNodeData).depth ?? 0) === 1);
                 const parentNodeLive = nextNodes.find(n => n.id === parentId);
                 if (parentNodeLive && liveServiceSiblings.length > 1) {
-                  const sorted = liveServiceSiblings.slice().sort((a, b) => a.position.y - b.position.y);
-                  const adjustments = new Map<string, number>();
-                  sorted.forEach((sib, index) => {
-                    if (sib.id === id) return;
-                    const targetY = (parentNodeLive.position.y + VERTICAL_GAP + VERTICAL_GAP * index);
-                    const dy = clampStep(targetY - sib.position.y);
-                    if (dy !== 0) adjustments.set(sib.id, dy);
-                  });
-                  if (adjustments.size > 0) {
-                    const membership = new Map<string, number>();
-                    const branchCache = new Map<string, string[]>();
-                    adjustments.forEach((dy, rootId) => {
-                      membership.set(rootId, dy);
-                      const cached = branchCache.get(rootId) ?? lookups.getDescendantIds(rootId);
-                      branchCache.set(rootId, cached);
-                      cached.forEach(descId => membership.set(descId, dy));
-                    });
-                    nextNodes = nextNodes.map(n => {
-                      const dy = membership.get(n.id);
-                      if (dy === undefined) return n;
-                      return { ...n, position: { x: n.position.x, y: (n.position.y + dy) } };
-                    });
+                  const parentBoundary = buildBoundaryFromParent(parentNodeLive);
+                  const draggedNodeLive = liveServiceSiblings.find(sib => sib.id === id) ?? null;
+                  const draggedOutside = draggedNodeLive
+                    ? isNodeCenterOutsideBoundary(draggedNodeLive, parentBoundary)
+                    : false;
+                  if (!draggedOutside) {
+                    const adjustableSiblings = liveServiceSiblings.filter(
+                      sib => !isNodeCenterOutsideBoundary(sib, parentBoundary),
+                    );
+                    if (adjustableSiblings.length > 1) {
+                      const sorted = adjustableSiblings.slice().sort((a, b) => a.position.y - b.position.y);
+                      const adjustments = new Map<string, number>();
+                      sorted.forEach((sib, index) => {
+                        if (sib.id === id) return;
+                        const targetY = parentNodeLive.position.y + VERTICAL_GAP + VERTICAL_GAP * index;
+                        const dy = clampStep(targetY - sib.position.y);
+                        if (dy !== 0) adjustments.set(sib.id, dy);
+                      });
+                      if (adjustments.size > 0) {
+                        const membership = new Map<string, number>();
+                        const branchCache = new Map<string, string[]>();
+                        adjustments.forEach((dy, rootId) => {
+                          membership.set(rootId, dy);
+                          const cached = branchCache.get(rootId) ?? lookups.getDescendantIds(rootId);
+                          branchCache.set(rootId, cached);
+                          cached.forEach(descId => membership.set(descId, dy));
+                        });
+                        nextNodes = nextNodes.map(n => {
+                          const dy = membership.get(n.id);
+                          if (dy === undefined) return n;
+                          return { ...n, position: { x: n.position.x, y: n.position.y + dy } };
+                        });
+                      }
+                    }
                   }
                 }
               } else {
