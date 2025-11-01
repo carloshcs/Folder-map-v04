@@ -86,8 +86,8 @@ export const useFoxThreeActions = (
   const { expandedState, toggleNodeExpansionById, getIsNodeExpanded } = useExpansionState(filteredTree);
 
   const layout = useMemo(
-    () => createFlowLayout(orderedTree, expandedState),
-    [orderedTree, expandedState],
+    () => createFlowLayout(orderedTree, expandedState, manualPositions),
+    [orderedTree, expandedState, manualPositions],
   );
 
   // Re-apply any manual positions over computed layout
