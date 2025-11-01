@@ -12,7 +12,7 @@ import {
   snapUpToGrid,
   snapWithMinimum,
 } from '../utils/grid';
-import { HORIZONTAL_GAP, VERTICAL_GAP, DRAG_VERTICAL_GAP, DRAG_SMOOTH_MAX_STEP, NODE_HEIGHT } from '../config';
+import { HORIZONTAL_GAP, VERTICAL_GAP, DRAG_VERTICAL_GAP, DRAG_SMOOTH_MAX_STEP, NODE_HEIGHT, NODE_WIDTH } from '../config';
 
 // Branch-to-branch padding measured from previous bottom to next top
 // Set to zero to minimize inter-branch pad during drag spacing.
@@ -39,6 +39,59 @@ const quadrantKeyFromDelta = (deltaX: number, deltaY: number): string => `${axis
 const computeQuadrantKeyFromPositions = (child: XYPosition, parent: XYPosition): string =>
   quadrantKeyFromDelta(child.x - parent.x, child.y - parent.y);
 
+type Boundary = {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+};
+
+const getNodeDimensions = (node: Node<FoxNodeData>): { width: number; height: number } => ({
+  width: node.width ?? NODE_WIDTH,
+  height: node.height ?? NODE_HEIGHT,
+});
+
+const getNodeCenter = (node: Node<FoxNodeData>): XYPosition => {
+  const { width, height } = getNodeDimensions(node);
+  return {
+    x: node.position.x + width / 2,
+    y: node.position.y + height / 2,
+  };
+};
+
+const buildBoundaryFromParent = (parent: Node<FoxNodeData>): Boundary => {
+  const center = getNodeCenter(parent);
+  return {
+    minX: center.x - HORIZONTAL_GAP,
+    maxX: center.x + HORIZONTAL_GAP,
+    minY: center.y - VERTICAL_GAP,
+    maxY: center.y + VERTICAL_GAP,
+  };
+};
+
+const isCenterOutsideBoundary = (center: XYPosition, boundary: Boundary): boolean =>
+  center.x < boundary.minX || center.x > boundary.maxX || center.y < boundary.minY || center.y > boundary.maxY;
+
+const clampPositionWithinBoundary = (
+  position: XYPosition,
+  node: Node<FoxNodeData>,
+  boundary: Boundary,
+): XYPosition => {
+  const { width, height } = getNodeDimensions(node);
+  const centerX = position.x + width / 2;
+  const centerY = position.y + height / 2;
+  const clampedCenterX = Math.min(Math.max(centerX, boundary.minX), boundary.maxX);
+  const clampedCenterY = Math.min(Math.max(centerY, boundary.minY), boundary.maxY);
+  if (clampedCenterX === centerX && clampedCenterY === centerY) return position;
+  return {
+    x: snapPosition(clampedCenterX - width / 2),
+    y: snapPosition(clampedCenterY - height / 2),
+  };
+};
+
+const isNodeCenterOutsideBoundary = (node: Node<FoxNodeData>, boundary: Boundary): boolean =>
+  isCenterOutsideBoundary(getNodeCenter(node), boundary);
+
 type Lookups = {
   parentLookup: Map<string, string | null>;
   childrenLookup: Map<string, any[]>; // FoxTreeNode[] but we only use .id
@@ -59,6 +112,47 @@ type ActiveDragState = {
   serviceId?: string | null;
   desiredXSign?: -1 | 0 | 1;
   desiredYSign?: -1 | 0 | 1;
+};
+
+const enforceServiceNodeBoundary = (
+  baseNodes: Array<Node<FoxNodeData>>,
+  currentNodes: Array<Node<FoxNodeData>>,
+  draggedId: string,
+  parentLookup: Map<string, string | null>,
+): Array<Node<FoxNodeData>> => {
+  if (currentNodes.length === 0) return currentNodes;
+
+  const baseMap = new Map(baseNodes.map(node => [node.id, node]));
+  const parentCache = new Map<string, Node<FoxNodeData> | undefined>();
+
+  return currentNodes.map(node => {
+    const depth = (node.data as FoxNodeData).depth ?? 0;
+    if (depth !== 1 || node.id === draggedId) return node;
+
+    const parentId = parentLookup.get(node.id) ?? null;
+    if (!parentId) return node;
+
+    if (!parentCache.has(parentId)) {
+      parentCache.set(parentId, currentNodes.find(n => n.id === parentId) ?? baseMap.get(parentId));
+    }
+    const parentNode = parentCache.get(parentId);
+    if (!parentNode) return node;
+
+    const boundary = buildBoundaryFromParent(parentNode);
+    const baseNode = baseMap.get(node.id);
+    const baseCenter = baseNode ? getNodeCenter(baseNode) : null;
+    const startedOutside = baseCenter ? isCenterOutsideBoundary(baseCenter, boundary) : false;
+
+    if (startedOutside) {
+      if (!baseNode) return node;
+      if (node.position.x === baseNode.position.x && node.position.y === baseNode.position.y) return node;
+      return { ...node, position: { ...baseNode.position } };
+    }
+
+    const clamped = clampPositionWithinBoundary(node.position, node, boundary);
+    if (clamped.x === node.position.x && clamped.y === node.position.y) return node;
+    return { ...node, position: clamped };
+  });
 };
 
 export const useDragHandlers = (lookups: Lookups, setters: Setters) => {
@@ -211,28 +305,40 @@ export const useDragHandlers = (lookups: Lookups, setters: Setters) => {
                 const liveServiceSiblings = liveSiblingsAll.filter(n => ((n.data as FoxNodeData).depth ?? 0) === 1);
                 const parentNodeLive = nextNodes.find(n => n.id === parentId);
                 if (parentNodeLive && liveServiceSiblings.length > 1) {
-                  const sorted = liveServiceSiblings.slice().sort((a, b) => a.position.y - b.position.y);
-                  const adjustments = new Map<string, number>();
-                  sorted.forEach((sib, index) => {
-                    if (sib.id === id) return;
-                    const targetY = (parentNodeLive.position.y + VERTICAL_GAP + VERTICAL_GAP * index);
-                    const dy = clampStep(targetY - sib.position.y);
-                    if (dy !== 0) adjustments.set(sib.id, dy);
-                  });
-                  if (adjustments.size > 0) {
-                    const membership = new Map<string, number>();
-                    const branchCache = new Map<string, string[]>();
-                    adjustments.forEach((dy, rootId) => {
-                      membership.set(rootId, dy);
-                      const cached = branchCache.get(rootId) ?? lookups.getDescendantIds(rootId);
-                      branchCache.set(rootId, cached);
-                      cached.forEach(descId => membership.set(descId, dy));
-                    });
-                    nextNodes = nextNodes.map(n => {
-                      const dy = membership.get(n.id);
-                      if (dy === undefined) return n;
-                      return { ...n, position: { x: n.position.x, y: (n.position.y + dy) } };
-                    });
+                  const parentBoundary = buildBoundaryFromParent(parentNodeLive);
+                  const draggedNodeLive = liveServiceSiblings.find(sib => sib.id === id) ?? null;
+                  const draggedOutside = draggedNodeLive
+                    ? isNodeCenterOutsideBoundary(draggedNodeLive, parentBoundary)
+                    : false;
+                  if (!draggedOutside) {
+                    const adjustableSiblings = liveServiceSiblings.filter(
+                      sib => !isNodeCenterOutsideBoundary(sib, parentBoundary),
+                    );
+                    if (adjustableSiblings.length > 1) {
+                      const sorted = adjustableSiblings.slice().sort((a, b) => a.position.y - b.position.y);
+                      const adjustments = new Map<string, number>();
+                      sorted.forEach((sib, index) => {
+                        if (sib.id === id) return;
+                        const targetY = parentNodeLive.position.y + VERTICAL_GAP + VERTICAL_GAP * index;
+                        const dy = clampStep(targetY - sib.position.y);
+                        if (dy !== 0) adjustments.set(sib.id, dy);
+                      });
+                      if (adjustments.size > 0) {
+                        const membership = new Map<string, number>();
+                        const branchCache = new Map<string, string[]>();
+                        adjustments.forEach((dy, rootId) => {
+                          membership.set(rootId, dy);
+                          const cached = branchCache.get(rootId) ?? lookups.getDescendantIds(rootId);
+                          branchCache.set(rootId, cached);
+                          cached.forEach(descId => membership.set(descId, dy));
+                        });
+                        nextNodes = nextNodes.map(n => {
+                          const dy = membership.get(n.id);
+                          if (dy === undefined) return n;
+                          return { ...n, position: { x: n.position.x, y: n.position.y + dy } };
+                        });
+                      }
+                    }
                   }
                 }
               } else {
@@ -296,6 +402,8 @@ export const useDragHandlers = (lookups: Lookups, setters: Setters) => {
             const parentGroupId = parentLookup.get(draggedRootId) ?? null;
             const parentNode = parentGroupId ? nextNodes.find(n => n.id === parentGroupId) : null;
             const parentPosition = parentNode?.position ?? { x: 0, y: 0 };
+            const parentDepth = parentNode ? ((parentNode.data as FoxNodeData).depth ?? 0) : null;
+            const parentBoundary = parentDepth === 0 && parentNode ? buildBoundaryFromParent(parentNode) : null;
             const rootNodeCache = new Map<string, Node<FoxNodeData> | undefined>();
             const getRootNode = (rootId: string) => {
               if (!rootNodeCache.has(rootId)) {
@@ -311,8 +419,20 @@ export const useDragHandlers = (lookups: Lookups, setters: Setters) => {
               quadrantCache.set(rootId, key);
               return key;
             };
+            const isBranchOutsideBoundary = (rootId: string): boolean => {
+              if (!parentBoundary) return false;
+              const node = getRootNode(rootId);
+              if (!node) return false;
+              const center = getNodeCenter(node);
+              return isCenterOutsideBoundary(center, parentBoundary);
+            };
+            if (isBranchOutsideBoundary(draggedRootId)) return;
             const draggedQuadrantKey = getQuadrantForRoot(draggedRootId);
-            const relevantBranches = branches.filter(branch => getQuadrantForRoot(branch.rootId) === draggedQuadrantKey);
+            const relevantBranches = branches.filter(branch => {
+              if (getQuadrantForRoot(branch.rootId) !== draggedQuadrantKey) return false;
+              if (isBranchOutsideBoundary(branch.rootId)) return false;
+              return true;
+            });
             if (relevantBranches.length <= 1) return;
             const sorted = relevantBranches.slice().sort((a, b) => a.minY - b.minY);
             const draggedIndex = sorted.findIndex(b => b.rootId === draggedRootId);
@@ -394,6 +514,8 @@ export const useDragHandlers = (lookups: Lookups, setters: Setters) => {
             }
           }
         }
+
+        nextNodes = enforceServiceNodeBoundary(nodes, nextNodes, id, parentLookup);
 
         return nextNodes;
       });
@@ -772,6 +894,8 @@ export const useDragHandlers = (lookups: Lookups, setters: Setters) => {
               const idToIndex = new Map(finalNodes.map((n, i) => [n.id, i]));
               const parentNode = finalNodes.find(n => n.id === rootId);
               const parentPosition = parentNode?.position ?? { x: 0, y: 0 };
+              const parentDepth = parentNode ? ((parentNode.data as FoxNodeData).depth ?? 0) : null;
+              const parentBoundary = parentDepth === 0 && parentNode ? buildBoundaryFromParent(parentNode) : null;
               const branchDescriptors = branchRoots.map(rootId2 => {
                 const ids = new Set([rootId2, ...getDescendantIds(rootId2)]);
                 const bounds = computeBranchBounds(finalNodes, ids);
@@ -785,42 +909,60 @@ export const useDragHandlers = (lookups: Lookups, setters: Setters) => {
                 quadrantCache.set(rootId2, key);
                 return key;
               };
+              const branchNodeCache = new Map<string, Node<FoxNodeData> | undefined>();
+              const getRootNode = (rootId2: string) => {
+                if (!branchNodeCache.has(rootId2)) {
+                  branchNodeCache.set(rootId2, finalNodes.find(n => n.id === rootId2));
+                }
+                return branchNodeCache.get(rootId2);
+              };
+              const isBranchOutsideBoundary = (rootId2: string): boolean => {
+                if (!parentBoundary) return false;
+                const node = getRootNode(rootId2);
+                if (!node) return false;
+                const center = getNodeCenter(node);
+                return isCenterOutsideBoundary(center, parentBoundary);
+              };
               const draggedQuadrantKey = getQuadrantForRoot(id);
               const relevantBranches = branchDescriptors
                 .filter(descriptor => getQuadrantForRoot(descriptor.rootId) === draggedQuadrantKey)
+                .filter(descriptor => !isBranchOutsideBoundary(descriptor.rootId))
                 .sort((a, b) => a.minY - b.minY);
-              const draggedIndex = relevantBranches.findIndex(b => b.rootId === id);
-              if (draggedIndex !== -1) {
-                for (let i = draggedIndex + 1; i < relevantBranches.length; i += 1) {
-                  const prev = relevantBranches[i - 1];
-                  const cur = relevantBranches[i];
-                  const neededTop = prev.maxY + BRANCH_PAD;
-                  const dy = snapPosition(neededTop - cur.minY);
-                  if (dy !== 0) {
-                    cur.ids.forEach(nid => {
-                      const idx = idToIndex.get(nid);
-                      if (idx === undefined) return;
-                      const node = finalNodes[idx];
-                      finalNodes[idx] = { ...node, position: { x: node.position.x, y: snapPosition(node.position.y + dy) } };
-                    });
-                    cur.minY = snapPosition(cur.minY + dy);
-                    cur.maxY = snapPosition(cur.maxY + dy);
+              const skipAdjustments = parentBoundary ? isBranchOutsideBoundary(id) : false;
+              if (!skipAdjustments) {
+                const draggedIndex = relevantBranches.findIndex(b => b.rootId === id);
+                if (draggedIndex !== -1) {
+                  for (let i = draggedIndex + 1; i < relevantBranches.length; i += 1) {
+                    const prev = relevantBranches[i - 1];
+                    const cur = relevantBranches[i];
+                    const neededTop = prev.maxY + BRANCH_PAD;
+                    const dy = snapPosition(neededTop - cur.minY);
+                    if (dy !== 0) {
+                      cur.ids.forEach(nid => {
+                        const idx = idToIndex.get(nid);
+                        if (idx === undefined) return;
+                        const node = finalNodes[idx];
+                        finalNodes[idx] = { ...node, position: { x: node.position.x, y: snapPosition(node.position.y + dy) } };
+                      });
+                      cur.minY = snapPosition(cur.minY + dy);
+                      cur.maxY = snapPosition(cur.maxY + dy);
+                    }
                   }
-                }
-                for (let i = draggedIndex - 1; i >= 0; i -= 1) {
-                  const next = relevantBranches[i + 1];
-                  const cur = relevantBranches[i];
-                  const neededBottom = next.minY - BRANCH_PAD;
-                  const dy = snapPosition(neededBottom - cur.maxY);
-                  if (dy !== 0) {
-                    cur.ids.forEach(nid => {
-                      const idx = idToIndex.get(nid);
-                      if (idx === undefined) return;
-                      const node = finalNodes[idx];
-                      finalNodes[idx] = { ...node, position: { x: node.position.x, y: snapPosition(node.position.y + dy) } };
-                    });
-                    cur.minY = snapPosition(cur.minY + dy);
-                    cur.maxY = snapPosition(cur.maxY + dy);
+                  for (let i = draggedIndex - 1; i >= 0; i -= 1) {
+                    const next = relevantBranches[i + 1];
+                    const cur = relevantBranches[i];
+                    const neededBottom = next.minY - BRANCH_PAD;
+                    const dy = snapPosition(neededBottom - cur.maxY);
+                    if (dy !== 0) {
+                      cur.ids.forEach(nid => {
+                        const idx = idToIndex.get(nid);
+                        if (idx === undefined) return;
+                        const node = finalNodes[idx];
+                        finalNodes[idx] = { ...node, position: { x: node.position.x, y: snapPosition(node.position.y + dy) } };
+                      });
+                      cur.minY = snapPosition(cur.minY + dy);
+                      cur.maxY = snapPosition(cur.maxY + dy);
+                    }
                   }
                 }
               }
@@ -876,6 +1018,8 @@ export const useDragHandlers = (lookups: Lookups, setters: Setters) => {
             finalNodes = enforceDepthVerticalSeparation(finalNodes, scopeSet, depth, getDescendantIds);
           });
         }
+
+        finalNodes = enforceServiceNodeBoundary(nodes, finalNodes, id, parentLookup);
 
         updatedNodesSnapshot = finalNodes;
         branchMutationsSnapshot = branchAdjustments.map(branch => ({
